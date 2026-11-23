@@ -2318,5 +2318,8 @@
   "Save Changes": "Simpan Perubahan",
   "Save Schedule": "Simpan Jadwal",
   "routine(s) configured": "rutinitas aktif",
-  "Device timezone": "Zona waktu perangkat"
+  "Device timezone": "Zona waktu perangkat",
+  "Update routine parameters and agent execution instructions.": "Perbarui parameter rutinitas dan instruksi eksekusi agen.",
+  "Configure routine parameters and agent execution instructions.": "Atur parameter rutinitas dan instruksi eksekusi agen.",
+  "Markdown and multi-step workflows supported": "Mendukung markdown & alur multi-langkah"
 }

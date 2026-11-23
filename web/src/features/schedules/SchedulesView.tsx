@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   AlertCircle,
   RotateCw,
-  X,
   ChevronDown,
   Repeat,
   FolderGit2,
@@ -17,6 +16,7 @@ import {
 import { useLanguage } from '../../context/LanguageContext'
 import { HairlineList } from '../../components/layout/HairlineList'
 import { StatusDot } from '../../components/ui/StatusDot'
+import { SlideDrawer } from '../../components/layout/SlideDrawer'
 import { projectsApi } from '../../api/projects'
 import { cn } from '../../lib/utils'
 
@@ -543,38 +543,65 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
         </div>
       )}
 
-      {/* Create / Edit Modal Dialog */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-lg max-h-[90dvh] overflow-y-auto rounded-xl border border-border bg-card p-5 sm:p-6 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-border/50 pb-3">
-              <h2 className="text-lg font-bold text-foreground">
-                {editingTask ? t('Edit Scheduled Routine') : t('New Scheduled Routine')}
-              </h2>
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+      {/* Create / Edit SlideDrawer (Spacious Side Sheet & Mobile Full-Screen) */}
+      <SlideDrawer
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={editingTask ? t('Edit Scheduled Routine') : t('New Scheduled Routine')}
+        description={
+          editingTask
+            ? t('Update routine parameters and agent execution instructions.')
+            : t('Configure routine parameters and agent execution instructions.')
+        }
+        badge={
+          editingTask ? (
+            <span className="font-mono text-[11px] text-muted-foreground">
+              {editingTask.id}
+            </span>
+          ) : undefined
+        }
+        size="lg"
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(false)}
+              className="action-secondary min-h-11 sm:min-h-9 px-4 text-xs"
+            >
+              {t('Cancel')}
+            </button>
+            <button
+              type="submit"
+              form="schedule-form"
+              disabled={submitting}
+              className="action-primary min-h-11 sm:min-h-9 px-4 text-xs font-medium"
+            >
+              {submitting
+                ? t('Saving...')
+                : editingTask
+                  ? t('Save Changes')
+                  : t('Save Schedule')}
+            </button>
+          </div>
+        }
+      >
+        <form id="schedule-form" onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {t('Routine Title')}
+            </label>
+            <input
+              type="text"
+              required
+              placeholder={t('e.g. Follow-up Pelanggan WhatsApp')}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="field-control w-full rounded-lg border-border/60 text-sm font-medium focus-visible:ring-1"
+            />
+          </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  {t('Routine Title')}
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder={t('e.g. Follow-up Pelanggan WhatsApp')}
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="field-control w-full rounded-md border-border text-sm"
-                />
-              </div>
-
+          <div className="rounded-xl border border-border/40 bg-muted/20 p-3.5 sm:p-4 space-y-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {t('Target Project')}
@@ -582,7 +609,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
                 <select
                   value={projectId}
                   onChange={(e) => setProjectId(e.target.value)}
-                  className="field-control w-full rounded-md border-border text-sm"
+                  className="field-control w-full rounded-md border-border/60 text-sm"
                 >
                   <option value="">{t('None / System-wide')}</option>
                   {projects.map((p) => (
@@ -591,73 +618,58 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
                     </option>
                   ))}
                 </select>
-                <p className="text-[11px] text-muted-foreground">
-                  {t('Binds this routine to a specific project repository and isolated worktree.')}
-                </p>
               </div>
 
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  {t('Agent Instruction (Prompt)')}
+                  {t('Frequency')}
                 </label>
-                <textarea
-                  required
-                  rows={4}
-                  placeholder={t('e.g. Cek orderan yang belum dibayar hari ini dan kirimkan reminder sopan via tebar.app')}
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  className="field-control w-full rounded-md border-border text-sm resize-none"
-                />
+                <select
+                  value={scheduleType}
+                  onChange={(e) => setScheduleType(e.target.value as any)}
+                  className="field-control w-full rounded-md border-border/60 text-sm"
+                >
+                  <option value="daily">{t('Daily')}</option>
+                  <option value="weekly">{t('Weekly')}</option>
+                  <option value="interval">{t('Interval (Minutes)')}</option>
+                </select>
               </div>
+            </div>
 
-              <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/30">
+              {scheduleType === 'interval' ? (
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    {t('Frequency')}
+                    {t('Every (Minutes)')}
                   </label>
-                  <select
-                    value={scheduleType}
-                    onChange={(e) => setScheduleType(e.target.value as any)}
-                    className="field-control w-full rounded-md border-border text-sm"
-                  >
-                    <option value="daily">{t('Daily')}</option>
-                    <option value="weekly">{t('Weekly')}</option>
-                    <option value="interval">{t('Interval (Minutes)')}</option>
-                  </select>
+                  <input
+                    type="number"
+                    min={15}
+                    step={15}
+                    value={intervalMins}
+                    onChange={(e) => setIntervalMins(Number(e.target.value))}
+                    className="field-control w-full rounded-md border-border/60 text-sm font-mono"
+                  />
                 </div>
-
-                {scheduleType === 'interval' ? (
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      {t('Every (Minutes)')}
-                    </label>
-                    <input
-                      type="number"
-                      min={15}
-                      step={15}
-                      value={intervalMins}
-                      onChange={(e) => setIntervalMins(Number(e.target.value))}
-                      className="field-control w-full rounded-md border-border text-sm font-mono"
-                    />
-                  </div>
-                ) : (
-                  <div className="space-y-1.5">
+              ) : (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
                     <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                       {t('Time')}
                     </label>
-                    <input
-                      type="time"
-                      required
-                      value={timeOfDay}
-                      onChange={(e) => setTimeOfDay(e.target.value)}
-                      className="field-control w-full rounded-md border-border text-sm font-mono"
-                    />
-                    <p className="text-[10px] text-muted-foreground font-mono">
+                    <span className="text-[10px] text-muted-foreground font-mono">
                       {t('Device timezone')}: {timezone}
-                    </p>
+                    </span>
                   </div>
-                )}
-              </div>
+                  <input
+                    type="time"
+                    required
+                    value={timeOfDay}
+                    onChange={(e) => setTimeOfDay(e.target.value)}
+                    className="field-control w-full rounded-md border-border/60 text-sm font-mono"
+                  />
+                </div>
+              )}
 
               {scheduleType === 'weekly' && (
                 <div className="space-y-1.5">
@@ -667,7 +679,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
                   <select
                     value={dayOfWeek}
                     onChange={(e) => setDayOfWeek(Number(e.target.value))}
-                    className="field-control w-full rounded-md border-border text-sm"
+                    className="field-control w-full rounded-md border-border/60 text-sm"
                   >
                     <option value={1}>{t('Monday')}</option>
                     <option value={2}>{t('Tuesday')}</option>
@@ -679,31 +691,34 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
                   </select>
                 </div>
               )}
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border/50">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="action-secondary min-h-11 sm:min-h-9"
-                >
-                  {t('Cancel')}
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="action-primary min-h-11 sm:min-h-9"
-                >
-                  {submitting
-                    ? t('Saving...')
-                    : editingTask
-                      ? t('Save Changes')
-                      : t('Save Schedule')}
-                </button>
-              </div>
-            </form>
+            </div>
           </div>
-        </div>
-      )}
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {t('Agent Instruction (Prompt)')}
+              </label>
+              <span className="text-[11px] text-muted-foreground">
+                {t('Markdown and multi-step workflows supported')}
+              </span>
+            </div>
+            <div className="rounded-xl border border-border/50 bg-background/50 focus-within:border-primary/60 transition-colors">
+              <textarea
+                required
+                rows={12}
+                placeholder={t('e.g. Cek orderan yang belum dibayar hari ini dan kirimkan reminder sopan via tebar.app')}
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                className="w-full bg-transparent p-3.5 font-mono text-xs leading-relaxed text-foreground placeholder:text-muted-foreground/60 focus:outline-none resize-y min-h-[260px]"
+              />
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-normal">
+              {t('Binds this routine to a specific project repository and isolated worktree.')}
+            </p>
+          </div>
+        </form>
+      </SlideDrawer>
     </div>
   )
 }

@@ -145,6 +145,9 @@ test('5. Locales: id.json and en.json provide 100% complete dictionaries for Sch
     'Save Schedule',
     'routine(s) configured',
     'Device timezone',
+    'Update routine parameters and agent execution instructions.',
+    'Configure routine parameters and agent execution instructions.',
+    'Markdown and multi-step workflows supported',
   ]
 
   for (const key of requiredKeys) {
@@ -152,4 +155,25 @@ test('5. Locales: id.json and en.json provide 100% complete dictionaries for Sch
     assert.ok(key in en, `Missing "${key}" in en.json`)
     assert.ok(id[key], `Empty translation for "${key}" in id.json`)
   }
+})
+
+test('6. SchedulesView: SlideDrawer side-sheet replaces cramped modal with spacious prompt editor', () => {
+  const viewPath = path.join(srcDir, 'features/schedules/SchedulesView.tsx')
+  const content = fs.readFileSync(viewPath, 'utf8')
+
+  assert.match(
+    content,
+    /<SlideDrawer[\s\S]*isOpen=\{isModalOpen\}[\s\S]*size="lg"/,
+    'SchedulesView must use SlideDrawer with size="lg" instead of cramped centered modal',
+  )
+  assert.match(
+    content,
+    /min-h-\[260px\]/,
+    'Prompt textarea must have min-h-[260px] to prevent text cutoff and cramped keyhole editing',
+  )
+  assert.match(
+    content,
+    /resize-y/,
+    'Prompt textarea must allow vertical resizing for comfortable multi-step prompt editing',
+  )
 })
