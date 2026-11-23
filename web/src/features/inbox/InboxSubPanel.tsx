@@ -20,7 +20,7 @@ import { NotificationsPopover } from '../notifications/NotificationsPopover'
 import { cn } from '../../lib/utils'
 import { getContactInitials } from './contact-initials'
 import { TASK_STATUS_THEMES } from '../tasks/task-ui'
-import { getCachedConversation, setCachedConversation } from './InboxView'
+import { getCachedConversation, setCachedConversation } from './conversation-cache'
 import './chat-calm.css'
 
 export function conversationPreview(message?: string, counts?: ChatContact, t: (value: string) => string = value => value) {
