@@ -58,8 +58,8 @@ func (s *DBStore) ClaimLaunch(ctx context.Context, now time.Time, token string, 
 	if _, e := s.db.ExecContext(ctx, `UPDATE task_launches SET expires_at = $1::timestamptz + INTERVAL '24 hours', updated_at = $1 WHERE state = 'queued' AND expires_at <= $1 AND task_id IN (SELECT id FROM tasks WHERE status = 'queued')`, now); e != nil {
 		return nil, e
 	}
-	// Self-heal orphan ghost-queued tasks: if a task is queued but its launch was stopped (e.g. during restart or expired window), revive it back to queued with refreshed window
-	if _, e := s.db.ExecContext(ctx, `UPDATE task_launches SET state='queued',safe_error='',lease_token='',lease_until=NULL,available_at=$1,expires_at=GREATEST(expires_at, $1::timestamptz + INTERVAL '24 hours'),updated_at=$1 WHERE state='stopped' AND safe_error IN ('Task is in terminal status.', 'Execution stopped during server restart.') AND task_id IN (SELECT id FROM tasks WHERE status='queued')`, now); e != nil {
+	// Self-heal orphan ghost-queued tasks: if a task is queued but its launch was stopped (e.g. during restart, runner idle, or expired window), revive it back to queued with refreshed window
+	if _, e := s.db.ExecContext(ctx, `UPDATE task_launches SET state='queued',safe_error='',lease_token='',lease_until=NULL,available_at=$1,expires_at=GREATEST(expires_at, $1::timestamptz + INTERVAL '24 hours'),updated_at=$1 WHERE state='stopped' AND task_id IN (SELECT id FROM tasks WHERE status='queued')`, now); e != nil {
 		return nil, e
 	}
 	// Expiry is terminal even after a lost worker; a later save cannot resurrect it.
