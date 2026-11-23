@@ -250,10 +250,40 @@ try {
     const railAriaLabel = await unreadBadgeRail.getAttribute('aria-label')
     assert.equal(railAriaLabel, '2 pesan belum dibaca', 'Desktop aria-label must accurately describe unread messages')
 
-    await page.screenshot({ path: path.join(output, 'inbox-badge-unread-desktop-1440.png') })
-    console.log('✓ Captured: inbox-badge-unread-desktop-1440.png (Active desktop badge: 2 pesan belum dibaca)')
+    // Verify vertical alignment precision and flex styling
+    const navAction = await page.$('[data-nav-tone="inbox"]')
+    const navBox = await navAction.boundingBox()
+    const badgeBox = await unreadBadgeRail.boundingBox()
+    const navCenterY = navBox.y + navBox.height / 2
+    const badgeCenterY = badgeBox.y + badgeBox.height / 2
+    const diffY = Math.abs(navCenterY - badgeCenterY)
+    assert.ok(diffY <= 1, `Badge must be vertically centered in menu row (diff was ${diffY}px)`)
 
-    // 2C. Reactive clearing when read
+    const computedStyle = await page.evaluate((el) => {
+      const s = window.getComputedStyle(el)
+      return { display: s.display, height: s.height, alignItems: s.alignItems, justifyContent: s.justifyContent }
+    }, unreadBadgeRail)
+    assert.ok(computedStyle.display === 'inline-flex' || computedStyle.display === 'flex', `Badge display must be flex/inline-flex (was ${computedStyle.display})`)
+    assert.equal(computedStyle.height, '16px', 'Badge must have height: 16px (h-4)')
+
+    await page.screenshot({ path: path.join(output, 'inbox-badge-unread-desktop-1440.png') })
+    console.log(`✓ Captured: inbox-badge-unread-desktop-1440.png (Vertical diff: ${diffY.toFixed(2)}px, display: ${computedStyle.display})`)
+
+    // 2C. Collapsed sidebar state
+    await page.click('.sidebar-collapse')
+    await page.waitForSelector('.nav-collapsed')
+    const collapsedBadge = await page.$('[data-testid="inbox-unread-badge-rail"]')
+    assert.ok(collapsedBadge, 'Collapsed rail must show badge on icon')
+    await page.screenshot({ path: path.join(output, 'inbox-badge-unread-desktop-collapsed.png') })
+    console.log('✓ Captured: inbox-badge-unread-desktop-collapsed.png (Rail icon badge)')
+
+    // 2D. Expand sidebar again
+    await page.click('.sidebar-collapse')
+    await page.waitForSelector('.app-shell:not(.nav-collapsed)')
+    const reExpandedBadge = await page.$('[data-testid="inbox-unread-badge-rail"]')
+    assert.ok(reExpandedBadge, 'Re-expanded sidebar must show badge in row')
+
+    // 2E. Reactive clearing when read
     await page.click('[data-testid="btn-mark-all-read"]')
     await page.waitForTimeout(100)
     const clearedBadgeRail = await page.$('[data-testid="inbox-unread-badge-rail"]')
