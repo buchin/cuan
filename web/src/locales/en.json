@@ -940,5 +940,11 @@
   "Configure routine parameters and agent execution instructions.": "Configure routine parameters and agent execution instructions.",
   "Markdown and multi-step workflows supported": "Markdown and multi-step workflows supported",
   "characters": "characters",
-  "This instruction will be executed automatically by the AI assistant on schedule.": "This instruction will be executed automatically by the AI assistant on schedule."
+  "This instruction will be executed automatically by the AI assistant on schedule.": "This instruction will be executed automatically by the AI assistant on schedule.",
+  "Stop session": "Stop session",
+  "Stop session?": "Stop session?",
+  "Stopping…": "Stopping…",
+  "Keep running": "Keep running",
+  "Stop the active process? Saved output and existing file changes are retained.": "Stop the active process? Saved output and existing file changes are retained.",
+  "Stop the active agent process? Existing output is retained. Changes already made by the agent are not rolled back.": "Stop the active agent process? Existing output is retained. Changes already made by the agent are not rolled back."
 }

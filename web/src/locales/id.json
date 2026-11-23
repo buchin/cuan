@@ -2327,5 +2327,11 @@
   "Configure routine parameters and agent execution instructions.": "Atur parameter rutinitas dan instruksi eksekusi agen.",
   "Markdown and multi-step workflows supported": "Mendukung markdown & alur multi-langkah",
   "characters": "karakter",
-  "This instruction will be executed automatically by the AI assistant on schedule.": "Instruksi ini akan dieksekusi secara otomatis oleh asisten AI sesuai jadwal."
+  "This instruction will be executed automatically by the AI assistant on schedule.": "Instruksi ini akan dieksekusi secara otomatis oleh asisten AI sesuai jadwal.",
+  "Stop session": "Hentikan sesi",
+  "Stop session?": "Hentikan sesi?",
+  "Stopping…": "Menghentikan…",
+  "Keep running": "Tetap jalankan",
+  "Stop the active process? Saved output and existing file changes are retained.": "Hentikan proses yang sedang berjalan? Output yang tersimpan dan perubahan file akan tetap dipertahankan.",
+  "Stop the active agent process? Existing output is retained. Changes already made by the agent are not rolled back.": "Hentikan proses agen yang sedang berjalan? Output yang ada akan dipertahankan dan perubahan file tidak akan dibatalkan."
 }

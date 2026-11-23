@@ -80,7 +80,7 @@ export function TaskSessions({
                   disabled={busy}
                   onClick={onCancel}
                 >
-                  Cancel session
+                  {language === 'id' ? 'Hentikan sesi' : 'Stop session'}
                 </button>
               )}
             </div>

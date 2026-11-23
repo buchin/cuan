@@ -1596,13 +1596,12 @@ function TaskDetailView({
       </ActionDialog>
       <ActionDialog
         open={modal === 'cancel'}
-        title="Cancel session?"
+        title={t('Stop session?')}
         onClose={() => setModal(null)}
         busy={busy}
       >
         <p className="mb-4 text-sm">
-          Stop the active agent process? Existing output is retained. Changes
-          already made by the agent are not rolled back.
+          {t('Stop the active agent process? Existing output is retained. Changes already made by the agent are not rolled back.')}
         </p>
         {error && (
           <p role="alert" className="mb-3 text-sm text-destructive">
@@ -1615,7 +1614,7 @@ function TaskDetailView({
             disabled={busy}
             onClick={() => setModal(null)}
           >
-            Keep running
+            {t('Keep running')}
           </button>
           <button
             className="action-primary"
@@ -1628,6 +1627,7 @@ function TaskDetailView({
                   const message = e instanceof Error ? e.message : ''
                   if (
                     !message.includes('cannot cancel an attempt with status') &&
+                    !message.includes('cannot stop an attempt with status') &&
                     !message.includes('no attempt is available to cancel')
                   ) {
                     throw e
@@ -1638,7 +1638,7 @@ function TaskDetailView({
               })
             }
           >
-            {busy ? 'Cancelling…' : 'Cancel session'}
+            {busy ? t('Stopping…') : t('Stop session')}
           </button>
         </div>
       </ActionDialog>

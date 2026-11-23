@@ -192,13 +192,16 @@ export function TaskSessionPage({
     sessionId === 'latest'
       ? detail?.latest_attempt || detail?.attempts[0]
       : detail?.attempts.find((a) => a.id === sessionId)
-  const isTerminalSessionCancelled = Boolean(
-    (attempt && ['canceled', 'cancelled', 'failed', 'succeeded', 'interrupted'].includes(attempt.status)) ||
-    (detail && ['cancelled', 'done'].includes(detail.status))
-  )
   const isDedicatedTerminal = Boolean(
     detail?.title?.startsWith('Terminal ·') ||
     attempt?.runner_id === 'local_terminal'
+  )
+  const isTerminalSessionCancelled = Boolean(
+    isDedicatedTerminal
+      ? (attempt && ['canceled', 'cancelled'].includes(attempt.status)) ||
+        (detail && ['cancelled', 'canceled'].includes(detail.status))
+      : (attempt && ['canceled', 'cancelled', 'failed', 'succeeded', 'interrupted'].includes(attempt.status)) ||
+        (detail && ['cancelled', 'done'].includes(detail.status))
   )
   const active = Boolean(
     !isTerminalSessionCancelled &&
@@ -631,8 +634,8 @@ export function TaskSessionPage({
             <button
               type="button"
               className="icon-action shrink-0 text-rose-500 hover:bg-rose-500/15 hover:text-rose-400 active:bg-rose-600 active:text-white transition-colors"
-              aria-label="Cancel session"
-              title={t('Cancel session')}
+              aria-label={t('Stop session')}
+              title={t('Stop session')}
               onClick={() => {
                 setCancelError('')
                 setCancel(true)
@@ -1349,7 +1352,7 @@ export function TaskSessionPage({
       </ActionDialog>
       <ActionDialog
         open={cancel}
-        title="Cancel session?"
+        title={t('Stop session?')}
         busy={busy}
         onClose={() => {
           setCancelError('')
@@ -1357,8 +1360,7 @@ export function TaskSessionPage({
         }}
       >
         <p className="mb-4 text-sm">
-          Stop the active process? Saved output and existing file changes are
-          retained.
+          {t('Stop the active process? Saved output and existing file changes are retained.')}
         </p>
         {cancelError && (
           <p role="alert" className="mb-3 text-sm text-destructive">
@@ -1374,7 +1376,7 @@ export function TaskSessionPage({
               setCancel(false)
             }}
           >
-            Keep running
+            {t('Keep running')}
           </button>
           <button
             className="action-primary"
@@ -1390,9 +1392,10 @@ export function TaskSessionPage({
                 const message =
                   e instanceof Error
                     ? e.message
-                    : 'Could not cancel the session.'
+                    : 'Could not stop the session.'
                 if (
                   message.includes('cannot cancel an attempt with status') ||
+                  message.includes('cannot stop an attempt with status') ||
                   message.includes('no attempt is available to cancel')
                 ) {
                   setCancel(false)
@@ -1406,7 +1409,7 @@ export function TaskSessionPage({
               }
             }}
           >
-            {busy ? 'Cancelling…' : 'Cancel session'}
+            {busy ? t('Stopping…') : t('Stop session')}
           </button>
         </div>
       </ActionDialog>

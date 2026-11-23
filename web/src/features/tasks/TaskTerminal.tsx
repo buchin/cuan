@@ -2065,7 +2065,7 @@ export function TaskTerminal({
 
       <p className="sr-only">
         {activeSessionId || live?.session_id
-          ? 'Closing this view does not stop the task. Use Cancel session to stop execution.'
+          ? 'Closing this view does not stop the task. Use Stop session to stop execution.'
           : 'Saved output is bounded and redacted. This view does not start a process.'}
       </p>
     </section>

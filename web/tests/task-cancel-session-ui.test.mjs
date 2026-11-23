@@ -10,8 +10,13 @@ const srcDir = path.resolve(__dirname, '../src')
 test('TaskSessionPage.tsx contains responsive Cancel session dialog with error display and busy state', () => {
   const file = fs.readFileSync(path.join(srcDir, 'features/tasks/TaskSessionPage.tsx'), 'utf-8')
   
-  // Must render Cancel session dialog with title
-  assert.ok(file.includes('title="Cancel session?"'), 'Dialog must have title "Cancel session?"')
+  // Must render Cancel/Stop session dialog with title
+  assert.ok(
+    file.includes('title={t(\'Stop session?\')}') ||
+      file.includes('title="Stop session?"') ||
+      file.includes('title="Cancel session?"'),
+    'Dialog must have title Stop/Cancel session?',
+  )
   
   // Must have cancelError state and render error with role="alert"
   assert.ok(file.includes('cancelError'), 'Must define cancelError state')
@@ -25,15 +30,24 @@ test('TaskSessionPage.tsx contains responsive Cancel session dialog with error d
   assert.ok(file.includes('setCancel(false)'), 'Must close modal on terminal status')
   
   // Must show visual feedback during cancellation
-  assert.ok(file.includes("busy ? 'Cancelling…' : 'Cancel session'"), 'Must show visual feedback Cancelling… while busy')
+  assert.ok(
+    file.includes("busy ? t('Stopping…') : t('Stop session')") ||
+      file.includes("busy ? 'Cancelling…' : 'Cancel session'"),
+    'Must show visual feedback while busy',
+  )
 })
 
 test('TaskSidePeek.tsx Cancel session does not inadvertently restart agent and gracefully handles terminal status', () => {
   const file = fs.readFileSync(path.join(srcDir, 'features/tasks/TaskSidePeek.tsx'), 'utf-8')
   
-  // Must render Cancel session dialog
+  // Must render Cancel/Stop session dialog
   assert.ok(file.includes("open={modal === 'cancel'}"), 'Must handle cancel modal')
-  assert.ok(file.includes('title="Cancel session?"'), 'Dialog must have title "Cancel session?"')
+  assert.ok(
+    file.includes('title={t(\'Stop session?\')}') ||
+      file.includes('title="Stop session?"') ||
+      file.includes('title="Cancel session?"'),
+    'Dialog must have title Stop/Cancel session?',
+  )
   assert.ok(file.includes('tasksApi.cancel(initial.id)'), 'Must call tasksApi.cancel')
   
   // Must gracefully catch already terminal status

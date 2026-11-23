@@ -74,10 +74,22 @@ export function TaskStartingPage({ taskId }: { taskId: string }) {
     setBusy(true)
     setError('')
     try {
-      if (taskStatus === 'done') {
+      let currentStatus = taskStatus
+      if (!currentStatus) {
+        try {
+          const t = await tasksApi.get(taskId)
+          currentStatus = t.status
+          if (mounted.current) {
+            setTitle(t.title)
+            setTaskStatus(t.status)
+            if (t.assignee_id) setSelectedAgent(t.assignee_id)
+          }
+        } catch {}
+      }
+      if (currentStatus === 'done') {
         try {
           await tasksApi.updateStatus(taskId, 'todo')
-          setTaskStatus('doing')
+          if (mounted.current) setTaskStatus('doing')
         } catch {}
       }
       const result = await tasksApi.runAgent(taskId, request)

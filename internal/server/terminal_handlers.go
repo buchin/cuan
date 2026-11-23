@@ -147,11 +147,15 @@ func (s *Server) handleTaskTerminalWebSocket(w http.ResponseWriter, r *http.Requ
 			targetProjID = tDetail.ProjectIDs[0]
 		}
 	}
-	isDedicatedTerminalTask := tDetail != nil && strings.HasPrefix(tDetail.Title, "Terminal ·") && targetProjID != ""
-	isCancelledOrDone := tDetail != nil && (tDetail.Status == task.TaskStatusCancelled || tDetail.Status == "canceled" || tDetail.Status == task.TaskStatusDone)
+	cleanTitle := ""
+	if tDetail != nil {
+		cleanTitle = strings.TrimSpace(tDetail.Title)
+	}
+	isDedicatedTerminalTask := tDetail != nil && (strings.HasPrefix(cleanTitle, "Terminal ·") || strings.HasPrefix(cleanTitle, "Terminal -") || strings.HasPrefix(cleanTitle, "Terminal:")) && targetProjID != ""
+	isCancelled := tDetail != nil && (tDetail.Status == task.TaskStatusCancelled || tDetail.Status == "canceled")
 
 	if isDedicatedTerminalTask {
-		if isCancelledOrDone {
+		if isCancelled {
 			respondJSONError(w, http.StatusGone, "Terminal session has ended")
 			return
 		}
@@ -1095,7 +1099,8 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 				return
 			}
 			if detail.Status == task.TaskStatusDone {
-				if strings.HasPrefix(detail.Title, "Terminal ·") {
+				cleanTitle := strings.TrimSpace(detail.Title)
+				if strings.HasPrefix(cleanTitle, "Terminal ·") || strings.HasPrefix(cleanTitle, "Terminal -") || strings.HasPrefix(cleanTitle, "Terminal:") || strings.HasPrefix(payload.Prompt, "Terminal ·") {
 					doingStatus := task.TaskStatusDoing
 					_, _ = s.taskSvc.UpdateTask(r.Context(), detail.ID, "runner", task.UpdateTaskRequest{Status: &doingStatus})
 					detail.Status = task.TaskStatusDoing

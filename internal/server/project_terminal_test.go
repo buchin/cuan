@@ -516,3 +516,78 @@ func TestProjectTerminal_DedicatedTaskWebSocketAutoRoute(t *testing.T) {
 		t.Fatalf("expected attempt status running, got %v", detail.LatestAttempt)
 	}
 }
+
+func TestProjectTerminal_DedicatedTaskDoneAutoReopensOnWebSocketConnect(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	srv, token := setupTestChatServer(t)
+
+	tempBase := t.TempDir()
+	srv.cfg.WorkspacesDir = tempBase
+	projectStore := project.NewMemoryStore()
+	projSvc := project.NewService(projectStore, nil, "fixture-secret", tempBase)
+	srv.projectSvc = projSvc
+
+	projID := fmt.Sprintf("proj_reopen_%d", time.Now().UnixNano())
+	_ = terminal.TerminateProjectWorker(projID)
+	defer terminal.TerminateProjectWorker(projID)
+
+	_ = projSvc.Store().CreateProject(context.Background(), &project.Project{
+		ID:        projID,
+		Name:      "Reopen Project",
+		LocalPath: tempBase,
+	})
+
+	// Create task directly in task store
+	createdTask, err := srv.taskSvc.CreateTask(context.Background(), "owner", task.CreateTaskRequest{
+		Title:        "Terminal · Reopen Project",
+		ProjectID:    projID,
+		ProjectIDs:   []string{projID},
+		Instructions: "Interactive terminal session",
+	})
+	if err != nil {
+		t.Fatalf("failed to create task: %v", err)
+	}
+
+	// Mark task as DONE in store (simulating an exit code 0 or completed command attempt)
+	tObj, err := srv.taskSvc.Store().GetTask(context.Background(), createdTask.ID)
+	if err != nil {
+		t.Fatalf("failed to get task: %v", err)
+	}
+	tObj.Status = task.TaskStatusDone
+	if err := srv.taskSvc.Store().UpdateTask(context.Background(), tObj); err != nil {
+		t.Fatalf("failed to mark task done in store: %v", err)
+	}
+
+	ts := httptest.NewServer(srv.Router())
+	defer ts.Close()
+
+	// Connect to /api/v1/tasks/{id}/terminal
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/v1/tasks/" + createdTask.ID + "/terminal"
+
+	dialer := websocket.DefaultDialer
+	headers := http.Header{}
+	headers.Set("Authorization", "Bearer "+token)
+
+	conn, resp, err := dialer.Dial(wsURL, headers)
+	if err != nil {
+		if resp != nil {
+			body, _ := io.ReadAll(resp.Body)
+			t.Fatalf("dial project terminal ws on done task failed: %v, status: %d, body: %s", err, resp.StatusCode, string(body))
+		}
+		t.Fatalf("dial project terminal ws on done task failed: %v", err)
+	}
+	defer conn.Close()
+
+	if resp.StatusCode != http.StatusSwitchingProtocols {
+		t.Fatalf("expected 101 Switching Protocols, got %d", resp.StatusCode)
+	}
+
+	// Verify task detail status was auto-reactivated to doing
+	detail, err := srv.taskSvc.GetTaskDetail(context.Background(), createdTask.ID)
+	if err != nil {
+		t.Fatalf("GetTaskDetail failed: %v", err)
+	}
+	if detail.Status != task.TaskStatusDoing {
+		t.Fatalf("expected task status doing, got %s", detail.Status)
+	}
+}
