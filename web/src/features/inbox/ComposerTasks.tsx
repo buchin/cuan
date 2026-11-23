@@ -1,11 +1,11 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { CheckCircle2, Clock3, CheckCheck, AlertCircle, ChevronDown, Terminal } from 'lucide-react'
+import { CheckCircle2, Clock3, Eye, AlertCircle, ChevronDown, Terminal } from 'lucide-react'
 import type { Task } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
 import { StatusDot } from '../../components/ui/StatusDot'
 import { AccordionTimeline } from '../../components/ui/AccordionTimeline'
-import { workStatus, workDisplayStatus, taskExecutionActive, taskLiveActivityText, taskSummaryText } from '../tasks/task-ui'
+import { workStatus, workDisplayStatus, taskExecutionActive, taskLiveActivityText, taskSummaryText, TASK_STATUS_THEMES } from '../tasks/task-ui'
 import { tasksApi } from '../../api/tasks'
 import { CardActions } from './CardActions'
 import { TaskDuration } from '../tasks/TaskDuration'
@@ -120,7 +120,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
             ) : hasActive ? (
               <StatusDot status="working" size="xs" label={t('In progress')} />
             ) : hasReview ? (
-              <CheckCheck className="h-3.5 w-3.5 shrink-0 text-purple-600 dark:text-purple-400" aria-label={t('Ready for review')} />
+              <Eye className={cn("h-3.5 w-3.5 shrink-0", TASK_STATUS_THEMES.review.textColor)} aria-label={t('Ready for review')} />
             ) : isAllDone ? (
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[color:var(--status-success)]" aria-label={t('Completed')} />
             ) : hasQueued ? (
@@ -136,11 +136,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
         <div className="ml-auto inline-flex shrink-0 items-center gap-1.5">
           <span className={cn(
             "composer-tasks-count tabular-nums px-1.5 text-[11px] rounded",
-            badgeStatus === 'done' ? "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300" :
-            badgeStatus === 'review' ? "bg-purple-500/20 text-purple-800 dark:text-purple-300" :
-            badgeStatus === 'working' ? "bg-blue-500/20 text-blue-800 dark:text-blue-300" :
-            badgeStatus === 'attention' ? "bg-destructive/20 text-destructive" :
-            "bg-muted text-muted-foreground"
+            TASK_STATUS_THEMES[badgeStatus]?.counterBadgeClass || "bg-muted text-muted-foreground"
           )}>{ordered.length}</span>
           <span className="inline-flex min-h-11 min-w-11 sm:min-h-8 sm:min-w-8 items-center justify-center -mr-2 text-muted-foreground">
             <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200 ease-in-out", open && "rotate-180")} />
@@ -166,7 +162,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
             ) : work === 'Queued' ? (
               <Clock3 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label={t(status)} />
             ) : work === 'Ready for review' ? (
-              <CheckCheck className="h-3.5 w-3.5 shrink-0 text-purple-600 dark:text-purple-400" aria-label={t(status)} />
+              <Eye className={cn("h-3.5 w-3.5 shrink-0", TASK_STATUS_THEMES.review.textColor)} aria-label={t(status)} />
             ) : work === 'Needs attention' ? (
               <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" aria-label={t(status)} />
             ) : (
@@ -184,11 +180,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
               <span className="inline-flex shrink-0 items-center gap-1.5">
                 <span className={cn(
                   "composer-tasks-count tabular-nums px-1.5 text-[11px] rounded",
-                  badgeStatus === 'done' ? "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300" :
-                  badgeStatus === 'review' ? "bg-purple-500/20 text-purple-800 dark:text-purple-300" :
-                  badgeStatus === 'working' ? "bg-blue-500/20 text-blue-800 dark:text-blue-300" :
-                  badgeStatus === 'attention' ? "bg-destructive/20 text-destructive" :
-                  "bg-muted text-muted-foreground"
+                  TASK_STATUS_THEMES[badgeStatus]?.counterBadgeClass || "bg-muted text-muted-foreground"
                 )}>{ordered.length}</span>
                 <span
                   role="button"

@@ -70,9 +70,10 @@ type inboxApprovalPlan struct {
 	Continuation   *inboxContinuationPlan `json:"continuation,omitempty"`
 }
 type approvedInboxPlan struct {
-	Action    string            `json:"action,omitempty"`
-	MessageID string            `json:"message_id"`
-	Plan      inboxApprovalPlan `json:"plan"`
+	Action          string            `json:"action,omitempty"`
+	MessageID       string            `json:"message_id"`
+	Plan            inboxApprovalPlan `json:"plan"`
+	AlreadyApproved bool              `json:"-"`
 }
 
 func parseInboxApprovalPlan(content string) *inboxApprovalPlan {
@@ -137,11 +138,16 @@ func (s *Server) persistedInboxPlan(ctx context.Context, room, owner, agent, id 
 		return nil, err
 	}
 	var target *db.ProjectMessage
+	alreadyApproved := false
 	for i := range messages {
 		m := &messages[i]
+		if m.AuthorType == "user" {
+			if decision := decodeApprovedInboxPlan(m.Content); decision != nil && decision.MessageID == id {
+				alreadyApproved = true
+			}
+		}
 		if m.ID == id && m.AuthorType == "agent" && (m.AuthorID == agent || agent == "" || m.AuthorID == "" || m.AuthorName == "Cuan Watchdog" || strings.HasPrefix(m.AuthorID, "system:")) {
 			target = m
-			break
 		}
 	}
 	if target == nil {
@@ -197,7 +203,7 @@ func (s *Server) persistedInboxPlan(ctx context.Context, room, owner, agent, id 
 			return nil, err
 		}
 	}
-	return &approvedInboxPlan{MessageID: id, Plan: *p}, nil
+	return &approvedInboxPlan{MessageID: id, Plan: *p, AlreadyApproved: alreadyApproved}, nil
 }
 func decodeInboxPlanDecision(content string) *approvedInboxPlan {
 	if !strings.HasPrefix(content, attachmentEnvelope) {

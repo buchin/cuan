@@ -1453,12 +1453,12 @@ export function InboxView({
     }
   }
 
-  const handleSelectContactInternal = (contact: ChatContact) => {
+  const handleSelectContactInternal = useCallback((contact: ChatContact) => {
     if (onSelectContact) {
       onSelectContact(contact)
     }
     setMobileView('chat')
-  }
+  }, [onSelectContact])
 
   const handleBackToContacts = () => {
     setMobileView('contacts')

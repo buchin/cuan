@@ -2,15 +2,18 @@ package mcp
 
 import "time"
 
-// App represents an integrated third-party application or service (e.g. Google Sheets).
+// App represents an integrated third-party application or service (e.g. Google Sheets, remote MCP).
 type App struct {
 	ID           string     `json:"id"`
 	Name         string     `json:"name"`
 	Description  string     `json:"description"`
 	Icon         string     `json:"icon"`
-	Category     string     `json:"category"` // "productivity", "finance", "messaging", etc.
+	Category     string     `json:"category"` // "productivity", "finance", "messaging", "connector", etc.
 	Status       string     `json:"status"`   // "connected", "disconnected", "error"
 	Account      string     `json:"account,omitempty"`
+	BaseURL      string     `json:"base_url,omitempty"`
+	Transport    string     `json:"transport,omitempty"` // "http", "sse"
+	IsCustom     bool       `json:"is_custom,omitempty"`
 	ConnectedAt  *time.Time `json:"connected_at,omitempty"`
 	Capabilities []string   `json:"capabilities"`
 	Error        string     `json:"error,omitempty"`
@@ -23,10 +26,13 @@ type Skill struct {
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
 	Icon        string    `json:"icon"`
-	Category    string    `json:"category"` // "vision", "finance", "automation", "productivity"
+	Category    string    `json:"category"` // "vision", "finance", "automation", "productivity", "custom"
 	Enabled     bool      `json:"enabled"`
 	Tools       []string  `json:"tools"`
 	BoundAgents []string  `json:"bound_agents"` // IDs of agents currently bound to this skill
+	SourceURL   string    `json:"source_url,omitempty"`
+	Content     string    `json:"content,omitempty"`
+	IsCustom    bool      `json:"is_custom,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }

@@ -11,6 +11,9 @@ export interface App {
   connected_at?: string
   capabilities: string[]
   error?: string
+  base_url?: string
+  transport?: string
+  is_custom?: boolean
 }
 
 export interface Skill {
@@ -25,6 +28,9 @@ export interface Skill {
   bound_agents: string[]
   created_at?: string
   updated_at?: string
+  source_url?: string
+  content?: string
+  is_custom?: boolean
 }
 
 export interface AgentSkillView {
@@ -137,6 +143,56 @@ export const appsSkillsApi = {
     }>(`/api/v1/agents/${encodeURIComponent(agentId)}/skills`, {
       method: 'PUT',
       body: JSON.stringify({ skills }),
+    })
+  },
+
+  /**
+   * Install a custom skill from URL (e.g. GitHub raw SKILL.md) or direct content.
+   */
+  async installSkill(req: {
+    url?: string
+    name?: string
+    category?: string
+    content?: string
+    bound_agents?: string[]
+  }): Promise<{ status: string; skill: Skill }> {
+    return apiFetch<{ status: string; skill: Skill }>(`/api/v1/skills/install`, {
+      method: 'POST',
+      body: JSON.stringify(req),
+    })
+  },
+
+  /**
+   * Uninstall a custom skill.
+   */
+  async uninstallSkill(id: string): Promise<{ status: string; skill_id: string }> {
+    return apiFetch<{ status: string; skill_id: string }>(`/api/v1/skills/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    })
+  },
+
+  /**
+   * Connect a remote MCP server / app.
+   */
+  async connectRemoteApp(req: {
+    name: string
+    base_url: string
+    transport?: string
+    api_key?: string
+    description?: string
+  }): Promise<{ status: string; app: App; tools: any[] }> {
+    return apiFetch<{ status: string; app: App; tools: any[] }>(`/api/v1/apps/connect-remote`, {
+      method: 'POST',
+      body: JSON.stringify(req),
+    })
+  },
+
+  /**
+   * Unregister a custom remote MCP server / app.
+   */
+  async unregisterRemoteApp(id: string): Promise<{ status: string; app_id: string }> {
+    return apiFetch<{ status: string; app_id: string }>(`/api/v1/apps/${encodeURIComponent(id)}/custom`, {
+      method: 'DELETE',
     })
   },
 }

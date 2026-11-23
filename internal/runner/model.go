@@ -99,6 +99,7 @@ type ClaimTaskRequest struct {
 	RunnerID                         string   `json:"runner_id"`
 	SupportedAgents                  []string `json:"supported_agents"`
 	AvailableLanes                   []string `json:"available_lanes,omitempty"` // code, ops, readonly
+	PreferredTaskID                  string   `json:"preferred_task_id,omitempty"` // Task Affinity: run-to-completion active task bundle
 }
 
 // ClaimTaskResponse contains the claimed attempt and task payload if a task was assigned.

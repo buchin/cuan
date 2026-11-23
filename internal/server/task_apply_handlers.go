@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -141,6 +140,14 @@ func (s *Server) applyTaskInternal(ctx context.Context, taskID, projectID, title
 		return s.projectSvc.ApplyTaskPullRequest(ctx, projectID, prNumber, commitTitle, commitMessage, detail.CommitSHA)
 	}
 	if branchName != "" {
+		if s.cfg != nil && s.cfg.WorkspacesDir != "" && s.projectSvc != nil {
+			sourcePath := filepath.Join(s.cfg.WorkspacesDir, taskID)
+			if info, err := os.Stat(sourcePath); err == nil && info.IsDir() {
+				if _, _, pushErr := s.projectSvc.PushNativeTaskBranch(ctx, taskID, projectID, detail.Instructions, sourcePath, branchName, false, title); pushErr != nil {
+					log.Printf("[applyTaskInternal] note: PushNativeTaskBranch for %s: %v", taskID, pushErr)
+				}
+			}
+		}
 		return s.projectSvc.ApplyTaskBranch(ctx, projectID, branchName, commitTitle, commitMessage, detail.CommitSHA)
 	}
 	return nil, errors.New("neither pull request nor task branch is available")
@@ -210,43 +217,18 @@ func (s *Server) triggerAutoDeploy(ctx context.Context, projectID, taskID string
 		proj, err := s.projectSvc.Get(ctx, projectID)
 		if err == nil && proj != nil {
 			settings := project.SettingsFromMetadata(proj.Metadata)
-			if strings.TrimSpace(settings.DeployScript) != "" && proj.LocalPath != "" {
-				log.Printf("[AutoDeploy] Executing project deploy script for %s in %s", projectID, proj.LocalPath)
-				cmd := exec.CommandContext(ctx, "bash", "-c", settings.DeployScript)
-				cmd.Dir = proj.LocalPath
-				baseEnv := append(os.Environ(),
-					"CI=true",
-					"npm_config_yes=true",
-					"DEBIAN_FRONTEND=noninteractive",
-				)
-				if settings.Environment != "" {
-					envMap := project.ParseEnvironment(settings.Environment)
-					var envSlice []string
-					for k, v := range envMap {
-						envSlice = append(envSlice, fmt.Sprintf("%s=%s", k, v))
-					}
-					cmd.Env = append(baseEnv, envSlice...)
-				} else {
-					cmd.Env = baseEnv
-				}
-				if out, err := cmd.CombinedOutput(); err != nil {
-					log.Printf("[AutoDeploy] Project deploy script failed for %s: %v: %s", projectID, err, string(out))
-				} else {
-					log.Printf("[AutoDeploy] Project deploy script succeeded for %s", projectID)
-				}
-			} else if (proj.RepoName == "cuan" || strings.Contains(strings.ToLower(proj.Name), "cuan")) && proj.LocalPath != "" {
-				deployScript := filepath.Join(proj.LocalPath, "scripts", "deploy.sh")
-				if info, err := os.Stat(deployScript); err == nil && !info.IsDir() {
-					log.Printf("[AutoDeploy] Executing native Cuan auto-deploy in %s", proj.LocalPath)
-					cmd := exec.CommandContext(ctx, "bash", deployScript, "--local", "--native-sync")
-					cmd.Dir = proj.LocalPath
-					if out, err := cmd.CombinedOutput(); err != nil {
-						log.Printf("[AutoDeploy] Native Cuan deploy failed for %s: %v: %s", projectID, err, string(out))
-					} else {
-						log.Printf("[AutoDeploy] Native Cuan deploy succeeded for %s", projectID)
-					}
-				}
+			job := DeployJob{
+				ProjectID:    projectID,
+				TaskID:       taskID,
+				LocalPath:    proj.LocalPath,
+				DeployScript: settings.DeployScript,
+				Environment:  settings.Environment,
+				CommitSHA:    detail.CommitSHA,
 			}
+			if s.deployCoordinator == nil {
+				s.deployCoordinator = NewDeployCoordinator()
+			}
+			s.deployCoordinator.Enqueue(ctx, job)
 			if proj.RepoName == "cuan" || strings.Contains(strings.ToLower(proj.Name), "cuan") {
 				log.Printf("[AutoDeploy] Native Cuan project %s auto-deploy acknowledged", projectID)
 			}
@@ -267,21 +249,23 @@ func (s *Server) autoApplyAndDeployTask(ctx context.Context, taskID, projectID s
 	if err != nil || taskApplyPermission(policy) != nil {
 		return
 	}
-	branch := taskDetail.BranchName
-	if branch == "" && taskDetail.PRNumber <= 0 {
-		branch = fmt.Sprintf("task/%s", taskDetail.ID)
-	}
-	if taskDetail.PRNumber <= 0 && branch == "" {
-		return
-	}
-	if taskDetail.ExecutionCategory == task.ExecutionCategoryReadOnly {
-		log.Printf("[AutoDeploy] Skipping auto-apply and deploy for read-only task %s", taskID)
+	if taskDetail.ExecutionCategory != "" && taskDetail.ExecutionCategory != task.ExecutionCategoryCode {
+		log.Printf("[AutoDeploy] Skipping auto-apply and deploy for non-code task %s (category: %s)", taskID, taskDetail.ExecutionCategory)
 		return
 	}
 	if taskDetail.ExecutionCategory != task.ExecutionCategoryCode && isInvestigationOrNonCodeText(taskDetail.Title) {
 		log.Printf("[AutoDeploy] Skipping auto-apply and deploy for non-code investigation task %s", taskID)
 		return
 	}
+	if taskDetail.PRNumber <= 0 && taskDetail.BranchName == "" {
+		log.Printf("[AutoDeploy] Skipping auto-apply and deploy for task %s without branch or PR", taskID)
+		return
+	}
+	if !releaseObjectID.MatchString(taskDetail.CommitSHA) {
+		log.Printf("[AutoDeploy] Skipping auto-apply and deploy for task %s without valid commit SHA", taskID)
+		return
+	}
+	branch := taskDetail.BranchName
 	mergeRes, err := s.applyTaskInternal(ctx, taskDetail.ID, taskDetail.ProjectID, taskDetail.Title, taskDetail.Summary, branch, taskDetail.PRNumber)
 	if err != nil {
 		log.Printf("[AutoDeploy] Auto-apply failed for task %s: %v", taskID, err)

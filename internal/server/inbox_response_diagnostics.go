@@ -46,12 +46,39 @@ func inboxResponseDiagnostic(raw string) string {
 	}
 	if json.Unmarshal(fields["action"], &action) == nil && string(fields["action"]) != "null" {
 		switch action.Kind {
-		case "approval", "delegation", "memory", "memory_search", "task_draft", "task_cancel", "task_reopen", "prompt_choices", "customer_reply":
+		case "approval", "delegation", "memory", "memory_search", "task_draft", "task_cancel", "task_reopen", "prompt_choices", "customer_reply", "schedule", "project", "skill":
 		default:
 			return "Response format: unsupported action kind."
 		}
 		if len(action.Payload) == 0 || string(action.Payload) == "null" {
 			return "Response format: action payload missing."
+		}
+		if action.Kind == "schedule" {
+			var payload inboxScheduleAction
+			if strictCoordinatorJSON(action.Payload, &payload) != nil {
+				return "Response format: schedule payload fields or types rejected."
+			}
+			if _, _, err := parseInboxSchedule("```cuan-schedule\n" + string(action.Payload) + "\n```"); err != nil {
+				return "Response format: " + err.Error()
+			}
+		}
+		if action.Kind == "project" {
+			var payload inboxProjectAction
+			if strictCoordinatorJSON(action.Payload, &payload) != nil {
+				return "Response format: project payload fields or types rejected."
+			}
+			if _, _, err := parseInboxProject("```cuan-project\n" + string(action.Payload) + "\n```"); err != nil {
+				return "Response format: " + err.Error()
+			}
+		}
+		if action.Kind == "skill" {
+			var payload inboxSkillAction
+			if strictCoordinatorJSON(action.Payload, &payload) != nil {
+				return "Response format: skill payload fields or types rejected."
+			}
+			if _, _, err := parseInboxSkill("```cuan-skill\n" + string(action.Payload) + "\n```"); err != nil {
+				return "Response format: " + err.Error()
+			}
 		}
 		if action.Kind == "task_reopen" {
 			var payload inboxTaskReopenAction

@@ -75,7 +75,8 @@ func isSafeInboxTool(tool string) bool {
 		"search_web", "web_fetch", "http_request", "browser_fetch",
 		"list_projects", "get_project", "get_github_connection", "list_tasks", "get_task", "create_task_draft",
 		"list_inbox_conversations", "get_inbox_messages", "list_contacts", "get_contact",
-		"list_scheduled_jobs", "get_system_settings",
+		"list_scheduled_jobs", "list_scheduled_tasks", "create_scheduled_task", "update_scheduled_task", "delete_scheduled_task", "trigger_scheduled_task",
+		"get_project_environment", "update_project_environment", "get_system_settings",
 		"list_apps", "list_skills", "toggle_agent_skill",
 		"inspect_database_query", "inspect_database_schema", "inspect_app_logs",
 		"call_mcp_tool":
@@ -101,7 +102,7 @@ func isInspectionTool(tool string) bool {
 		"search_web", "web_fetch", "http_request", "browser_fetch", "call_mcp_tool",
 		"list_projects", "get_project", "list_tasks", "get_task",
 		"list_inbox_conversations", "get_inbox_messages", "list_contacts", "get_contact",
-		"list_scheduled_jobs", "get_system_settings", "list_apps", "list_skills":
+		"list_scheduled_jobs", "list_scheduled_tasks", "get_project_environment", "get_system_settings", "list_apps", "list_skills":
 		return true
 	default:
 		return strings.HasPrefix(clean, "inspect_") || strings.HasPrefix(clean, "get_") || strings.HasPrefix(clean, "list_") || strings.HasPrefix(clean, "search_")
@@ -390,6 +391,13 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 				"list_contacts":            "List contacts",
 				"get_contact":              "Get contact",
 				"list_scheduled_jobs":      "List scheduled jobs",
+				"list_scheduled_tasks":     "List scheduled tasks",
+				"create_scheduled_task":    "Create scheduled task",
+				"update_scheduled_task":    "Update scheduled task",
+				"delete_scheduled_task":    "Delete scheduled task",
+				"trigger_scheduled_task":   "Trigger scheduled task",
+				"get_project_environment":  "Get project environment",
+				"update_project_environment": "Update project environment",
 				"list_apps":                "List Apps",
 				"list_skills":              "List Skills",
 				"toggle_agent_skill":       "Toggle Agent Skill",

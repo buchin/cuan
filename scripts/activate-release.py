@@ -736,6 +736,11 @@ def main():
                 old_sha = old_manifest.get('sha')
                 old_healthy = (lambda: healthy(old_sha)) if args.no_restart else (lambda: restart_and_check(old_sha))
                 recovered = old_healthy()
+                if supports_chat_worker(old_manifest) and not args.no_restart:
+                    try:
+                        start_chat_worker(old_manifest)
+                    except Exception as err:
+                        print(f'==> Warning: Failed to restart prior chat worker on rollback: {err}', flush=True)
                 restart_worker_service()
                 raise SystemExit('Release health failed; rollback ' + ('healthy' if recovered else 'requires intervention'))
             if not args.no_restart:

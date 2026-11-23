@@ -33,5 +33,6 @@ type Store interface {
 	// pushing the predicate to the database layer to avoid in-memory scanning.
 	ListProjectsFiltered(ctx context.Context, filter ArchivedFilter) ([]*Project, error)
 	UpdateProject(ctx context.Context, p *Project) error
+	TouchProject(ctx context.Context, id string) error
 	DeleteProject(ctx context.Context, id string) error
 }
