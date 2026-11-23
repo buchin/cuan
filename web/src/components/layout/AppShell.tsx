@@ -564,8 +564,17 @@ export function AppShell({
                   : 'text-muted-foreground hover:text-foreground',
               )}
             >
-              <span className="flex h-7 w-7 items-center justify-center">
-                <Plus aria-hidden="true" className="h-5 w-5 text-inherit" />
+              <span
+                data-action-trigger="true"
+                data-testid="bottom-nav-studio-accent"
+                className={cn(
+                  'action-trigger-circle flex h-8 w-8 items-center justify-center rounded-full transition-colors',
+                  currentTab === 'studio'
+                    ? 'bg-primary/20 text-primary shadow-xs'
+                    : 'bg-primary/10 text-primary hover:bg-primary/15',
+                )}
+              >
+                <Plus aria-hidden="true" className="h-4.5 w-4.5 text-inherit" />
               </span>
               <span>{t('New work')}</span>
             </button>

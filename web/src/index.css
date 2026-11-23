@@ -429,14 +429,16 @@ body:has(.task-terminal-container),
 .rounded-xl,
 .rounded-2xl:not(.wa-message-bubble):not(.calm-message-bubble),
 .rounded-3xl,
-.rounded-full:not(.notification-count):not(.status-dot):not([data-status-dot]):not(.status-indicator):not(.avatar-dot):not(.avatar):not([data-avatar]):not(.user-avatar):not(.agent-avatar) {
+.rounded-full:not(.notification-count):not(.status-dot):not([data-status-dot]):not(.status-indicator):not(.avatar-dot):not(.avatar):not([data-avatar]):not(.user-avatar):not(.agent-avatar):not(.action-trigger-circle):not([data-action-trigger]) {
   border-radius: 0px !important;
 }
 
 .avatar,
 [data-avatar],
 .user-avatar,
-.agent-avatar {
+.agent-avatar,
+.action-trigger-circle,
+[data-action-trigger] {
   border-radius: 9999px !important;
 }
 
@@ -526,6 +528,8 @@ body:has(.task-terminal-container),
 .bottom-navigation [data-nav-tone][aria-current="page"] svg { color: var(--nav-active); opacity: 1; }
 .bottom-navigation [data-nav-tone]:not([aria-current="page"]):hover { color: oklch(var(--foreground)); }
 .bottom-navigation [data-nav-tone]:not([aria-current="page"]):hover svg { color: oklch(var(--foreground)); opacity: 1; }
+.bottom-navigation [data-action-trigger] { color: oklch(var(--primary)); }
+.bottom-navigation [data-action-trigger] svg { color: inherit !important; opacity: 1 !important; }
 
 /* Navigation color identifies the current page; unread badges stay independent. */
 .nav-action[data-nav-tone]:not([aria-current="page"]) { color: oklch(var(--muted-foreground)); }
