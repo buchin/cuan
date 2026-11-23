@@ -17,6 +17,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import { aiProvidersApi, type AIProviderDTO } from '../../api/aiProviders'
 import { accountsApi } from '../../api/accounts'
 import { agentsApi } from '../../api/agents'
+import { FormField, Input } from '../../components/ui/forms'
 
 interface AddBrainModalProps {
   open: boolean
@@ -456,18 +457,14 @@ export function AddBrainModal({
               <div className="space-y-4 pt-2">
                 {googleStep === 'init' ? (
                   <div className="space-y-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-foreground mb-1">
-                        {t('Label / Nama Otak AI')}
-                      </label>
-                      <input
+                    <FormField label={t('Label / Nama Otak AI')}>
+                      <Input
                         type="text"
                         value={googleLabel}
                         onChange={(e) => setGoogleLabel(e.target.value)}
                         placeholder="Misal: Google Akun Kerja"
-                        className="field-control text-xs w-full rounded-xl"
                       />
-                    </div>
+                    </FormField>
 
                     <button
                       type="button"
@@ -505,18 +502,15 @@ export function AddBrainModal({
                       )}
                     </p>
 
-                    <div>
-                      <label className="block text-xs font-semibold text-foreground mb-1">
-                        {t('Kode Otorisasi dari Google')}
-                      </label>
-                      <input
+                    <FormField label={t('Kode Otorisasi dari Google')}>
+                      <Input
                         type="text"
                         value={googleCode}
                         onChange={(e) => setGoogleCode(e.target.value)}
                         placeholder="4/0A..."
-                        className="field-control text-xs w-full rounded-xl font-mono"
+                        mono
                       />
-                    </div>
+                    </FormField>
 
                     <div className="flex items-center gap-2 pt-1">
                       <button
@@ -549,18 +543,15 @@ export function AddBrainModal({
             {subProvider === 'commandcode' && (
               <div className="space-y-4 pt-2">
                 <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-foreground mb-1">
-                      {t('Token Sesi Langganan (Opsional jika via browser)')}
-                    </label>
-                    <input
+                  <FormField label={t('Token Sesi Langganan (Opsional jika via browser)')}>
+                    <Input
                       type="password"
                       value={ccToken}
                       onChange={(e) => setCcToken(e.target.value)}
                       placeholder="Masukkan session token jika ada..."
-                      className="field-control text-xs w-full rounded-xl font-mono"
+                      mono
                     />
-                  </div>
+                  </FormField>
 
                   {ccStep === 'init' ? (
                     <button
@@ -676,21 +667,16 @@ export function AddBrainModal({
             </div>
 
             {/* API Key field */}
-            <div className="space-y-1.5">
-              <label
-                htmlFor="brain-api-key"
-                className="block text-xs font-semibold text-foreground"
-              >
-                {t('Kunci API (API Key)')}
-              </label>
+            <FormField label={t('Kunci API (API Key)')} htmlFor="brain-api-key">
               <div className="relative">
-                <input
+                <Input
                   id="brain-api-key"
                   type={showKey ? 'text' : 'password'}
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                   placeholder={selectedDef.keyPlaceholder}
-                  className="field-control text-xs w-full pr-10 rounded-xl font-mono"
+                  className="pr-10"
+                  mono
                   autoComplete="off"
                 />
                 <button
@@ -701,28 +687,20 @@ export function AddBrainModal({
                   {showKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                 </button>
               </div>
-            </div>
+            </FormField>
 
             {/* Base URL (Optional for Ollama / OpenRouter proxy) */}
-            <div className="space-y-1.5">
-              <label
-                htmlFor="brain-base-url"
-                className="block text-xs font-semibold text-foreground"
-              >
-                {t('URL Basis / Custom Endpoint (Opsional)')}
-              </label>
-              <div className="relative">
-                <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <input
-                  id="brain-base-url"
-                  type="url"
-                  value={baseUrl}
-                  onChange={(e) => setBaseUrl(e.target.value)}
-                  placeholder={selectedDef.isLocal ? 'http://localhost:11434' : 'https://...'}
-                  className="field-control text-xs w-full pl-9 rounded-xl font-mono"
-                />
-              </div>
-            </div>
+            <FormField label={t('URL Basis / Custom Endpoint (Opsional)')} htmlFor="brain-base-url">
+              <Input
+                id="brain-base-url"
+                type="url"
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                placeholder={selectedDef.isLocal ? 'http://localhost:11434' : 'https://...'}
+                prefixIcon={<Globe className="h-4 w-4" />}
+                mono
+              />
+            </FormField>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/40">
               <button

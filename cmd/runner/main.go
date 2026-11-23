@@ -164,6 +164,16 @@ Environment variables:
 		}
 	}()
 
+	// SIGUSR2 cancels graceful drain and resumes accepting tasks
+	undrainSig := make(chan os.Signal, 1)
+	signal.Notify(undrainSig, syscall.SIGUSR2)
+	go func() {
+		for range undrainSig {
+			log.Println("Received SIGUSR2 signal: resuming worker task claims...")
+			r.CancelDrain()
+		}
+	}()
+
 	// SIGTERM / SIGINT initiates graceful drain and waits for in-flight tasks
 	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)

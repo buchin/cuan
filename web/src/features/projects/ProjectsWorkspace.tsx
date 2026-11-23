@@ -200,9 +200,9 @@ export function ProjectsWorkspace({
         } catch {}
       }
 
-      // 3. Create dedicated terminal task if none exists yet
-      let assignedAgentId = 'default'
-      if (!targetTask) {
+      // 3. Resolve active agent and create dedicated terminal task if none exists yet
+      let assignedAgentId = targetTask?.assignee_id || (targetTask as any)?.assigned_agent || ''
+      if (!assignedAgentId) {
         try {
           const agentList = await agentsApi.list()
           const available = agentList.filter(
@@ -213,7 +213,9 @@ export function ProjectsWorkspace({
             available[0]
           if (selected) assignedAgentId = selected.id
         } catch {}
+      }
 
+      if (!targetTask) {
         targetTask = await tasksApi.create({
           title: `Terminal · ${projName}`,
           project_ids: [projId],

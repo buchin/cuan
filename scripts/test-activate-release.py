@@ -257,7 +257,8 @@ class Gates(unittest.TestCase):
                 with patch.object(a.subprocess, 'run') as mock_run:
                     a.signal_worker_drain()
                     self.assertTrue(drain_file.exists())
-                    mock_run.assert_called_once_with(['systemctl', 'kill', '--kill-whom=main', '--signal=USR1', a.SERVICE+'-runner.service'], check=False)
+                    expected_drain_cmd = (['sudo', '-n'] if os.getuid() != 0 else []) + ['systemctl', 'kill', '--kill-whom=main', '--signal=USR1', a.SERVICE+'-runner.service']
+                    mock_run.assert_called_once_with(expected_drain_cmd, check=False)
                 a.cleanup_worker_drain()
                 self.assertFalse(drain_file.exists())
 
@@ -283,7 +284,8 @@ class Gates(unittest.TestCase):
                 with patch.object(a.subprocess, 'run', return_value=subprocess.CompletedProcess(['systemctl'], 0, '')) as mock_run:
                     a.restart_worker_service()
                     self.assertFalse(drain_file.exists())
-                    mock_run.assert_called_once_with(['systemctl', 'restart', 'cuan-runner'], check=False, capture_output=True, text=True)
+                    expected_restart_cmd = (['sudo', '-n'] if os.getuid() != 0 else []) + ['systemctl', 'restart', 'cuan-runner']
+                    mock_run.assert_called_once_with(expected_restart_cmd, check=False, capture_output=True, text=True)
 
     def test_worker_service_restart_defers_when_worker_active(self):
         with tempfile.TemporaryDirectory() as td:

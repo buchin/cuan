@@ -357,7 +357,7 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		                          WHERE (active_t.project_id = t.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = active_t.id AND tp.project_id = t.project_id))
 		                            AND COALESCE(active_t.execution_category, 'code') = 'code'
 		                            AND active_t.title NOT LIKE 'Terminal · %'
-		                            AND active_t.status NOT IN ('backlog', 'todo', 'done', 'cancelled', 'canceled', 'failed', 'blocked')
+		                            AND active_t.status NOT IN ('backlog', 'todo', 'queued', 'done', 'cancelled', 'canceled', 'failed', 'blocked')
 		                            AND active_t.updated_at > NOW() - INTERVAL '15 minutes'
 		                          ORDER BY 
 		                            CASE WHEN EXISTS (SELECT 1 FROM task_attempts WHERE task_id = active_t.id AND status = 'running') THEN 0 ELSE 1 END ASC,
@@ -395,7 +395,7 @@ func (s *DBStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID string, s
 		                          WHERE (active_t.project_id = t.project_id OR EXISTS (SELECT 1 FROM task_projects tp WHERE tp.task_id = active_t.id AND tp.project_id = t.project_id))
 		                            AND COALESCE(active_t.execution_category, 'code') = 'ops'
 		                            AND active_t.title NOT LIKE 'Terminal · %'
-		                            AND active_t.status NOT IN ('backlog', 'todo', 'done', 'cancelled', 'canceled', 'failed', 'blocked')
+		                            AND active_t.status NOT IN ('backlog', 'todo', 'queued', 'done', 'cancelled', 'canceled', 'failed', 'blocked')
 		                            AND active_t.updated_at > NOW() - INTERVAL '15 minutes'
 		                          ORDER BY 
 		                            CASE WHEN EXISTS (SELECT 1 FROM task_attempts WHERE task_id = active_t.id AND status = 'running') THEN 0 ELSE 1 END ASC,

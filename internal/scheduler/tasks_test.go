@@ -178,3 +178,37 @@ func TestTaskManager_StartStop(t *testing.T) {
 	// Stopping again should be a no-op
 	tm.Stop()
 }
+
+func TestCalculateTaskNextRun_Timezone(t *testing.T) {
+	jakarta, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		t.Fatalf("LoadLocation failed: %v", err)
+	}
+
+	task := &ScheduledTask{
+		ScheduleType: ScheduleDaily,
+		TimeOfDay:    "21:00",
+		Timezone:     "Asia/Jakarta",
+	}
+
+	// Reference time at 14:00 Jakarta (07:00 UTC)
+	ref := time.Date(2026, 11, 23, 14, 0, 0, 0, jakarta)
+	next := calculateTaskNextRun(task, ref)
+
+	if next.Hour() != 21 || next.Minute() != 0 {
+		t.Errorf("expected next run at 21:00 in Jakarta, got %d:%d", next.Hour(), next.Minute())
+	}
+	if next.Location().String() != "Asia/Jakarta" {
+		t.Errorf("expected location Asia/Jakarta, got %v", next.Location())
+	}
+	if next.Day() != 23 {
+		t.Errorf("expected same day 23, got %d", next.Day())
+	}
+
+	// Reference time past 21:00 (e.g. 21:30 Jakarta) -> should advance to next day
+	refPast := time.Date(2026, 11, 23, 21, 30, 0, 0, jakarta)
+	nextDay := calculateTaskNextRun(task, refPast)
+	if nextDay.Day() != 24 || nextDay.Hour() != 21 {
+		t.Errorf("expected next day 24 at 21:00, got %d at %d:%d", nextDay.Day(), nextDay.Hour(), nextDay.Minute())
+	}
+}

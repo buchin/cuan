@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/buchin/cuan/internal/task"
@@ -112,6 +113,13 @@ func (r *Runner) monitorDetachedWorker(attemptID string, pid int, lane string) {
 
 	log.Printf("[Runner %s] Detached worker PID %d for attempt %s finished; lane '%s' released (remaining active: %d).",
 		r.cfg.RunnerID, pid, attemptID, lane, remaining)
+
+	// If the runner is in graceful drain mode and all in-flight workers have finished,
+	// exit cleanly (code 0) so systemd restarts the supervisor daemon on the new release binary.
+	if r.IsDraining() && remaining == 0 {
+		log.Printf("[Runner %s] Graceful drain completed: all in-flight workers finished. Exiting for clean restart...", r.cfg.RunnerID)
+		os.Exit(0)
+	}
 
 	// Trigger an immediate poll after detached worker finishes, with a short delay (1.5s) to allow coordinator review to queue the continuation attempt
 	go func() {

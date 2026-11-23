@@ -45,6 +45,17 @@ done
 
 cd "$(dirname "$0")/.."
 
+if [[ -f .env ]]; then
+  set -a
+  source .env 2>/dev/null || true
+  set +a
+fi
+
+# Normalize VPS credentials (supports CUAN_VPS_*, CUAN_NEW_VPS_*, or DOJO_TERMAPI_VPS_*)
+export DOJO_TERMAPI_VPS_PASSWORD="${DOJO_TERMAPI_VPS_PASSWORD:-${CUAN_VPS_PASSWORD:-${CUAN_NEW_VPS_PASSWORD:-}}}"
+export DOJO_TERMAPI_VPS_USERNAME="${DOJO_TERMAPI_VPS_USERNAME:-${CUAN_VPS_USERNAME:-${CUAN_NEW_VPS_USERNAME:-ubuntu}}}"
+export DOJO_TERMAPI_VPS_PUBLIC_IP="${DOJO_TERMAPI_VPS_PUBLIC_IP:-${CUAN_VPS_IP:-${CUAN_NEW_VPS_IP:-}}}"
+
 # Resolve approved deployment branch if not explicitly given:
 # 1. Flag --branch <NAME> (handled above)
 # 2. CUAN_DEPLOY_BRANCH environment variable
@@ -150,7 +161,7 @@ if [[ "$is_local" == 0 ]]; then
   export SSHPASS="${DOJO_TERMAPI_VPS_PASSWORD:-}"
   release_host="${DOJO_TERMAPI_VPS_USERNAME:-}@${DOJO_TERMAPI_VPS_PUBLIC_IP:-}"
   if [[ -z "${DOJO_TERMAPI_VPS_PASSWORD:-}" || -z "${DOJO_TERMAPI_VPS_USERNAME:-}" || -z "${DOJO_TERMAPI_VPS_PUBLIC_IP:-}" ]]; then
-    echo "ERROR: Remote release requires DOJO_TERMAPI_VPS_* environment variables." >&2
+    echo "ERROR: Remote release requires VPS credentials (CUAN_VPS_* or DOJO_TERMAPI_VPS_*)." >&2
     echo "If running directly on the production host, pass --local." >&2
     exit 1
   fi

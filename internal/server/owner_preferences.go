@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -69,6 +70,37 @@ func writeOwnerPreferences(owner string, p ownerPreferences) error {
 	}
 	return err
 }
+func normalizeLocale(locale string) string {
+	val := strings.TrimSpace(strings.ToLower(locale))
+	if val == "id" || strings.HasPrefix(val, "id-") || strings.HasPrefix(val, "id_") || val == "indonesia" || val == "indonesian" {
+		return "id"
+	}
+	if val == "en" || strings.HasPrefix(val, "en-") || strings.HasPrefix(val, "en_") || val == "english" {
+		return "en"
+	}
+	if val == "auto" {
+		return "auto"
+	}
+	return val
+}
+
+func (s *Server) resolveOwnerLocale(ctx context.Context, ownerID string) string {
+	if ownerID == "" && ctx != nil {
+		if owner := auth.GetOwnerFromContext(ctx); owner != nil {
+			ownerID = owner.ID
+		}
+	}
+	if ownerID != "" {
+		ownerPreferencesMu.Lock()
+		p, err := readOwnerPreferences(ownerID)
+		ownerPreferencesMu.Unlock()
+		if err == nil && p.Locale != "" {
+			return normalizeLocale(p.Locale)
+		}
+	}
+	return ""
+}
+
 func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 	owner := s.accountOwner(w, r)
 	if owner == "" {
@@ -83,26 +115,38 @@ func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == "PATCH" {
 		var req struct {
-			DisplayName string `json:"display_name"`
+			DisplayName *string `json:"display_name"`
+			Locale      *string `json:"locale"`
+			Language    *string `json:"language"`
 		}
 		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2048))
 		decoder.DisallowUnknownFields()
 		if decoder.Decode(&req) != nil {
-			respondJSONError(w, 400, "Enter a display name up to 80 characters.")
+			respondJSONError(w, 400, "Enter valid profile attributes.")
 			return
 		}
-		name := strings.TrimSpace(req.DisplayName)
-		if len([]rune(name)) > 80 || strings.IndexFunc(name, unicode.IsControl) >= 0 {
-			respondJSONError(w, 400, "Enter a display name up to 80 characters.")
-			return
+		if req.DisplayName != nil {
+			name := strings.TrimSpace(*req.DisplayName)
+			if len([]rune(name)) > 80 || strings.IndexFunc(name, unicode.IsControl) >= 0 {
+				respondJSONError(w, 400, "Enter a display name up to 80 characters.")
+				return
+			}
+			p.DisplayName = name
 		}
-		p.DisplayName = name
+		if req.Locale != nil {
+			p.Locale = normalizeLocale(*req.Locale)
+		} else if req.Language != nil {
+			p.Locale = normalizeLocale(*req.Language)
+		}
 		if err = writeOwnerPreferences(owner, p); err != nil {
-			respondJSONError(w, 503, "Could not save your display name. Try again.")
+			respondJSONError(w, 503, "Could not save your profile. Try again.")
 			return
 		}
 	}
-	respondJSON(w, 200, map[string]string{"display_name": p.DisplayName})
+	respondJSON(w, 200, map[string]string{
+		"display_name": p.DisplayName,
+		"locale":       p.Locale,
+	})
 }
 func (s *Server) handleUsername(w http.ResponseWriter, r *http.Request) {
 	owner := s.accountOwner(w, r)

@@ -49,8 +49,10 @@ async function performApiFetch<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = getAuthToken()
+  const langPref = typeof window !== 'undefined' ? localStorage.getItem('cuan-language') : ''
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    ...(langPref ? { 'Accept-Language': langPref } : {}),
     ...(options.headers as Record<string, string>),
   }
 

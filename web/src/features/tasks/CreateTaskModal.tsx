@@ -3,6 +3,7 @@ import { X, AlertCircle } from 'lucide-react'
 import type { Project, CreateTaskRequest } from '../../api/types'
 import { agentsApi, type Agent } from '../../api/agents'
 import { trapDialogFocus } from '../../lib/dialog'
+import { Select } from '../../components/ui/forms'
 
 interface Props {
   isOpen: boolean
@@ -183,9 +184,9 @@ export function CreateTaskModal({
       </header>
       <label className="mb-4 flex items-center gap-2">
         <span className="text-xs text-muted-foreground">Project</span>
-        <select
+        <Select
           aria-label="Project"
-          className="min-h-11 min-w-0 max-w-[70%] rounded-lg border border-border/40 bg-muted/20 px-3 text-sm hover:bg-muted/30 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="min-h-11 min-w-0 max-w-[70%]"
           value={draft.project}
           onChange={(e) => change({ project: e.target.value })}
           disabled={loading}
@@ -201,7 +202,7 @@ export function CreateTaskModal({
                 {p.name}
               </option>
             ))}
-        </select>
+        </Select>
       </label>
       {error && (
         <p
@@ -287,9 +288,10 @@ export function CreateTaskModal({
           <div className="flex items-center justify-between gap-2 px-3 pb-3">
             <label className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
               <span className="sr-only">Agent</span>
-              <select
+              <Select
                 aria-label="Agent"
-                className="min-h-11 min-w-0 max-w-[150px] rounded-lg border border-border/40 bg-card/60 px-2.5 text-xs sm:max-w-[240px] hover:bg-card transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                sizeVariant="sm"
+                className="min-h-9 min-w-0 max-w-[150px] sm:max-w-[240px]"
                 value={draft.agent}
                 onChange={(e) => change({ agent: e.target.value })}
                 disabled={loading || agentsLoading}
@@ -303,7 +305,7 @@ export function CreateTaskModal({
                     {a.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             <button
               type="submit"

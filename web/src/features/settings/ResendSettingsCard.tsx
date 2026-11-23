@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { apiFetch } from '../../api/client'
 import { useLanguage } from '../../context/LanguageContext'
-import { Mail, ShieldCheck, CheckCircle2, AlertTriangle, Key, Send, RefreshCw, Eye, EyeOff } from 'lucide-react'
+import { Mail, ShieldCheck, CheckCircle2, AlertTriangle, Send, RefreshCw, Eye, EyeOff } from 'lucide-react'
+import { FormField, Input, Select, FormGrid } from '../../components/ui/forms'
 
 export interface ResendSettingsDTO {
   has_webhook_secret?: boolean
@@ -268,34 +269,35 @@ export function ResendSettingsCard() {
       <form onSubmit={handleSave} className="space-y-4">
         {/* API Key Field */}
         <div className="space-y-1.5">
-          <label className="block text-sm font-medium flex items-center justify-between">
-            <span className="flex items-center gap-1.5">
-              <Key className="h-3.5 w-3.5 text-muted-foreground" />
-              {t('Resend API Key')}
-            </span>
-            {settings?.has_api_key && (
-              <span className="text-xs text-muted-foreground font-normal">
-                {t('Tersimpan:')} <code className="bg-muted px-1.5 py-0.5 rounded">{settings.masked_api_key}</code>
-              </span>
-            )}
-          </label>
-          <div className="relative flex items-center gap-2">
-            <input
-              type={showKey ? 'text' : 'password'}
-              className="field-control flex-1 pr-10 font-mono text-sm min-h-11"
-              placeholder={settings?.has_api_key ? t('Masukkan API Key baru untuk mengganti…') : 're_1234567890abcdef…'}
-              value={apiKeyInput}
-              onChange={(e) => setApiKeyInput(e.target.value)}
-            />
-            <button
-              type="button"
-              className="absolute right-3 text-muted-foreground hover:text-foreground p-1"
-              onClick={() => setShowKey(!showKey)}
-              aria-label={showKey ? 'Sembunyikan API key' : 'Tampilkan API key'}
-            >
-              {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          </div>
+          <FormField
+            label={t('Resend API Key')}
+            accessory={
+              settings?.has_api_key ? (
+                <span className="text-xs text-muted-foreground font-normal">
+                  {t('Tersimpan:')} <code className="bg-muted px-1.5 py-0.5 rounded">{settings.masked_api_key}</code>
+                </span>
+              ) : undefined
+            }
+          >
+            <div className="relative flex items-center">
+              <Input
+                type={showKey ? 'text' : 'password'}
+                mono
+                className="pr-10"
+                placeholder={settings?.has_api_key ? t('Masukkan API Key baru untuk mengganti…') : 're_1234567890abcdef…'}
+                value={apiKeyInput}
+                onChange={(e) => setApiKeyInput(e.target.value)}
+              />
+              <button
+                type="button"
+                className="absolute right-3 text-muted-foreground hover:text-foreground p-1"
+                onClick={() => setShowKey(!showKey)}
+                aria-label={showKey ? 'Sembunyikan API key' : 'Tampilkan API key'}
+              >
+                {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </FormField>
           <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
             <span>{t('API Key disimpan secara aman menggunakan enkripsi AES-256-GCM pada vault server.')}</span>
             <button
@@ -314,56 +316,60 @@ export function ResendSettingsCard() {
         <details className="text-sm">
           <summary className="cursor-pointer py-3 text-muted-foreground">{t('Email delivery tracking')}</summary>
           <div className="space-y-2 pb-3">
-            <label htmlFor="resend-webhook-secret" className="block font-medium">{t('Webhook signing secret')}</label>
-            <input id="resend-webhook-secret" type="password" autoComplete="new-password" className="field-control w-full min-h-11 text-sm" value={webhookSecret} onChange={e => setWebhookSecret(e.target.value)} placeholder={settings?.has_webhook_secret ? t('Signing secret saved') : 'whsec_…'} />
-            <p className="text-xs text-muted-foreground">{t('Resend webhook URL')}: <code>{window.location.origin}/api/webhooks/resend</code></p>
+            <FormField label={t('Webhook signing secret')} htmlFor="resend-webhook-secret" helperText={`${t('Resend webhook URL')}: ${typeof window !== 'undefined' ? window.location.origin : ''}/api/webhooks/resend`}>
+              <Input
+                id="resend-webhook-secret"
+                type="password"
+                autoComplete="new-password"
+                value={webhookSecret}
+                onChange={e => setWebhookSecret(e.target.value)}
+                placeholder={settings?.has_webhook_secret ? t('Signing secret saved') : 'whsec_…'}
+                mono
+              />
+            </FormField>
           </div>
         </details>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <label className="block text-sm font-medium">{t('Nama Pengirim (From Name)')}</label>
-            <input
+
+        <FormGrid cols={2}>
+          <FormField label={t('Nama Pengirim (From Name)')}>
+            <Input
               type="text"
-              className="field-control w-full min-h-11 text-sm"
               placeholder="Cuan Support"
               value={fromName}
               onChange={(e) => setFromName(e.target.value)}
             />
-          </div>
-          <div className="space-y-1.5">
-            <label className="block text-sm font-medium">{t('Email Pengirim (From Email)')}</label>
-            <input
+          </FormField>
+          <FormField
+            label={t('Email Pengirim (From Email)')}
+            helperText={t('Gunakan domain terverifikasi Anda di Resend, atau default onboarding@resend.dev untuk testing.')}
+          >
+            <Input
               type="email"
-              className="field-control w-full min-h-11 text-sm"
               placeholder="onboarding@resend.dev"
               value={fromEmail}
               onChange={(e) => setFromEmail(e.target.value)}
             />
-            <p className="text-[11px] text-muted-foreground">
-              {t('Gunakan domain terverifikasi Anda di Resend, atau default onboarding@resend.dev untuk testing.')}
-            </p>
-          </div>
-        </div>
+          </FormField>
+        </FormGrid>
 
         {/* Recipient Notification Email & Idle Threshold */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <label className="block text-sm font-medium">{t('Email Penerima Notifikasi Transkrip')}</label>
-            <input
+        <FormGrid cols={2}>
+          <FormField
+            label={t('Email Penerima Notifikasi Transkrip')}
+            helperText={t('Alamat email staf / pemilik ruang kerja untuk menerima ringkasan pesan chat yang belum terbaca.')}
+          >
+            <Input
               type="email"
-              className="field-control w-full min-h-11 text-sm"
               placeholder="pemilik@workspace.com"
               value={notificationEmail}
               onChange={(e) => setNotificationEmail(e.target.value)}
             />
-            <p className="text-[11px] text-muted-foreground">
-              {t('Alamat email staf / pemilik ruang kerja untuk menerima ringkasan pesan chat yang belum terbaca.')}
-            </p>
-          </div>
-          <div className="space-y-1.5">
-            <label className="block text-sm font-medium">{t('Ambang Batas Waktu Chat Idle')}</label>
-            <select
-              className="field-control w-full min-h-11 text-sm"
+          </FormField>
+          <FormField
+            label={t('Ambang Batas Waktu Chat Idle')}
+            helperText={t('Email otomatis dikirim jika pelanggan mengirim pesan dan tidak direspons dalam batas waktu ini.')}
+          >
+            <Select
               value={idleMinutes}
               onChange={(e) => setIdleMinutes(Number(e.target.value))}
             >
@@ -372,12 +378,9 @@ export function ResendSettingsCard() {
               <option value={10}>10 {t('Menit (Standar Bisnis)')}</option>
               <option value={15}>15 {t('Menit')}</option>
               <option value={30}>30 {t('Menit')}</option>
-            </select>
-            <p className="text-[11px] text-muted-foreground">
-              {t('Email otomatis dikirim jika pelanggan mengirim pesan dan tidak direspons dalam batas waktu ini.')}
-            </p>
-          </div>
-        </div>
+            </Select>
+          </FormField>
+        </FormGrid>
 
         {/* Enabled Toggle */}
         <div className="rounded-lg border border-border/60 bg-muted/20 p-3.5">
@@ -419,9 +422,9 @@ export function ResendSettingsCard() {
           {t('Kirimkan satu email uji coba langsung untuk memastikan kredensial Resend dan email pengirim/penerima berfungsi normal.')}
         </p>
         <div className="flex flex-col sm:flex-row gap-2.5 max-w-lg">
-          <input
+          <Input
             type="email"
-            className="field-control flex-1 text-sm min-h-10"
+            className="flex-1"
             placeholder="penerima-uji-coba@domain.com"
             value={testEmailRecipient}
             onChange={(e) => setTestEmailRecipient(e.target.value)}

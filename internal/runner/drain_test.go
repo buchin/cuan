@@ -63,6 +63,15 @@ func TestDrainCoordinator_CheckDrainFile(t *testing.T) {
 	if !dc.IsDraining() {
 		t.Fatal("expected coordinator to be in draining state after flag detection")
 	}
+
+	// Remove drain flag file (simulating deploy completion)
+	_ = os.Remove(flagPath)
+	if dc.CheckDrainFile() {
+		t.Fatal("expected CheckDrainFile to be false after file removal")
+	}
+	if dc.IsDraining() {
+		t.Fatal("expected coordinator to clear draining state after flag removal")
+	}
 }
 
 func TestDrainCoordinator_StartMonitor(t *testing.T) {

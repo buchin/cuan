@@ -4,6 +4,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import { usePWA } from '../../context/PWAContext'
 import { Bell, AlertCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { FormField, Input, Select, FormGrid } from '../../components/ui/forms'
 
 interface Preferences {
   approval: boolean
@@ -358,13 +359,11 @@ export function NotificationSettings() {
             </div>
 
             {prefs.quiet && (
-              <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-4 rounded-xl border border-border/60 bg-muted/20 p-4">
+                <FormGrid cols={2}>
                   {(['start_hour', 'end_hour'] as const).map((key) => (
-                    <label key={key} className="space-y-1.5 text-sm font-medium">
-                      <span>{t(key === 'start_hour' ? 'From' : 'Until')}</span>
-                      <select
-                        className="field-control w-full min-h-11"
+                    <FormField key={key} label={t(key === 'start_hour' ? 'From' : 'Until')}>
+                      <Select
                         value={prefs[key]}
                         disabled={busy}
                         onChange={(e) =>
@@ -376,14 +375,12 @@ export function NotificationSettings() {
                             {String(i).padStart(2, '0')}:00
                           </option>
                         ))}
-                      </select>
-                    </label>
+                      </Select>
+                    </FormField>
                   ))}
-                </div>
-                <label className="block space-y-1.5 text-sm font-medium">
-                  <span>{t('Timezone')}</span>
-                  <input
-                    className="field-control w-full min-h-11"
+                </FormGrid>
+                <FormField label={t('Timezone')}>
+                  <Input
                     value={prefs.timezone}
                     disabled={busy}
                     required
@@ -392,7 +389,7 @@ export function NotificationSettings() {
                       setPrefs({ ...prefs, timezone: e.target.value })
                     }
                   />
-                </label>
+                </FormField>
               </div>
             )}
           </div>
