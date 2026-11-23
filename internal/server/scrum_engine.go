@@ -82,23 +82,21 @@ func (s *Server) handleRunnerAttemptCompleted(ctx context.Context, taskID, attem
 			targetRoomID = launch.RoomID
 		}
 	}
-	if targetRoomID == "" && detail.ProjectID != "" {
-		if rooms, err := s.projectStudioRepo.ListAllRooms(ctx); err == nil {
-			for _, r := range rooms {
-				if r.ProjectID == detail.ProjectID {
-					targetRoomID = r.ID
-					break
+	// Background or system tasks without a dedicated chat room must NOT hijack
+	// unrelated user conversations.
+	if targetRoomID == "" {
+		log.Printf("[ScrumEngine] Task %s is not bound to a chat room; skipping room notification", taskID)
+		if detail.Status == task.TaskStatusDone {
+			return
+		}
+		if status == string(task.AttemptStatusSucceeded) && s.projectSvc != nil && detail.ProjectID != "" {
+			if proj, err := s.projectSvc.Get(ctx, detail.ProjectID); err == nil && proj != nil {
+				settings := project.SettingsFromMetadata(proj.Metadata)
+				if settings.IsAutoDeployEnabled() {
+					s.autoApplyAndDeployTask(ctx, detail.ID, detail.ProjectID)
 				}
 			}
 		}
-	}
-	if targetRoomID == "" {
-		if resolved := s.resolveConversationContext(ctx, db.AgentIDCuan, ""); resolved.RoomID != "" {
-			targetRoomID = resolved.RoomID
-		}
-	}
-	if targetRoomID == "" {
-		log.Printf("[ScrumEngine] No target chat room found for task %s", taskID)
 		return
 	}
 
