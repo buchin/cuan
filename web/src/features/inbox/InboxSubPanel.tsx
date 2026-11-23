@@ -23,6 +23,16 @@ import { TASK_STATUS_THEMES } from '../tasks/task-ui'
 import './chat-calm.css'
 
 export function conversationPreview(message?: string, counts?: ChatContact, t: (value: string) => string = value => value) {
+  const activeTasks = typeof counts?.active_tasks === 'number' ? counts.active_tasks : Number(counts?.active_tasks) || 0
+  const queuedTasks = typeof counts?.queued_tasks === 'number' ? counts.queued_tasks : Number(counts?.queued_tasks) || 0
+
+  if (activeTasks > 0) {
+    return t('Sedang dikerjakan')
+  }
+  if (queuedTasks > 0) {
+    return t('Menunggu antrean')
+  }
+
   if (!message?.trim()) return 'No messages yet.'
   let text = message.trim()
   const workPreview = workConversationPreview(text, counts)
@@ -370,6 +380,15 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
               <span className={cn("text-sm truncate", unread > 0 ? "font-bold text-foreground" : "font-medium text-foreground/90")}>
                 {contact.name}
               </span>
+              {isWorking && (
+                <StatusDot
+                  status="working"
+                  size="md"
+                  title={t('Working on tasks')}
+                  aria-label={t('Working on tasks')}
+                  className="shrink-0"
+                />
+              )}
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <span className="text-xs tabular-nums text-muted-foreground">
@@ -523,7 +542,8 @@ export function InboxSubPanel({
         .join(' ')
         .toLowerCase()
         .includes(q)
-      const matchMsg = (c.last_message || '').toLowerCase().includes(q)
+      const preview = conversationPreview(c.last_message, c, t).toLowerCase()
+      const matchMsg = (c.last_message || '').toLowerCase().includes(q) || preview.includes(q)
       const matchProduct = (c.product || '').toLowerCase().includes(q)
       const matchUrl = (c.current_url || '').toLowerCase().includes(q)
       const matchPage = (c.page_title || '').toLowerCase().includes(q)

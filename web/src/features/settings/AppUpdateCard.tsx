@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { RefreshCw, CheckCircle2, AlertCircle, ArrowUpCircle, ExternalLink, Clock } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { GroupedSection } from '../../components/layout/GroupedSection'
+import { Select } from '../../components/ui/forms'
 
 interface UpdateInfo {
   current_version: string
@@ -196,18 +197,18 @@ export function AppUpdateCard() {
               <Clock className="h-3.5 w-3.5" />
               <span>{t('Execution window:')}</span>
             </div>
-            <select
+            <Select
               value={info?.auto_update_time || '03:00'}
               onChange={(e) => handleTimeChange(e.target.value)}
               disabled={!(info?.auto_update_enabled ?? true)}
-              className="field-control min-h-11 max-w-full text-sm sm:w-auto"
+              className="max-w-full sm:w-auto"
             >
               <option value="01:00">01:00 WIB (Midnight)</option>
               <option value="02:00">02:00 WIB</option>
               <option value="03:00">03:00 WIB (Recommended)</option>
               <option value="04:00">04:00 WIB</option>
               <option value="05:00">05:00 WIB (Early morning)</option>
-            </select>
+            </Select>
             {saveSuccess && (
               <span className="text-xs text-emerald-500 animate-fade-in">
                 {t('Saved')}

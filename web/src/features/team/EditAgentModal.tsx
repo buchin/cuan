@@ -31,6 +31,7 @@ import {
   getDefaultStoreProvider,
   type AIProviderDTO,
 } from '../../api/aiProviders'
+import { FormField, Input, Select, Textarea } from '../../components/ui/forms'
 
 export interface EditAgentModalProps {
   agent: Agent
@@ -549,16 +550,21 @@ export function EditAgentModal({
             </div>
 
             {/* AI Provider & Engine Selection */}
-            <div className="space-y-1.5">
-              <label htmlFor="agent-ai-provider" className="block text-xs font-medium text-foreground">
-                {t('AI Provider & Engine')} <span className="text-destructive">*</span>
-              </label>
-              <select
+            <FormField
+              label={t('AI Provider & Engine')}
+              required
+              htmlFor="agent-ai-provider"
+              helperText={
+                selectedProvider === 'default'
+                  ? t('Agen akan otomatis mengikuti penyedia AI utama yang Anda jadikan Default Ruang Kerja di Pengaturan.')
+                  : t('Penyedia AI khusus untuk agen ini (override dari default ruang kerja).')
+              }
+            >
+              <Select
                 id="agent-ai-provider"
                 value={selectedProvider}
                 onChange={(e) => handleProviderChange(e.target.value)}
                 disabled={saving || loadingConfig}
-                className="w-full min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50"
               >
                 <option value="default">
                   ⭐ {t('Ikuti Default Ruang Kerja ({provider})').replace('{provider}', defaultProviderName)}
@@ -581,38 +587,34 @@ export function EditAgentModal({
                         {p.name} {p.id === 'deepseek' ? `(${t('Paling Hemat')})` : ''}
                       </option>
                     ))}
-              </select>
-              <p className="text-[11px] text-muted-foreground">
-                {selectedProvider === 'default'
-                  ? t('Agen akan otomatis mengikuti penyedia AI utama yang Anda jadikan Default Ruang Kerja di Pengaturan.')
-                  : t('Penyedia AI khusus untuk agen ini (override dari default ruang kerja).')}
-              </p>
-            </div>
+              </Select>
+            </FormField>
 
             {/* Primary Model */}
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label htmlFor="agent-primary-model" className="block text-xs font-medium text-foreground">
-                  {t('Primary AI Model')} <span className="text-destructive">*</span>
-                </label>
-                {isCustomPrimary && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsCustomPrimary(false)
-                      if (catalogModels.length > 0) {
-                        setModelId(catalogModels[0].id)
-                      }
-                    }}
-                    className="text-[11px] text-primary hover:underline font-medium"
-                  >
-                    {t('Use catalog model')}
-                  </button>
-                )}
-              </div>
-
+              <FormField
+                label={t('Primary AI Model')}
+                required
+                htmlFor={isCustomPrimary ? 'agent-custom-primary-model' : 'agent-primary-model'}
+                accessory={
+                  isCustomPrimary ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCustomPrimary(false)
+                        if (catalogModels.length > 0) {
+                          setModelId(catalogModels[0].id)
+                        }
+                      }}
+                      className="text-[11px] text-primary hover:underline font-medium"
+                    >
+                      {t('Use catalog model')}
+                    </button>
+                  ) : undefined
+                }
+              >
               {!isCustomPrimary ? (
-                <select
+                <Select
                   id="agent-primary-model"
                   value={modelId}
                   onChange={(e) => {
@@ -623,7 +625,6 @@ export function EditAgentModal({
                     }
                   }}
                   disabled={saving || loadingConfig}
-                  className="w-full min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50"
                 >
                   {loadingConfig && catalogModels.length === 0 ? (
                     <option value="" disabled>{t('Loading models catalog...')}</option>
@@ -644,23 +645,24 @@ export function EditAgentModal({
                   <option value="__custom_entry__">
                     ✨ -- {t('Custom Model ID / Manual Entry')} --
                   </option>
-                </select>
+                </Select>
               ) : (
                 <div className="space-y-1.5 animate-in fade-in duration-150">
-                  <input
+                  <Input
                     id="agent-custom-primary-model"
                     type="text"
                     value={modelId}
                     onChange={(e) => setModelId(e.target.value)}
                     placeholder={t('e.g. gpt-4o, claude-3-5-sonnet-20241022, mistral-large-latest')}
                     disabled={saving}
-                    className="w-full min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50"
+                    mono
                   />
                   <p className="text-[11px] text-muted-foreground">
                     {t('Enter a custom AI model identifier supported by your provider.')}
                   </p>
                 </div>
               )}
+            </FormField>
 
               {/* Active Model Capabilities Badge Card */}
               {activeModel && (
@@ -722,74 +724,74 @@ export function EditAgentModal({
 
             {/* Fallback Model */}
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label htmlFor="agent-fallback-model" className="block text-xs font-medium text-foreground">
-                  {t('Fallback Model (Auto-Routing)')}
-                </label>
-                <div className="flex items-center gap-2">
-                  {isCustomFallback && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCustomFallback(false)
-                        setFallbackModelId('')
-                      }}
-                      className="text-[11px] text-primary hover:underline font-medium"
-                    >
-                      {t('Use catalog model')}
-                    </button>
-                  )}
-                  <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                    <ShieldCheck className="h-3 w-3 text-emerald-500" />
-                    {t('High Availability')}
-                  </span>
-                </div>
-              </div>
-
-              {!isCustomFallback ? (
-                <select
-                  id="agent-fallback-model"
-                  value={fallbackModelId}
-                  onChange={(e) => {
-                    if (e.target.value === '__custom_fallback__') {
-                      setIsCustomFallback(true)
-                    } else {
-                      setFallbackModelId(e.target.value)
-                    }
-                  }}
-                  disabled={saving || loadingConfig}
-                  className="w-full min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50"
-                >
-                  <option value="">{t('No fallback model (disable auto-routing)')}</option>
-                  {catalogModels
-                    .filter((m) => m.id !== modelId)
-                    .map((m) => {
-                      const isVision = isModelVisionCapable(m.id, effectiveProvider, m)
-                      const capLabel = isVision ? t('Vision') : t('Text-only')
-                      const defLabel = m.is_default ? ` [${t('Default')}]` : ''
-                      return (
-                        <option key={`fallback-${m.id}`} value={m.id}>
-                          {m.display_name || m.name || m.id} [{capLabel}]{defLabel}
-                        </option>
-                      )
-                    })}
-                  <option value="__custom_fallback__">
-                    ✨ -- {t('Custom Fallback Model ID / Manual Entry')} --
-                  </option>
-                </select>
-              ) : (
-                <div className="space-y-1.5 animate-in fade-in duration-150">
-                  <input
-                    id="agent-custom-fallback-model"
-                    type="text"
+              <FormField
+                label={t('Fallback Model (Auto-Routing)')}
+                htmlFor={isCustomFallback ? 'agent-custom-fallback-model' : 'agent-fallback-model'}
+                accessory={
+                  <div className="flex items-center gap-2">
+                    {isCustomFallback && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCustomFallback(false)
+                          setFallbackModelId('')
+                        }}
+                        className="text-[11px] text-primary hover:underline font-medium"
+                      >
+                        {t('Use catalog model')}
+                      </button>
+                    )}
+                    <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                      <ShieldCheck className="h-3 w-3 text-emerald-500" />
+                      {t('High Availability')}
+                    </span>
+                  </div>
+                }
+              >
+                {!isCustomFallback ? (
+                  <Select
+                    id="agent-fallback-model"
                     value={fallbackModelId}
-                    onChange={(e) => setFallbackModelId(e.target.value)}
-                    placeholder={t('e.g. gemini-1.5-flash, claude-3-haiku-20240307')}
-                    disabled={saving}
-                    className="w-full min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50"
-                  />
-                </div>
-              )}
+                    onChange={(e) => {
+                      if (e.target.value === '__custom_fallback__') {
+                        setIsCustomFallback(true)
+                      } else {
+                        setFallbackModelId(e.target.value)
+                      }
+                    }}
+                    disabled={saving || loadingConfig}
+                  >
+                    <option value="">{t('No fallback model (disable auto-routing)')}</option>
+                    {catalogModels
+                      .filter((m) => m.id !== modelId)
+                      .map((m) => {
+                        const isVision = isModelVisionCapable(m.id, effectiveProvider, m)
+                        const capLabel = isVision ? t('Vision') : t('Text-only')
+                        const defLabel = m.is_default ? ` [${t('Default')}]` : ''
+                        return (
+                          <option key={`fallback-${m.id}`} value={m.id}>
+                            {m.display_name || m.name || m.id} [{capLabel}]{defLabel}
+                          </option>
+                        )
+                      })}
+                    <option value="__custom_fallback__">
+                      ✨ -- {t('Custom Fallback Model ID / Manual Entry')} --
+                    </option>
+                  </Select>
+                ) : (
+                  <div className="space-y-1.5 animate-in fade-in duration-150">
+                    <Input
+                      id="agent-custom-fallback-model"
+                      type="text"
+                      value={fallbackModelId}
+                      onChange={(e) => setFallbackModelId(e.target.value)}
+                      placeholder={t('e.g. gemini-1.5-flash, claude-3-haiku-20240307')}
+                      disabled={saving}
+                      mono
+                    />
+                  </div>
+                )}
+              </FormField>
 
               {/* Active Fallback Model Details and Smart Guidance */}
               {activeFallbackModel && (
@@ -882,11 +884,12 @@ export function EditAgentModal({
             </div>
 
             {/* Token Budget */}
-            <div className="space-y-1.5">
-              <label htmlFor="agent-token-budget" className="block text-xs font-medium text-foreground">
-                {t('Token Budget (Max Output Tokens)')}
-              </label>
-              <input
+            <FormField
+              label={t('Token Budget (Max Output Tokens)')}
+              htmlFor="agent-token-budget"
+              helperText={t('Limits the maximum tokens per completion response. Set 0 or leave empty for default.')}
+            >
+              <Input
                 id="agent-token-budget"
                 type="number"
                 min="0"
@@ -895,12 +898,8 @@ export function EditAgentModal({
                 onChange={(e) => setTokenBudget(e.target.value)}
                 placeholder="8192"
                 disabled={saving}
-                className="w-full min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50"
               />
-              <p className="text-[11px] text-muted-foreground">
-                {t('Limits the maximum tokens per completion response. Set 0 or leave empty for default.')}
-              </p>
-            </div>
+            </FormField>
           </div>
 
           {/* Section 3: Agent Persona & Prompting */}
@@ -911,26 +910,19 @@ export function EditAgentModal({
             </div>
 
             {/* Role */}
-            <div className="space-y-1.5">
-              <label htmlFor="agent-role" className="block text-xs font-medium text-foreground">
-                {t('Agent Role / Title')}
-              </label>
-              <input
+            <FormField label={t('Agent Role / Title')} htmlFor="agent-role">
+              <Input
                 id="agent-role"
                 type="text"
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
                 placeholder={t('e.g. Scrum Master, Senior Engineer, Support Specialist')}
                 disabled={saving}
-                className="w-full min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50"
               />
-            </div>
+            </FormField>
 
             {/* System Prompt Presets */}
             <div className="space-y-1.5">
-              <label htmlFor="agent-system-prompt" className="block text-xs font-medium text-foreground">
-                {t('System Prompt')}
-              </label>
               <div className="flex flex-wrap gap-1.5 mb-2">
                 {PROMPT_PRESETS.map((preset) => (
                   <button
@@ -944,15 +936,17 @@ export function EditAgentModal({
                   </button>
                 ))}
               </div>
-              <textarea
-                id="agent-system-prompt"
-                rows={4}
-                value={systemPrompt}
-                onChange={(e) => setSystemPrompt(e.target.value)}
-                placeholder={t('Enter custom system instructions for this agent...')}
-                disabled={saving}
-                className="w-full min-h-[110px] rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50 resize-y"
-              />
+              <FormField label={t('System Prompt')} htmlFor="agent-system-prompt">
+                <Textarea
+                  id="agent-system-prompt"
+                  rows={4}
+                  value={systemPrompt}
+                  onChange={(e) => setSystemPrompt(e.target.value)}
+                  placeholder={t('Enter custom system instructions for this agent...')}
+                  disabled={saving}
+                  className="min-h-[110px]"
+                />
+              </FormField>
             </div>
           </div>
 

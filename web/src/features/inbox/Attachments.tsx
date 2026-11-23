@@ -10,6 +10,7 @@ import {
   isImageFile,
   resolveAttachmentUrl,
 } from '../../components/dialogs/filePreviewUtils'
+import { cn } from '../../lib/utils'
 
 export { resolveAttachmentUrl }
 
@@ -492,6 +493,218 @@ export function AttachmentFile({ attachment: a, internal = false, imagePreview =
         <p role="alert" className="text-xs">
           {t('File unavailable. Try downloading again.')}
         </p>
+      )}
+    </div>
+  )
+}
+
+export function AttachmentGalleryCell({
+  attachment: a,
+  className = '',
+  onClick,
+}: {
+  attachment: Attachment
+  className?: string
+  onClick: () => void
+}) {
+  const { t } = useLanguage()
+  const [url, setURL] = useState('')
+  const [failed, setFailed] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const blobRef = useRef('')
+
+  useEffect(() => {
+    let alive = true
+    setURL('')
+    setFailed(false)
+    setLoading(true)
+    const targetUrl = resolveAttachmentUrl(a)
+    const sep = targetUrl.includes('?') ? '&' : '?'
+    fetch(`${targetUrl}${sep}preview=1`, {
+      headers: { Authorization: 'Bearer ' + getAuthToken() },
+    })
+      .then(async (r) => {
+        if (!r.ok) throw new Error()
+        return r.blob()
+      })
+      .then((blob) => {
+        if (alive) {
+          const next = URL.createObjectURL(blob)
+          blobRef.current = next
+          setURL(next)
+          setLoading(false)
+        }
+      })
+      .catch(() => {
+        if (alive) {
+          setFailed(true)
+          setLoading(false)
+        }
+      })
+    return () => {
+      alive = false
+      if (blobRef.current) {
+        URL.revokeObjectURL(blobRef.current)
+        blobRef.current = ''
+      }
+    }
+  }, [a.id, a.url, a.type, a.name])
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        onClick()
+      }}
+      className={cn(
+        'group/cell relative flex h-full w-full min-h-0 min-w-0 items-center justify-center overflow-hidden bg-muted/40 text-left cursor-pointer transition-opacity hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
+        className,
+      )}
+      aria-label={`${t('Preview')} ${a.name}`}
+    >
+      {url ? (
+        <img
+          src={url}
+          alt={a.name}
+          className="h-full w-full object-cover transition-transform duration-200 group-hover/cell:scale-105"
+        />
+      ) : loading && !failed ? (
+        <LoaderCircle className="h-5 w-5 animate-spin text-muted-foreground/60" />
+      ) : (
+        <div className="flex flex-col items-center justify-center p-2 text-center text-muted-foreground">
+          <FileText className="h-6 w-6 mb-1 opacity-60" />
+          <span className="text-[10px] truncate max-w-full">{a.name}</span>
+        </div>
+      )}
+    </button>
+  )
+}
+
+export function AttachmentGallery({
+  attachments,
+  internal = false,
+}: {
+  attachments: Attachment[]
+  internal?: boolean
+}) {
+  const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null)
+
+  const images = attachments.filter(isImageAttachment)
+  const docs = attachments.filter((a) => !isImageAttachment(a))
+  const isMultiImage = attachments.filter(isImageAttachment).length > 1
+
+  async function download(a: Attachment) {
+    try {
+      const targetUrl = resolveAttachmentUrl(a)
+      const r = await fetch(targetUrl, {
+        headers: { Authorization: 'Bearer ' + getAuthToken() },
+      })
+      if (!r.ok) throw new Error()
+      const u = URL.createObjectURL(await r.blob())
+      const link = document.createElement('a')
+      link.href = u
+      link.download = a.name
+      link.click()
+      setTimeout(() => URL.revokeObjectURL(u), 1000)
+    } catch {
+      /* ignore download error */
+    }
+  }
+
+  if (images.length === 0) {
+    return (
+      <div className="space-y-1.5 w-full">
+        {docs.map((doc) => (
+          <AttachmentFile key={doc.id} attachment={doc} internal={internal} />
+        ))}
+      </div>
+    )
+  }
+
+  if (!isMultiImage) {
+    return (
+      <div className="space-y-2 w-full">
+        <AttachmentFile attachment={images[0]} imagePreview internal={internal} />
+        {docs.map((doc) => (
+          <AttachmentFile key={doc.id} attachment={doc} internal={internal} />
+        ))}
+      </div>
+    )
+  }
+
+  const count = images.length
+  let gridLayoutClass = 'grid gap-1.5 h-[220px] sm:h-[240px] w-full max-w-[320px] rounded-xl overflow-hidden bg-muted/20 border border-border/30'
+
+  if (count === 2) {
+    gridLayoutClass = 'grid grid-cols-2 gap-1.5 h-[160px] sm:h-[180px] w-full max-w-[320px] rounded-xl overflow-hidden bg-muted/20 border border-border/30'
+  } else if (count === 3) {
+    gridLayoutClass = 'grid grid-cols-2 grid-rows-2 gap-1.5 h-[220px] sm:h-[240px] w-full max-w-[320px] rounded-xl overflow-hidden bg-muted/20 border border-border/30'
+  } else if (count === 4) {
+    gridLayoutClass = 'grid grid-cols-2 grid-rows-2 gap-1.5 h-[220px] sm:h-[240px] w-full max-w-[320px] rounded-xl overflow-hidden bg-muted/20 border border-border/30'
+  } else if (count === 5) {
+    gridLayoutClass = 'grid grid-cols-6 grid-rows-2 gap-1.5 h-[220px] sm:h-[240px] w-full max-w-[320px] rounded-xl overflow-hidden bg-muted/20 border border-border/30'
+  } else {
+    gridLayoutClass = 'grid grid-cols-3 gap-1.5 auto-rows-[100px] w-full max-w-[320px] rounded-xl overflow-hidden bg-muted/20 border border-border/30'
+  }
+
+  const getItemClass = (index: number) => {
+    if (count === 2) {
+      return 'col-span-1 row-span-1 h-full'
+    }
+    if (count === 3) {
+      if (index === 0) return 'col-span-1 row-span-2 h-full'
+      return 'col-span-1 row-span-1 h-full'
+    }
+    if (count === 4) {
+      return 'col-span-1 row-span-1 h-full'
+    }
+    if (count === 5) {
+      if (index < 2) return 'col-span-3 row-span-1 h-full'
+      return 'col-span-2 row-span-1 h-full'
+    }
+    return 'col-span-1 h-full'
+  }
+
+  return (
+    <div className="w-full max-w-[320px]">
+      <div className="relative">
+        {internal && (
+          <InternalVisibility className="absolute left-1.5 top-1.5 z-10 rounded-full bg-background/80" />
+        )}
+        <div
+          data-testid="attachment-gallery"
+          data-image-count={count}
+          className={gridLayoutClass}
+        >
+          {images.map((img, idx) => (
+            <AttachmentGalleryCell
+              key={img.id || idx}
+              attachment={img}
+              className={getItemClass(idx)}
+              onClick={() => setPreviewAttachment(img)}
+            />
+          ))}
+        </div>
+      </div>
+      {docs.length > 0 && (
+        <div className="mt-2 space-y-1.5 w-full">
+          {docs.map((doc) => (
+            <AttachmentFile key={doc.id} attachment={doc} internal={internal} />
+          ))}
+        </div>
+      )}
+      {previewAttachment && (
+        <Suspense fallback={null}>
+          <FilePreviewModal
+            internal={internal}
+            open={Boolean(previewAttachment)}
+            attachment={previewAttachment}
+            onClose={() => setPreviewAttachment(null)}
+            onDownload={() => download(previewAttachment)}
+          />
+        </Suspense>
       )}
     </div>
   )

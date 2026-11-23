@@ -11,6 +11,7 @@ import {
   ArrowLeft,
   Server,
 } from 'lucide-react'
+import { FormField, Input } from '../../components/ui/forms'
 
 export interface InstaboxSettingsDTO {
   has_api_key: boolean
@@ -245,43 +246,36 @@ export function InstaboxIntegration() {
 
       <form onSubmit={handleSave} className="space-y-5">
         <div className="space-y-4 rounded-xl border border-border/40 p-4 bg-card/40">
-          <div className="space-y-1.5">
-            <label
-              htmlFor="instabox-endpoint"
-              className="text-xs font-medium text-foreground flex items-center justify-between"
-            >
-              <span>{t('Endpoint URL')}</span>
-              <span className="text-[11px] font-normal text-muted-foreground">
-                (WebSocket / HTTP CDP URL)
-              </span>
-            </label>
-            <input
+          <FormField
+            label={t('Endpoint URL')}
+            htmlFor="instabox-endpoint"
+            accessory={<span className="text-[11px] font-normal text-muted-foreground">(WebSocket / HTTP CDP URL)</span>}
+            helperText={t('Alamat server browser remote (misal Instabox, Browserless, atau endpoint Chrome CDP).')}
+          >
+            <Input
               id="instabox-endpoint"
               type="text"
               value={endpointInput}
               onChange={(e) => setEndpointInput(e.target.value)}
               placeholder="https://instabox.example.com atau wss://..."
-              className="w-full rounded-md border border-border/50 bg-background px-3 py-2 text-xs font-mono placeholder:text-muted-foreground/50 focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
+              mono
             />
-            <p className="text-[11px] text-muted-foreground leading-normal">
-              {t('Alamat server browser remote (misal Instabox, Browserless, atau endpoint Chrome CDP).')}
-            </p>
-          </div>
+          </FormField>
 
-          <div className="space-y-1.5">
-            <label
-              htmlFor="instabox-key"
-              className="text-xs font-medium text-foreground flex items-center justify-between"
-            >
-              <span>{t('API Key / Token Rahasia')}</span>
-              {settings?.has_api_key && (
+          <FormField
+            label={t('API Key / Token Rahasia')}
+            htmlFor="instabox-key"
+            accessory={
+              settings?.has_api_key ? (
                 <span className="text-[11px] font-normal text-emerald-600 dark:text-emerald-400">
                   {t('Tersimpan: ')} {settings.masked_api_key}
                 </span>
-              )}
-            </label>
+              ) : undefined
+            }
+            helperText={t('Otentikasi jika Instabox diamankan dengan token akses.')}
+          >
             <div className="relative">
-              <input
+              <Input
                 id="instabox-key"
                 type={showKey ? 'text' : 'password'}
                 value={apiKeyInput}
@@ -291,21 +285,19 @@ export function InstaboxIntegration() {
                     ? t('Masukkan kunci baru untuk mengganti…')
                     : 'Bearer token atau sandi'
                 }
-                className="w-full rounded-md border border-border/50 bg-background px-3 py-2 pr-9 text-xs font-mono placeholder:text-muted-foreground/50 focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring"
+                className="pr-10"
+                mono
               />
               <button
                 type="button"
                 onClick={() => setShowKey(!showKey)}
                 aria-label={showKey ? t('Sembunyikan sandi') : t('Tampilkan sandi')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
               >
-                {showKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
-            <p className="text-[11px] text-muted-foreground leading-normal">
-              {t('Otentikasi jika Instabox diamankan dengan token akses.')}
-            </p>
-          </div>
+          </FormField>
 
           <div className="pt-2 border-t border-border/30 flex items-center justify-between">
             <div>

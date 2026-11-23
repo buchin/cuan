@@ -11,7 +11,7 @@ const output=process.argv[2]
 if(!output)throw Error('Supply a new private evidence directory')
 await fs.mkdir(output,{recursive:true,mode:0o700})
 const now='2026-11-06T05:00:00Z',room='work-fixture'
-const contact={id:room,conversation_id:room,name:'Website pelanggan',type:'customer',email:'customer@example.test',unread_count:0,status:'online',last_message:'Memeriksa tampilan mobile setelah perbaikan.',updated_at:now,task_count:5,active_tasks:1}
+const contact={id:room,conversation_id:room,name:'Website pelanggan',type:'customer',email:'customer@example.test',unread_count:0,status:'online',last_message:'The work is queued waiting for the active project task to complete. [View work](/tasks/work)',updated_at:now,task_count:5,active_tasks:1}
 const extraContacts=[
   {id:'c-fahmi',conversation_id:'c-fahmi',name:'fahmi putra',type:'customer',email:'fahmi@example.test',unread_count:0,status:'online',is_online:true,last_message:'Biar kami aktifkan',updated_at:now,task_count:0,active_tasks:0},
   {id:'c-kisworo',conversation_id:'c-kisworo',name:'kisworo izar',type:'customer',email:'kisworo@example.test',unread_count:0,status:'offline',last_message:'Customer reply draft: Halo sob! Akses...',updated_at:now,task_count:1,active_tasks:0,done_tasks:1,resolved:false},
@@ -19,6 +19,7 @@ const extraContacts=[
   {id:'c-anon',conversation_id:'c-anon',name:'Visitor #3f8a91',type:'customer',email:'',unread_count:0,status:'offline',last_message:'Tanya produk kak',updated_at:now,task_count:0,active_tasks:0},
   {id:'c-agent',conversation_id:'c-agent',name:'Penyederhanaan Timeline Task Chat',type:'agent',agent_id:'agent_cuan',avatar:'🤖',unread_count:0,status:'online',last_message:'Termasuk posisi judul task lain sejajar itu...',updated_at:now,task_count:1,active_tasks:1},
   {id:'c-review',conversation_id:'c-review',name:'Peringatan Kapasitas Server',type:'agent',agent_id:'agent_cuan',avatar:'🤖',unread_count:0,status:'online',last_message:'Hasil optimasi selesai diperiksa.',updated_at:now,task_count:1,active_tasks:0,review_tasks:1},
+  {id:'c-queued',conversation_id:'c-queued',name:'Pindahkan Tombol New Work',type:'agent',agent_id:'agent_cuan',avatar:'🤖',unread_count:0,status:'online',last_message:'The work is queued waiting for the active project task to complete.',updated_at:now,task_count:1,queued_tasks:1,active_tasks:0},
 ]
 const contactsList=[contact,...extraContacts]
 const agents=[{id:'agent_cuan',name:'@cuan',status:'active',enabled:true,harness:'agy',provider:'agy',supports_vision:true}]
@@ -44,6 +45,25 @@ const messages=[message('source','Tolong perbaiki tampilan website.',{author_typ
  message('room-ref','Berikut ruang chat agen terkait: [Penyederhanaan Timeline Task Chat](/inbox/c-agent)'),
   message('reply-draft','Draf email balasan untuk pelanggan sudah disiapkan.',{reply_draft:'Halo sob,\n\nKendala login sudah diperbaiki dan sistem normal kembali. Silakan dicoba login ulang.',is_internal:true}),
  message('files','Files from this work session',{work_update:{task_id:'work',attempt_id:'attempt',kind:'files'},attachments:[{id:'file',name:'report.txt',type:'text/plain',size:10,url:'/api/v1/chat/attachments/file'}]}),
+ message('gallery-4-images','Tangkapan layar hasil pengujian UI:',{
+   author_type:'agent',
+   is_internal:false,
+   attachments:[
+     {id:'img-1',name:'preview-1.png',type:'image/png',size:24000,url:'/api/v1/chat/attachments/img-1'},
+     {id:'img-2',name:'preview-2.png',type:'image/png',size:24000,url:'/api/v1/chat/attachments/img-2'},
+     {id:'img-3',name:'preview-3.png',type:'image/png',size:24000,url:'/api/v1/chat/attachments/img-3'},
+     {id:'img-4',name:'preview-4.png',type:'image/png',size:24000,url:'/api/v1/chat/attachments/img-4'},
+   ]
+ }),
+ message('gallery-mixed','Berikut hasil desain dan dokumen spesifikasi:',{
+   author_type:'agent',
+   is_internal:false,
+   attachments:[
+     {id:'img-a',name:'desain-desktop.png',type:'image/png',size:15000,url:'/api/v1/chat/attachments/img-a'},
+     {id:'img-b',name:'desain-mobile.png',type:'image/png',size:18000,url:'/api/v1/chat/attachments/img-b'},
+     {id:'doc-1',name:'spesifikasi.pdf',type:'application/pdf',size:45000,url:'/api/v1/chat/attachments/doc-1'},
+   ]
+ }),
  message('proposal-pending','Siap, ane susun proposal untuk Riwayat & Log Pengiriman (Phase 3).\n\nDi fase ini, setiap sesi broadcast yang dikirim akan otomatis tercatat di menu Kontak—lengkap dengan waktu pengiriman, subjek pesan, jumlah penerima sukses, dan rincian error jika ada email yang gagal terkirim. Tampilannya dirancang minimalis dan rapi mengikuti standar Things 3 / Bear Notes agar mudah dipantau tanpa menambah beban visual.\n\nDetail rencana dan kriteria tuntasnya sudah ane cantumkan pada kartu persetujuan berikut. Silakan dikonfirmasi jika cakupannya sudah sesuai.',{
    author_type:'agent',
    is_internal:true,
@@ -185,6 +205,7 @@ try{
    else if(pathname.endsWith('/logs'))data={logs:[{id:1,line:'Isolated terminal fixture output',stream:'stdout',logged_at:now}]}
    else if(pathname.includes('/agents'))data=pathname==='/api/v1/agents'?{agents}:agents[0]
    else if(pathname.includes('preferences'))data={items:{}}
+   else if(pathname.includes('/chat/attachments/'))return route.fulfill({status:200,contentType:'image/png',body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==','base64')})
    else if(pathname.endsWith('/projects'))data={projects:[]}
    else if(pathname.includes('/email')&&route.request().method()==='POST')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'success',email_id:'re_mock_fixture_123',delivery_status:'sent',recipient:'customer@example.test',message:'Email balasan berhasil dikirim'})})
    else if(pathname.endsWith('/cancel')&&route.request().method()==='POST')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'cancelled'})})
@@ -233,6 +254,9 @@ try{
       assert.ok(await page.locator('[data-avatar="true"]:has-text("KI")').count()>=1,'Mobile contacts must display KI monogram')
       assert.ok(await page.locator('[data-avatar="true"]:has-text("AZ")').count()>=1,'Mobile contacts must display AZ monogram')
       assert.ok(await page.locator('[data-avatar="true"]:has-text("WP")').count()>=1,'Mobile contacts must display WP monogram')
+      assert.ok(await page.locator('[data-testid="conversation-item"]:has-text("Sedang dikerjakan")').count()>=1,'Mobile list must show "Sedang dikerjakan" for active running task')
+      assert.ok(await page.locator('[data-testid="conversation-item"]:has-text("Menunggu antrean")').count()>=1,'Mobile list must show "Menunggu antrean" for queued task')
+      assert.ok(await page.locator('[data-testid="conversation-item"]:has-text("Biar kami aktifkan")').count()>=1,'Mobile list must fall back to last_message for idle contact')
       await page.screenshot({path:path.join(output,'inbox-mobile-contacts-390-light.png')})
       await page.evaluate(()=>document.documentElement.classList.add('dark'))
       await page.screenshot({path:path.join(output,'inbox-mobile-contacts-390-dark.png')})
@@ -245,6 +269,9 @@ try{
     assert.ok(await page.locator('[data-avatar="true"]:has-text("FP")').count()>=1,'Desktop sidebar must display FP monogram')
     assert.ok(await page.locator('[data-avatar="true"]:has-text("KI")').count()>=1,'Desktop sidebar must display KI monogram')
     assert.ok(await page.locator('[data-avatar="true"]:has-text("AZ")').count()>=1,'Desktop sidebar must display AZ monogram')
+    assert.ok(await page.locator('[data-testid="conversation-item"]:has-text("Sedang dikerjakan")').count()>=1,'Desktop list must show "Sedang dikerjakan" for active running task')
+    assert.ok(await page.locator('[data-testid="conversation-item"]:has-text("Menunggu antrean")').count()>=1,'Desktop list must show "Menunggu antrean" for queued task')
+    assert.ok(await page.locator('[data-testid="conversation-item"]:has-text("Biar kami aktifkan")').count()>=1,'Desktop list must fall back to last_message for idle contact')
     await page.screenshot({path:path.join(output,`inbox-desktop-monogram-${width}.png`)})
   }
   // Tasks live in the composer disclosure, not as duplicate chat cards.
@@ -436,6 +463,34 @@ try{
   assert.ok((await copyLinkBtn.boundingBox()).height >= 44, 'Copy link button must meet 44px touch target')
   await roomCard.scrollIntoViewIfNeeded()
   await roomCard.screenshot({path:path.join(output,`room-card-${width}.png`)})
+
+  // Multi-image gallery verification (DoD 1, 2, 3, 4)
+  const gallery = page.locator('[data-testid="attachment-gallery"]')
+  await gallery.first().waitFor({state:'visible',timeout:10000})
+  assert.ok(await gallery.count() >= 2, 'AttachmentGallery must be rendered for multi-image messages')
+  assert.equal(await page.locator('[data-testid="attachment-gallery"][data-image-count="4"]').count(), 1, '4-image gallery must be rendered in 2x2 grid')
+  assert.equal(await page.locator('[data-testid="attachment-gallery"][data-image-count="2"]').count(), 1, '2-image gallery must be rendered in 2-column grid')
+
+  // Verify non-image document alongside gallery
+  const docAttachment = page.locator('.inbox-message-list button[aria-label*="spesifikasi.pdf"]')
+  await docAttachment.waitFor({state:'visible'})
+  assert.equal(await docAttachment.count(), 1, 'Non-image doc must remain accessible alongside gallery')
+  const mixedGallery = page.locator('[data-testid="attachment-gallery"][data-image-count="2"]')
+  await mixedGallery.scrollIntoViewIfNeeded()
+  await page.screenshot({path:path.join(output,`inbox-gallery-mixed-${width}.png`)})
+
+  // Verify tap/click on image cell opens FilePreviewModal
+  const galleryCell = page.locator('[data-testid="attachment-gallery"] button').first()
+  await galleryCell.scrollIntoViewIfNeeded()
+  await page.screenshot({path:path.join(output,`inbox-gallery-grid-${width}.png`)})
+  await galleryCell.click()
+  const previewDialog = page.locator('dialog[open]')
+  await previewDialog.waitFor({state:'visible',timeout:5000})
+  assert.equal(await previewDialog.count(), 1, 'Clicking gallery cell must open FilePreviewModal')
+  await page.screenshot({path:path.join(output,`inbox-gallery-preview-modal-${width}.png`)})
+  const closeBtn = previewDialog.locator('button[aria-label="Tutup"], button[aria-label="Close"]').first()
+  await closeBtn.click()
+  await previewDialog.waitFor({state:'hidden'})
 
   // Frame the actual choices with the work preview in native Inbox captures.
   await choices.scrollIntoViewIfNeeded()

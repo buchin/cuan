@@ -32,6 +32,7 @@ import {
 } from '../../api/taste'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import { Badge } from '../../components/ui/badge'
+import { FormField, Input, Textarea } from '../../components/ui/forms'
 
 export interface AgentMemoryViewProps {
   showHeading?: boolean
@@ -1676,42 +1677,29 @@ export function AgentMemoryView({
           </div>
 
           {/* Topic Field (Optional) */}
-          <div>
-            <label
-              htmlFor="add-topic"
-              className="block text-xs font-semibold text-foreground mb-1"
-            >
-              {t('Topic / Headline (Optional)')}
-            </label>
-            <input
+          <FormField
+            label={t('Topic / Headline (Optional)')}
+            htmlFor="add-topic"
+            helperText={t('A short label to easily identify this rule (max 100 chars).')}
+          >
+            <Input
               id="add-topic"
               type="text"
               value={formTopic}
               onChange={(e) => setFormTopic(e.target.value)}
               placeholder={t('e.g. Tone of Voice, Deployment safety, Copywriting')}
               maxLength={100}
-              className="field-control min-h-11 w-full text-sm"
               disabled={formSaving}
             />
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {t('A short label to easily identify this rule (max 100 chars).')}
-            </p>
-          </div>
+          </FormField>
 
           {/* Content Field (Mandatory) */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label
-                htmlFor="add-content"
-                className="block text-xs font-semibold text-foreground"
-              >
-                {t('Guideline & Learned Rule')} *
-              </label>
-              <span className="text-[11px] text-muted-foreground">
-                {formContent.length} / 2000
-              </span>
-            </div>
-            <textarea
+          <FormField
+            label={`${t('Guideline & Learned Rule')} *`}
+            htmlFor="add-content"
+            accessory={<span className="text-[11px] text-muted-foreground">{formContent.length} / 2000</span>}
+          >
+            <Textarea
               id="add-content"
               rows={4}
               value={formContent}
@@ -1721,10 +1709,9 @@ export function AgentMemoryView({
               )}
               maxLength={2000}
               required
-              className="field-control w-full p-2.5 text-sm resize-y"
               disabled={formSaving}
             />
-          </div>
+          </FormField>
 
           {/* Dialog Actions */}
           <div className="flex justify-end gap-2 pt-2 border-t border-border/40">
@@ -1813,49 +1800,37 @@ export function AgentMemoryView({
           </div>
 
           {/* Topic Field */}
-          <div>
-            <label
-              htmlFor="edit-topic"
-              className="block text-xs font-semibold text-foreground mb-1"
-            >
-              {t('Topic / Headline (Optional)')}
-            </label>
-            <input
+          <FormField
+            label={t('Topic / Headline (Optional)')}
+            htmlFor="edit-topic"
+          >
+            <Input
               id="edit-topic"
               type="text"
               value={formTopic}
               onChange={(e) => setFormTopic(e.target.value)}
               placeholder={t('e.g. Tone of Voice')}
               maxLength={100}
-              className="field-control min-h-11 w-full text-sm"
               disabled={formSaving}
             />
-          </div>
+          </FormField>
 
           {/* Content Field */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label
-                htmlFor="edit-content"
-                className="block text-xs font-semibold text-foreground"
-              >
-                {t('Guideline & Learned Rule')} *
-              </label>
-              <span className="text-[11px] text-muted-foreground">
-                {formContent.length} / 2000
-              </span>
-            </div>
-            <textarea
+          <FormField
+            label={`${t('Guideline & Learned Rule')} *`}
+            htmlFor="edit-content"
+            accessory={<span className="text-[11px] text-muted-foreground">{formContent.length} / 2000</span>}
+          >
+            <Textarea
               id="edit-content"
               rows={4}
               value={formContent}
               onChange={(e) => setFormContent(e.target.value)}
               maxLength={2000}
               required
-              className="field-control w-full p-2.5 text-sm resize-y"
               disabled={formSaving}
             />
-          </div>
+          </FormField>
 
           {/* Dialog Actions */}
           <div className="flex justify-end gap-2 pt-2 border-t border-border/40">
@@ -1957,49 +1932,37 @@ export function AgentMemoryView({
           </div>
 
           {/* Topic Field */}
-          <div>
-            <label
-              htmlFor="edit-cand-topic"
-              className="block text-xs font-semibold text-foreground mb-1"
-            >
-              {t('Topic / Headline (Optional)')}
-            </label>
-            <input
+          <FormField
+            label={t('Topic / Headline (Optional)')}
+            htmlFor="edit-cand-topic"
+          >
+            <Input
               id="edit-cand-topic"
               type="text"
               value={formTopic}
               onChange={(e) => setFormTopic(e.target.value)}
               placeholder={t('e.g. Tone of Voice')}
               maxLength={100}
-              className="field-control min-h-11 w-full text-sm"
               disabled={formSaving}
             />
-          </div>
+          </FormField>
 
           {/* Content Field */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label
-                htmlFor="edit-cand-content"
-                className="block text-xs font-semibold text-foreground"
-              >
-                {t('Guideline & Learned Rule')} *
-              </label>
-              <span className="text-[11px] text-muted-foreground">
-                {formContent.length} / 2000
-              </span>
-            </div>
-            <textarea
+          <FormField
+            label={`${t('Guideline & Learned Rule')} *`}
+            htmlFor="edit-cand-content"
+            accessory={<span className="text-[11px] text-muted-foreground">{formContent.length} / 2000</span>}
+          >
+            <Textarea
               id="edit-cand-content"
               rows={4}
               value={formContent}
               onChange={(e) => setFormContent(e.target.value)}
               maxLength={2000}
               required
-              className="field-control w-full p-2.5 text-sm resize-y"
               disabled={formSaving}
             />
-          </div>
+          </FormField>
 
           {/* Dialog Actions */}
           <div className="flex justify-end gap-2 pt-2 border-t border-border/40">

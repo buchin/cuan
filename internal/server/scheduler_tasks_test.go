@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/buchin/cuan/internal/scheduler"

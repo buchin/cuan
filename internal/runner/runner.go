@@ -175,6 +175,12 @@ func (r *Runner) RequestDrain(reason string) {
 	}
 }
 
+func (r *Runner) CancelDrain() {
+	if r.drainCoord != nil {
+		r.drainCoord.CancelDrain()
+	}
+}
+
 func (r *Runner) IsDraining() bool {
 	if r.drainCoord != nil {
 		return r.drainCoord.IsDraining()

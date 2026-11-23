@@ -4,6 +4,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import { apiFetch } from '../../api/client'
 import { ChangePasswordModal } from '../../components/auth/ChangePasswordModal'
 import { GroupedSection, GroupedRow } from '../../components/layout/GroupedSection'
+import { Input } from '../../components/ui/forms'
 import { User, KeyRound, Mail, Shield, LogOut } from 'lucide-react'
 
 export function ProfileSettings() {
@@ -135,9 +136,9 @@ export function ProfileSettings() {
             icon={<User className="h-4 w-4 text-primary" />}
             control={
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full max-w-sm">
-                <input
+                <Input
                   id="profile-name"
-                  className="field-control text-xs flex-1"
+                  className="flex-1"
                   autoComplete="name"
                   maxLength={80}
                   value={name}
@@ -173,9 +174,9 @@ export function ProfileSettings() {
             icon={<Shield className="h-4 w-4 text-primary" />}
             control={
               <div className="w-full max-w-sm">
-                <input
+                <Input
                   id="profile-username"
-                  className="field-control text-xs w-full"
+                  className="w-full"
                   autoComplete="username"
                   value={username}
                   minLength={3}
@@ -194,9 +195,9 @@ export function ProfileSettings() {
               description={t('Required to authorize username changes.')}
               control={
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full max-w-sm">
-                  <input
+                  <Input
                     id="profile-current-password"
-                    className="field-control text-xs flex-1"
+                    className="flex-1"
                     type="password"
                     autoComplete="current-password"
                     required
@@ -248,10 +249,10 @@ export function ProfileSettings() {
             icon={<Mail className="h-4 w-4 text-primary" />}
             control={
               <div className="w-full max-w-sm">
-                <input
+                <Input
                   id="profile-email"
                   type="email"
-                  className="field-control text-xs w-full"
+                  className="w-full"
                   autoComplete="email"
                   value={email}
                   required
@@ -266,9 +267,9 @@ export function ProfileSettings() {
             description={t('Required to authorize email address changes.')}
             control={
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full max-w-sm">
-                <input
+                <Input
                   id="profile-email-current-password"
-                  className="field-control text-xs flex-1"
+                  className="flex-1"
                   type="password"
                   autoComplete="current-password"
                   required={emailDirty}

@@ -76,6 +76,14 @@ func (s *Server) executeScheduledTask(ctx context.Context, schedTask *scheduler.
 
 		if response.code != 200 && response.code != 0 && response.code != http.StatusAccepted {
 			log.Printf("[Scheduler] Routine %s immediate agent dispatch note (status %d): %s; task remains queued for runner supervisor", schedTask.ID, response.code, response.body.String())
+			if response.code == http.StatusConflict {
+				// Concurrency busy: ensure a queued attempt exists for cuan-runner
+				_, _ = s.taskSvc.CreateAttempt(ctx, created.ID, ownerID, task.CreateAttemptRequest{
+					RunnerID:             "cuan-runner",
+					AgentName:            targetAgent,
+					InitializeQueuedTask: true,
+				})
+			}
 		}
 	}
 

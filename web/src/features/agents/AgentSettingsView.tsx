@@ -13,6 +13,7 @@ import { AccountModelPicker } from './AccountModelPicker'
 import { AccountUsageDetails } from './AccountUsageDetails'
 import { SlideDrawer } from '../../components/layout/SlideDrawer'
 import { GroupedSection } from '../../components/layout/GroupedSection'
+import { FormField, Input } from '../../components/ui/forms'
 
 const ASSISTANT_NAME_KEY = 'cuan.assistant_name'
 
@@ -164,9 +165,30 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
     <section className="space-y-4" aria-label={t('Assistant identity')}>
       <div className="flex items-center gap-3"><Bot className="h-5 w-5 text-muted-foreground" /><div><h3 className="text-base font-semibold">{primary?.name || name}</h3><p className="mt-1 text-sm text-muted-foreground">{loading ? t('Loading…') : `${verified} ${t('connected')} · ${cooldown} ${t('waiting for capacity')}`}</p></div></div>
       <form onSubmit={saveName} className="space-y-2">
-        <label htmlFor="assistant-name-input" className="block text-sm font-medium">{t('Assistant name')}</label>
-        <div className="flex flex-col gap-2 sm:flex-row"><input id="assistant-name-input" className="field-control min-w-0 flex-1" maxLength={100} required value={name} disabled={busy || loading || !isOwner} onChange={event => setName(event.target.value)} /><button type="submit" className="action-secondary" disabled={busy || loading || !primary || !isOwner || !name.trim() || name === baselineName}>{t(busy ? 'Saving…' : 'Save changes')}</button></div>
-        <p className="text-xs leading-5 text-muted-foreground">{t('Used in new replies and conversations across your workspace.')}</p>
+        <FormField
+          label={t('Assistant name')}
+          htmlFor="assistant-name-input"
+          helperText={t('Used in new replies and conversations across your workspace.')}
+        >
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              id="assistant-name-input"
+              className="min-w-0 flex-1"
+              maxLength={100}
+              required
+              value={name}
+              disabled={busy || loading || !isOwner}
+              onChange={event => setName(event.target.value)}
+            />
+            <button
+              type="submit"
+              className="action-secondary"
+              disabled={busy || loading || !primary || !isOwner || !name.trim() || name === baselineName}
+            >
+              {t(busy ? 'Saving…' : 'Save changes')}
+            </button>
+          </div>
+        </FormField>
       </form>
     </section>
     <section className="space-y-3" aria-label={t('AI brains')}>
@@ -188,7 +210,18 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
           <button type="button" className="action-secondary inline-flex items-center gap-2" disabled={checking || busy} onClick={() => void checkBrain()}><RefreshCw className={`h-4 w-4 ${checking ? 'animate-spin' : ''}`} />{t(checking ? 'Checking…' : 'Check connection')}</button>
         </div>
         <form onSubmit={saveBrain} className="space-y-5">
-          {selected.account ? (<div className="space-y-2"><label htmlFor="brain-label" className="text-sm font-medium">{t('Display name')}</label><input id="brain-label" className="field-control" maxLength={100} required value={label} disabled={busy || !isOwner || !selected.account || selected.account.legacy} onChange={event => setLabel(event.target.value)} /></div>) : <p className="text-sm font-medium">{selected.label}</p>}
+          {selected.account ? (
+            <FormField label={t('Display name')} htmlFor="brain-label">
+              <Input
+                id="brain-label"
+                maxLength={100}
+                required
+                value={label}
+                disabled={busy || !isOwner || !selected.account || selected.account.legacy}
+                onChange={event => setLabel(event.target.value)}
+              />
+            </FormField>
+          ) : <p className="text-sm font-medium">{selected.label}</p>}
           <AccountModelPicker account={selected.account} provider={selected.byok?.id} value={model} onChange={setModel} disabled={busy || !isOwner || selected.account?.legacy} />
           {drawerError && <p role="alert" className="text-sm text-destructive">{drawerError}</p>}{drawerNotice && <p role="status" className="text-sm text-muted-foreground">{drawerNotice}</p>}
           {isOwner && !selected.account?.legacy && <button className="action-primary" disabled={busy || !dirty || !label.trim()}>{t(busy ? 'Saving…' : 'Save changes')}</button>}
