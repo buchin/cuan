@@ -112,4 +112,19 @@ test('4. S68-T4: Mobile Navigation Ergonomics & Preservation of Projects', () =>
   assert.ok(tasksIdx < studioIdx, 'Tasks must be before Studio (New work +)')
   assert.ok(studioIdx < projectsIdx, 'Studio (New work +) must be before Projects')
   assert.ok(projectsIdx < userIdx, 'Projects must be before Account')
+
+  // Verify subtle circle accent container on New work (+)
+  const indexCss = fs.readFileSync(path.resolve(webDir, 'src/index.css'), 'utf8')
+  assert.ok(
+    appShellSource.includes('data-action-trigger="true"'),
+    'New work (+) button must have data-action-trigger attribute for circular container styling'
+  )
+  assert.ok(
+    appShellSource.includes('action-trigger-circle'),
+    'New work (+) button must have action-trigger-circle class'
+  )
+  assert.ok(
+    indexCss.includes('[data-action-trigger]'),
+    'index.css must exempt [data-action-trigger] from flat border-radius reset'
+  )
 })

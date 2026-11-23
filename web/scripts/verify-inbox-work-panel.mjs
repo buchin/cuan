@@ -310,6 +310,13 @@ try{
     for (const item of navItems) {
       assert.ok(item.height >= 56, `Touch target height must be >= 56px (min-h-14), got ${item.height}`)
     }
+    const studioAccent = bottomNav.locator('[data-testid="bottom-nav-studio"] [data-action-trigger="true"]')
+    await studioAccent.waitFor({ state: 'visible' })
+    const accentBox = await studioAccent.boundingBox()
+    assert.ok(accentBox && accentBox.width >= 28 && accentBox.width <= 36, `Studio circle accent width should be between 28px and 36px, got ${accentBox?.width}`)
+    assert.ok(accentBox && accentBox.height >= 28 && accentBox.height <= 36, `Studio circle accent height should be between 28px and 36px, got ${accentBox?.height}`)
+    const borderRadius = await studioAccent.evaluate(el => window.getComputedStyle(el).borderRadius)
+    assert.ok(borderRadius.includes('9999px') || parseInt(borderRadius) >= 14, `Studio accent must be circular, got ${borderRadius}`)
     await page.screenshot({ path: path.join(output, 'mobile-390-bottom-nav-symmetrical.png') })
   }
   if(width>=1200){
