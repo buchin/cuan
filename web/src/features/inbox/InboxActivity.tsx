@@ -71,6 +71,40 @@ export function evaluateInboxQuotaStatus(q: {
   }
 }
 
+export function TypingDots({
+  className = '',
+  size = 'md',
+  'aria-hidden': ariaHidden = true,
+}: {
+  className?: string
+  size?: 'sm' | 'md'
+  'aria-hidden'?: boolean | 'true' | 'false'
+}) {
+  const cleanClassName = className.replace(/\banimate-spin\b/g, '').trim()
+  const dotSize = size === 'sm' || cleanClassName.includes('h-3.5') ? 'h-1 w-1' : 'h-1.5 w-1.5'
+  const gap = size === 'sm' || cleanClassName.includes('h-3.5') ? 'gap-0.5' : 'gap-1'
+  return (
+    <span
+      data-testid="inbox-activity-typing-dots"
+      aria-hidden={ariaHidden}
+      className={`inline-flex items-center ${gap} h-4 shrink-0 text-muted-foreground ${cleanClassName}`}
+    >
+      <span
+        className={`${dotSize} rounded-full bg-current typing-dot-1 animate-pulse motion-reduce:animate-none`}
+        style={{ animationDuration: '1.4s', animationDelay: '0ms' }}
+      />
+      <span
+        className={`${dotSize} rounded-full bg-current typing-dot-2 animate-pulse motion-reduce:animate-none`}
+        style={{ animationDuration: '1.4s', animationDelay: '200ms' }}
+      />
+      <span
+        className={`${dotSize} rounded-full bg-current typing-dot-3 animate-pulse motion-reduce:animate-none`}
+        style={{ animationDuration: '1.4s', animationDelay: '400ms' }}
+      />
+    </span>
+  )
+}
+
 export const INBOX_ACTIVITY_ROTATING_WORDS = [
   'Thinking…',
   'Analyzing…',
@@ -88,6 +122,70 @@ export const INBOX_ACTIVITY_ROTATING_WORDS = [
   'Refining…',
   'Polishing…',
   'Verifying…',
+  'Brainstorming…',
+  'Conceptualizing…',
+  'Envisioning…',
+  'Strategizing…',
+  'Deliberating…',
+  'Investigating…',
+  'Discovering…',
+  'Gathering…',
+  'Sifting…',
+  'Surveying…',
+  'Examining…',
+  'Browsing…',
+  'Uncovering…',
+  'Categorizing…',
+  'Arranging…',
+  'Mapping…',
+  'Outlining…',
+  'Sorting…',
+  'Cataloging…',
+  'Coordinating…',
+  'Systematizing…',
+  'Drafting…',
+  'Composing…',
+  'Writing…',
+  'Curating…',
+  'Assembling…',
+  'Creating…',
+  'Crafting…',
+  'Designing…',
+  'Generating…',
+  'Calculating…',
+  'Computing…',
+  'Estimating…',
+  'Forecasting…',
+  'Budgeting…',
+  'Assessing…',
+  'Auditing…',
+  'Quantifying…',
+  'Measuring…',
+  'Editing…',
+  'Enhancing…',
+  'Streamlining…',
+  'Perfecting…',
+  'Tailoring…',
+  'Fine-tuning…',
+  'Clarifying…',
+  'Harmonizing…',
+  'Planning…',
+  'Scheduling…',
+  'Aligning…',
+  'Optimizing…',
+  'Prioritizing…',
+  'Consolidating…',
+  'Connecting…',
+  'Orchestrating…',
+  'Validating…',
+  'Checking…',
+  'Balancing…',
+  'Finalizing…',
+  'Summarizing…',
+  'Distilling…',
+  'Reconciling…',
+  'Cross-checking…',
+  'Imagining…',
 ] as const
 
 export const INBOX_ACTIVITY_VERBS = [
@@ -107,6 +205,70 @@ export const INBOX_ACTIVITY_VERBS = [
   'Refining',
   'Polishing',
   'Verifying',
+  'Brainstorming',
+  'Conceptualizing',
+  'Envisioning',
+  'Strategizing',
+  'Deliberating',
+  'Investigating',
+  'Discovering',
+  'Gathering',
+  'Sifting',
+  'Surveying',
+  'Examining',
+  'Browsing',
+  'Uncovering',
+  'Categorizing',
+  'Arranging',
+  'Mapping',
+  'Outlining',
+  'Sorting',
+  'Cataloging',
+  'Coordinating',
+  'Systematizing',
+  'Drafting',
+  'Composing',
+  'Writing',
+  'Curating',
+  'Assembling',
+  'Creating',
+  'Crafting',
+  'Designing',
+  'Generating',
+  'Calculating',
+  'Computing',
+  'Estimating',
+  'Forecasting',
+  'Budgeting',
+  'Assessing',
+  'Auditing',
+  'Quantifying',
+  'Measuring',
+  'Editing',
+  'Enhancing',
+  'Streamlining',
+  'Perfecting',
+  'Tailoring',
+  'Fine-tuning',
+  'Clarifying',
+  'Harmonizing',
+  'Planning',
+  'Scheduling',
+  'Aligning',
+  'Optimizing',
+  'Prioritizing',
+  'Consolidating',
+  'Connecting',
+  'Orchestrating',
+  'Validating',
+  'Checking',
+  'Balancing',
+  'Finalizing',
+  'Summarizing',
+  'Distilling',
+  'Reconciling',
+  'Cross-checking',
+  'Imagining',
 ] as const
 
 export const ACTIVITY_ROTATION_INTERVAL_MS = 3500
@@ -353,11 +515,12 @@ export function InboxActivity({
       (step) =>
         step.kind !== 'provider_result' && step.kind !== 'runtime_session' && step.kind !== 'recovery_policy' && step.kind !== 'response_input',
     ) || []
+  const isRunning = active && q.state !== 'queued' && !autoPending
   const Icon =
     (autoPending || waitingForCapacity) ? Clock3 : q.state === 'queued'
       ? Clock3
       : active
-        ? LoaderCircle
+        ? TypingDots
         : q.state === 'completed'
           ? CheckCircle2
           : CircleAlert
@@ -384,17 +547,21 @@ export function InboxActivity({
       ) : null}
       {bubble && !(displayedText || streamingText) && (
         <div className="flex items-center gap-2 px-2 pt-2 text-sm">
-          <Icon
-            aria-hidden
-            className={
-              'h-4 w-4 shrink-0 ' +
-              ((active && q.state !== 'queued') || autoPending
-                ? 'animate-spin'
-                : q.state === 'failed' && !waitingForCapacity
-                  ? 'text-destructive'
-                  : '')
-            }
-          />
+          {isRunning ? (
+            <TypingDots />
+          ) : (
+            <Icon
+              aria-hidden
+              className={
+                'h-4 w-4 shrink-0 ' +
+                (autoPending
+                  ? 'animate-spin'
+                  : q.state === 'failed' && !waitingForCapacity
+                    ? 'text-destructive'
+                    : '')
+              }
+            />
+          )}
           <span
             role="status"
             className="min-w-0 font-medium break-words"
@@ -449,10 +616,14 @@ export function InboxActivity({
               </>
             )}
             {!bubble && !compact && (
-              <Icon
-                className={`h-4 w-4 shrink-0 ${active && q.state !== 'queued' ? 'animate-spin' : q.state === 'failed' && !waitingForCapacity ? 'text-destructive' : q.state === 'completed' ? 'text-emerald-700 dark:text-emerald-400' : ''}`}
-                aria-hidden="true"
-              />
+              isRunning ? (
+                <TypingDots />
+              ) : (
+                <Icon
+                  className={`h-4 w-4 shrink-0 ${q.state === 'failed' && !waitingForCapacity ? 'text-destructive' : q.state === 'completed' ? 'text-emerald-700 dark:text-emerald-400' : ''}`}
+                  aria-hidden="true"
+                />
+              )
             )}
             {!bubble && !compact && (
               <span className="font-medium" role="status">
@@ -465,10 +636,14 @@ export function InboxActivity({
               </span>
             )}
             {bubble && (displayedText || streamingText) && (
-              <Icon
-                className={`h-3.5 w-3.5 shrink-0 ${active && q.state !== 'queued' ? 'animate-spin' : ''}`}
-                aria-hidden="true"
-              />
+              isRunning ? (
+                <TypingDots size="sm" />
+              ) : (
+                <Icon
+                  className="h-3.5 w-3.5 shrink-0"
+                  aria-hidden="true"
+                />
+              )
             )}
             {!compact && (
               <>

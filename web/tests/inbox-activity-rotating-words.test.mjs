@@ -10,8 +10,8 @@ const webDir = path.resolve(__dirname, '..')
 const inboxActivityPath = path.join(webDir, 'src/features/inbox/InboxActivity.tsx')
 const inboxActivitySource = fs.readFileSync(inboxActivityPath, 'utf8')
 
-// The 16 curated calm and professional English verbs approved by user
-const EXPECTED_CURATED_VERBS = [
+// The 16 original curated calm and professional English verbs
+const EXPECTED_ORIGINAL_VERBS = [
   'Thinking',
   'Analyzing',
   'Synthesizing',
@@ -30,7 +30,27 @@ const EXPECTED_CURATED_VERBS = [
   'Verifying',
 ]
 
-test('1. InboxActivity exports the curated list of 16 professional English verbs', () => {
+// The 80 curated verbs tailored for business owners, creators, and non-developers
+const ALL_80_CURATED_VERBS = [
+  'Thinking', 'Analyzing', 'Synthesizing', 'Formulating', 'Evaluating',
+  'Processing', 'Researching', 'Reviewing', 'Exploring', 'Organizing',
+  'Preparing', 'Structuring', 'Inspecting', 'Refining', 'Polishing',
+  'Verifying', 'Brainstorming', 'Conceptualizing', 'Envisioning', 'Strategizing',
+  'Deliberating', 'Investigating', 'Discovering', 'Gathering', 'Sifting',
+  'Surveying', 'Examining', 'Browsing', 'Uncovering', 'Categorizing',
+  'Arranging', 'Mapping', 'Outlining', 'Sorting', 'Cataloging',
+  'Coordinating', 'Systematizing', 'Drafting', 'Composing', 'Writing',
+  'Curating', 'Assembling', 'Creating', 'Crafting', 'Designing',
+  'Generating', 'Calculating', 'Computing', 'Estimating', 'Forecasting',
+  'Budgeting', 'Assessing', 'Auditing', 'Quantifying', 'Measuring',
+  'Editing', 'Enhancing', 'Streamlining', 'Perfecting', 'Tailoring',
+  'Fine-tuning', 'Clarifying', 'Harmonizing', 'Planning', 'Scheduling',
+  'Aligning', 'Optimizing', 'Prioritizing', 'Consolidating', 'Connecting',
+  'Orchestrating', 'Validating', 'Checking', 'Balancing', 'Finalizing',
+  'Summarizing', 'Distilling', 'Reconciling', 'Cross-checking', 'Imagining',
+]
+
+test('1. InboxActivity exports the curated list of ~80 professional English verbs', () => {
   assert.ok(
     inboxActivitySource.includes('export const INBOX_ACTIVITY_ROTATING_WORDS'),
     'InboxActivity must export INBOX_ACTIVITY_ROTATING_WORDS constant',
@@ -40,8 +60,8 @@ test('1. InboxActivity exports the curated list of 16 professional English verbs
     'InboxActivity must export INBOX_ACTIVITY_VERBS constant',
   )
 
-  // Verify all 16 verbs are present in the list
-  for (const verb of EXPECTED_CURATED_VERBS) {
+  // Verify all original 16 verbs are preserved
+  for (const verb of EXPECTED_ORIGINAL_VERBS) {
     assert.ok(
       inboxActivitySource.includes(`'${verb}…'`) || inboxActivitySource.includes(`"${verb}…"`),
       `InboxActivity must include rotating word '${verb}…'`,
@@ -51,6 +71,45 @@ test('1. InboxActivity exports the curated list of 16 professional English verbs
       `InboxActivity must include base verb '${verb}'`,
     )
   }
+
+  // Verify all 80 curated verbs are present
+  assert.equal(ALL_80_CURATED_VERBS.length, 80, 'Curated list must have exactly 80 verbs')
+  for (const verb of ALL_80_CURATED_VERBS) {
+    assert.ok(
+      inboxActivitySource.includes(`'${verb}…'`) || inboxActivitySource.includes(`"${verb}…"`),
+      `InboxActivity must include rotating word '${verb}…'`,
+    )
+    assert.ok(
+      inboxActivitySource.includes(`'${verb}'`) || inboxActivitySource.includes(`"${verb}"`),
+      `InboxActivity must include base verb '${verb}'`,
+    )
+  }
+
+  // Verify no compiler/developer technical jargon exists in the vocabulary
+  const FORBIDDEN_JARGON = ['compiling', 'transpiling', 'refactoring', 'grokking', 'linting', 'piping']
+  for (const jargon of FORBIDDEN_JARGON) {
+    assert.ok(
+      !inboxActivitySource.toLowerCase().includes(`'${jargon}…'`),
+      `InboxActivity must not contain developer jargon: ${jargon}`,
+    )
+  }
+})
+
+test('2. Typing dots component replaces circular loader spinner in InboxActivity', () => {
+  assert.ok(
+    inboxActivitySource.includes('export function TypingDots'),
+    'InboxActivity must export TypingDots component',
+  )
+  assert.ok(
+    inboxActivitySource.includes('data-testid="inbox-activity-typing-dots"'),
+    'TypingDots component must provide data-testid for verification',
+  )
+  assert.ok(
+    inboxActivitySource.includes('typing-dot-1') &&
+    inboxActivitySource.includes('typing-dot-2') &&
+    inboxActivitySource.includes('typing-dot-3'),
+    'TypingDots must render 3 horizontal dots with staggered pulse animation',
+  )
 })
 
 test('2. Rotation interval is set within 3-4 seconds (Zero Cognitive Fatigue standard)', () => {
@@ -122,28 +181,9 @@ test('6. Calm visual transitions and low visual noise without layout shift', () 
   )
 })
 
-test('7. Functional behavior validation: step priority & fallback rotation simulation', () => {
-  // Simulating the exact state machine implemented in InboxActivity
-  const words = [
-    'Thinking…',
-    'Analyzing…',
-    'Synthesizing…',
-    'Formulating…',
-    'Evaluating…',
-    'Processing…',
-    'Researching…',
-    'Reviewing…',
-    'Exploring…',
-    'Organizing…',
-    'Preparing…',
-    'Structuring…',
-    'Inspecting…',
-    'Refining…',
-    'Polishing…',
-    'Verifying…',
-  ]
-
-  assert.equal(words.length, 16, 'Exactly 16 curated words')
+test('7. Functional behavior validation: step priority & fallback rotation simulation across 80 words', () => {
+  const words = ALL_80_CURATED_VERBS.map((v) => `${v}…`)
+  assert.equal(words.length, 80, 'Exactly 80 curated words')
 
   function computeActivity(q, rotatingIndex) {
     const latest = q.steps
@@ -183,7 +223,9 @@ test('7. Functional behavior validation: step priority & fallback rotation simul
   assert.equal(computeActivity(initialReq, 1), 'Analyzing…')
   assert.equal(computeActivity(initialReq, 2), 'Synthesizing…')
   assert.equal(computeActivity(initialReq, 15), 'Verifying…')
-  assert.equal(computeActivity(initialReq, 16), 'Thinking…') // wraps around cleanly
+  assert.equal(computeActivity(initialReq, 16), 'Brainstorming…')
+  assert.equal(computeActivity(initialReq, 79), 'Imagining…')
+  assert.equal(computeActivity(initialReq, 80), 'Thinking…') // wraps around cleanly after 80 words
 
   // Case C: Actual tool step arrives -> immediately switches to actual step text
   const toolReq = {

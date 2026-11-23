@@ -64,6 +64,10 @@ try {
     const activityTextEl = page.locator('[data-testid="inbox-activity-text"]')
     await activityTextEl.waitFor({ state: 'visible', timeout: 5000 })
 
+    const typingDotsEl = page.locator('[data-testid="inbox-activity-typing-dots"]')
+    await typingDotsEl.waitFor({ state: 'visible', timeout: 5000 })
+    assert.ok(await typingDotsEl.isVisible(), 'Typing dots indicator must be visible')
+
     // Initial word must be Thinking…
     const initialText = await activityTextEl.innerText()
     console.log(`[${width}px Dark] Initial text: "${initialText}"`)

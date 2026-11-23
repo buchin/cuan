@@ -585,4 +585,41 @@ dialog[data-slide-drawer]:modal {
   border-radius: 0 !important;
 }
 
+/* Typing dots indicator for assistant activity (Zero Cognitive Fatigue) */
+@keyframes typing-dot-pulse {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+.typing-dot-1 {
+  animation: typing-dot-pulse 1.4s ease-in-out infinite;
+  animation-delay: 0ms;
+}
+
+.typing-dot-2 {
+  animation: typing-dot-pulse 1.4s ease-in-out infinite;
+  animation-delay: 200ms;
+}
+
+.typing-dot-3 {
+  animation: typing-dot-pulse 1.4s ease-in-out infinite;
+  animation-delay: 400ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .typing-dot-1,
+  .typing-dot-2,
+  .typing-dot-3 {
+    animation: none;
+    opacity: 0.7;
+    transform: none;
+  }
+}
+
 
