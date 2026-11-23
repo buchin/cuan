@@ -281,7 +281,7 @@ export function AppShell({
           <span
             data-testid="inbox-unread-badge-rail"
             aria-label={`${effectiveInboxUnread} ${t('unread messages')}`}
-            className="nav-label notification-count ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold font-mono tabular-nums text-primary-foreground"
+            className="notification-count ml-auto self-center inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold font-mono leading-none tabular-nums text-primary-foreground"
           >
             {effectiveInboxUnread > 99 ? '99+' : effectiveInboxUnread}
           </span>
