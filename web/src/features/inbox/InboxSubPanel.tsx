@@ -20,7 +20,6 @@ import { NotificationsPopover } from '../notifications/NotificationsPopover'
 import { cn } from '../../lib/utils'
 import { getContactInitials } from './contact-initials'
 import { TASK_STATUS_THEMES } from '../tasks/task-ui'
-import { getCachedConversation, setCachedConversation } from './conversation-cache'
 import './chat-calm.css'
 
 export function conversationPreview(message?: string, counts?: ChatContact, t: (value: string) => string = value => value) {
@@ -215,16 +214,22 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
   }
 
   const prefetchConversation = () => {
-    if (!id || getCachedConversation(id)) return
+    if (!id) return
+    try {
+      if (sessionStorage.getItem('cuan_chat_cache:' + id)) return
+    } catch {}
     chatApi.getConversation(id, { limit: 50 }).then((data) => {
       if (data && data.messages) {
-        setCachedConversation(id, {
-          messages: data.messages,
-          requests: data.requests || [],
-          tasks: data.tasks || [],
-          hasMore: Boolean(data.has_more),
-          cachedAt: Date.now(),
-        })
+        try {
+          const trimmed = {
+            messages: (data.messages || []).slice(-30),
+            requests: (data.requests || []).slice(-5),
+            tasks: data.tasks || [],
+            hasMore: Boolean(data.has_more),
+            cachedAt: Date.now(),
+          }
+          sessionStorage.setItem('cuan_chat_cache:' + id, JSON.stringify(trimmed))
+        } catch {}
       }
     }).catch(() => {})
   }
