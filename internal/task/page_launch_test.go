@@ -22,7 +22,7 @@ func taskPageLaunchContract(t *testing.T, store Store, project string) {
 	for n, c := range []struct{ stored, attempt, launch, want, group string }{
 		{"review", "failed", "queued", "queued", "work_active"},
 		{"review", "canceled", "claimed", "queued", "work_active"},
-		{"review", "succeeded", "stopped", "blocked", "attention"},
+		{"review", "succeeded", "stopped", "review", "attention"},
 		{"review", "succeeded", "cancelled", "canceled", "dibatalkan_review"},
 		{"done", "failed", "queued", "done", "completed"},
 		{"review", "running", "started", "doing", "work_active"},

@@ -131,6 +131,9 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 	resolutionObserved := map[string]time.Time{}
 	observeResolution := func(id string, messages []db.ProjectMessage) {
 		for _, message := range messages {
+			if internalInboxReviewInput(message) || isSystemLifecycleNotice(message) {
+				continue
+			}
 			if message.CreatedAt.After(resolutionObserved[id]) {
 				resolutionObserved[id] = message.CreatedAt
 			}

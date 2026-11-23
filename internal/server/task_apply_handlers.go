@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/project"
@@ -108,6 +109,13 @@ func (s *Server) handleApplyTask(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[Server] Task %s merged but status update note error: %v", taskID, err)
 	} else if updated != nil && updated.Status == task.TaskStatusDone {
 		s.DispatchTaskCompletedPush(r.Context(), updated)
+		if updated.SourceRoomID != "" && s.projectStudioRepo != nil {
+			if blocker, err := s.conversationResolutionBlocker(r.Context(), updated.SourceRoomID); err == nil && blocker == "" {
+				now := time.Now().UTC()
+				_ = s.projectStudioRepo.SetRoomResolved(r.Context(), updated.SourceRoomID, &now)
+				s.publishInbox(updated.SourceRoomID)
+			}
+		}
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
