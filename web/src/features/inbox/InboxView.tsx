@@ -108,6 +108,46 @@ const EscalateTaskDialog = lazy(() =>
   })),
 )
 
+export interface CachedConversation {
+  messages: any[]
+  requests: any[]
+  tasks: Task[]
+  hasMore?: boolean
+  cachedAt: number
+}
+// SWR conversation cache: eliminates blank screen and loading delays when switching conversations
+const conversationCache = new Map<string, CachedConversation>()
+
+function getCachedConversation(convId: string): CachedConversation | undefined {
+  if (!convId) return undefined
+  const memory = conversationCache.get(convId)
+  if (memory && memory.messages?.length > 0) return memory
+  try {
+    const raw = sessionStorage.getItem('cuan_chat_cache:' + convId)
+    if (raw) {
+      const parsed = JSON.parse(raw) as CachedConversation
+      if (parsed && Array.isArray(parsed.messages) && parsed.messages.length > 0) {
+        conversationCache.set(convId, parsed)
+        return parsed
+      }
+    }
+  } catch {}
+  return undefined
+}
+
+function setCachedConversation(convId: string, data: CachedConversation) {
+  if (!convId) return
+  conversationCache.set(convId, data)
+  try {
+    const trimmed: CachedConversation = {
+      ...data,
+      messages: (data.messages || []).slice(-30),
+      requests: (data.requests || []).slice(-5),
+    }
+    sessionStorage.setItem('cuan_chat_cache:' + convId, JSON.stringify(trimmed))
+  } catch {}
+}
+
 interface InboxViewProps {
   onNewMessage?: () => void
   onNewStudio?: () => void
@@ -141,13 +181,17 @@ function isSameConversation(a?: string | null, b?: string | null, contact?: Chat
   if (!a || !b) return false
   if (a === b) return true
   if (!contact) return false
+  const isDirect = Boolean(
+    contact.type === 'agent' &&
+    (contact.id.startsWith('contact_') || contact.id === contact.agent_id || contact.id === 'cuan' || contact.conversation_id === 'cuan')
+  )
   const ids = new Set(
     [
       contact.conversation_id,
       contact.id,
-      contact.agent_id,
-      contact.agent_id ? 'contact_' + contact.agent_id : '',
-      contact.name?.toLowerCase(),
+      isDirect ? contact.agent_id : '',
+      isDirect && contact.agent_id ? 'contact_' + contact.agent_id : '',
+      isDirect ? contact.name?.toLowerCase() : '',
     ].filter(Boolean) as string[],
   )
   return ids.has(a) && ids.has(b)
@@ -581,7 +625,18 @@ export function InboxView({
         if (activeConvRef.current !== convId || version !== httpFetchVersion.current)
           return
         setLoading(false)
-        setMessages((prev) => mergeConversationMessages(prev, data.messages || []))
+        setMessages((prev) => {
+          const merged = mergeConversationMessages(prev, data.messages || [])
+          const existing = getCachedConversation(convId)
+          setCachedConversation(convId, {
+            messages: merged,
+            requests: data.requests || existing?.requests || [],
+            tasks: data.tasks || existing?.tasks || [],
+            hasMore: !!data.has_more,
+            cachedAt: Date.now(),
+          })
+          return merged
+        })
         setHasMoreOlder(!!data.has_more)
         markConversationSeen(convId, data.messages || [])
         setStreamingReplies((prev) => {
@@ -788,8 +843,12 @@ export function InboxView({
     }
   }, [activeContact?.id, autoResizeTextarea])
 
+  const isDirectAgentChat = Boolean(
+    activeContact?.type === 'agent' &&
+    (activeContact.id.startsWith('contact_') || activeContact.id === activeContact.agent_id || activeContact.id === 'cuan' || activeContact.conversation_id === 'cuan')
+  )
   const convKey = activeContact
-    ? activeContact.type === 'agent'
+    ? isDirectAgentChat
       ? activeContact.agent_id || activeContact.id.replace(/^contact_/, '')
       : activeContact.conversation_id || activeContact.id
     : ''
@@ -814,13 +873,22 @@ export function InboxView({
       if (isDifferentConv) {
         setMessages([])
         setRequests([])
+        setLinkedTasks([])
+        setLoading(true)
+        const cached = getCachedConversation(convId)
+        if (cached && cached.messages.length > 0) {
+          setMessages(cached.messages)
+          setRequests(cached.requests || [])
+          setLinkedTasks(cached.tasks || [])
+          setHasMoreOlder(Boolean(cached.hasMore))
+          setLoading(false)
+        }
         setStreamingReplies({})
         if (streamRafRef.current) {
           cancelAnimationFrame(streamRafRef.current)
           streamRafRef.current = null
         }
         deltaBufferRef.current = {}
-        setLinkedTasks([])
         setSendError('')
         setRetryCount(0)
         pendingRef.current = null
@@ -842,7 +910,8 @@ export function InboxView({
           ),
         )
       }
-      loadConversation(convId, isDifferentConv)
+      const hasCached = Boolean(getCachedConversation(convId)?.messages?.length)
+      loadConversation(convId, isDifferentConv && !hasCached)
     }
   }, [convKey, loadConversation])
 
@@ -863,7 +932,17 @@ export function InboxView({
           failures = 0
           setStreamState('live')
           setLoading(false)
-          setMessages((prev) => mergeConversationMessages(prev, data.messages || []))
+          setMessages((prev) => {
+            const merged = mergeConversationMessages(prev, data.messages || [])
+            setCachedConversation(convId, {
+              messages: merged,
+              requests: data.requests || [],
+              tasks: data.tasks || [],
+              hasMore: false,
+              cachedAt: Date.now(),
+            })
+            return merged
+          })
           markConversationSeen(convId, data.messages || [])
           setStreamingReplies((prev) => {
             let changed = false
@@ -2294,6 +2373,31 @@ export function InboxView({
                 className="inbox-message-list wa-conversation calm-conversation min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-6 sm:py-4 space-y-2"
               >
                 <div className="calm-stream-constraint max-w-[75ch] mx-auto w-full space-y-2 pb-4">
+              {messages.length === 0 && loading && (
+                <div className="py-8 px-4 space-y-4 max-w-lg mx-auto animate-pulse" data-testid="chat-loading-skeleton">
+                  <div className="flex gap-3 items-start">
+                    <div className="h-8 w-8 rounded-full bg-muted/60 shrink-0" />
+                    <div className="space-y-2 flex-1">
+                      <div className="h-3 w-24 rounded bg-muted/60" />
+                      <div className="h-14 w-3/4 rounded-2xl bg-muted/40" />
+                    </div>
+                  </div>
+                  <div className="flex gap-3 items-start justify-end">
+                    <div className="space-y-2 flex-1 flex flex-col items-end">
+                      <div className="h-3 w-20 rounded bg-muted/60" />
+                      <div className="h-10 w-2/3 rounded-2xl bg-muted/40" />
+                    </div>
+                    <div className="h-8 w-8 rounded-full bg-muted/60 shrink-0" />
+                  </div>
+                  <div className="flex gap-3 items-start">
+                    <div className="h-8 w-8 rounded-full bg-muted/60 shrink-0" />
+                    <div className="space-y-2 flex-1">
+                      <div className="h-3 w-32 rounded bg-muted/60" />
+                      <div className="h-16 w-5/6 rounded-2xl bg-muted/40" />
+                    </div>
+                  </div>
+                </div>
+              )}
               {messages.length === 0 && !loading && (
                 <div className="flex flex-col items-center justify-center py-10 px-4 text-center text-muted-foreground space-y-3 max-w-sm mx-auto">
                   {activeContact?.type === 'customer' ? (

@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { StatusDot } from './StatusDot'
-import { CheckCircle2, Clock3, CheckCheck, AlertCircle, X } from 'lucide-react'
+import { CheckCircle2, Clock3, Eye, AlertCircle, X } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { cn } from '../../lib/utils'
 import { taskProgressModel, type TaskProgressCounts } from './task-progress-model'
@@ -83,7 +83,7 @@ export function TaskProgress({ className, ...counts }: TaskProgressCounts & { cl
             ) : hasQueued ? (
               <Clock3 className="h-3.5 w-3.5 text-muted-foreground/80 shrink-0" aria-label={t('Queued')} />
             ) : hasReview ? (
-              <CheckCheck className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" aria-label={t('In review')} />
+              <Eye className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" aria-label={t('In review')} />
             ) : hasBlocked ? (
               <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0" aria-label={t('Needs attention')} />
             ) : (

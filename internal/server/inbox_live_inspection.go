@@ -287,7 +287,12 @@ func (s *Server) startLiveResultInspection(ctx context.Context, d *task.TaskDeta
 		return false
 	}
 	now := time.Now().UTC()
-	_ = s.projectStudioRepo.CreateMessage(ctx, &db.ProjectMessage{ID: delegationMessageID(id + ":notice"), RoomID: d.SourceRoomID, AuthorType: "system", AuthorName: "Cuan", Content: "Cuan memeriksa hasil pekerjaan pada versi yang sudah berjalan.\n\n[View work](/tasks/" + d.ID + ")", CreatedAt: now, UpdatedAt: now})
+	noticeID := delegationMessageID(id + ":notice")
+	if s.projectStudioRepo.CreateMessage(ctx, &db.ProjectMessage{ID: noticeID, RoomID: d.SourceRoomID, AuthorType: "system", AuthorID: "cuan_system_lifecycle", AuthorName: "Cuan", Content: "Cuan memeriksa hasil pekerjaan pada versi yang sudah berjalan.\n\n[View work](/tasks/" + d.ID + ")", CreatedAt: now, UpdatedAt: now}) == nil {
+		if receiptRepo, ok := s.projectStudioRepo.(db.ChatReceiptRepository); ok {
+			_ = receiptRepo.AcknowledgeMessages(ctx, d.SourceRoomID, []string{noticeID}, true)
+		}
+	}
 	s.publishInbox(d.SourceRoomID)
 	return true
 }

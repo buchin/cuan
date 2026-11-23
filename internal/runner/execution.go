@@ -42,6 +42,8 @@ func runProjectVerification(parent context.Context, workingDir string, defaultBr
 	return runProjectVerifierCommand(parent, workingDir, spec.Command, spec.Args...)
 }
 
+const ReportStateInactiveConflict = "attempt_inactive_conflict"
+
 func (r *Runner) confirmAgentReport(ctx context.Context, claim ClaimTaskResponse) bool {
 	state := r.finalAgentReportState(ctx, claim)
 	return state == task.TaskStatusReview || state == task.TaskStatusDone
@@ -71,6 +73,9 @@ func (r *Runner) finalAgentReportState(ctx context.Context, claim ClaimTaskRespo
 		}
 	}
 	defer response.Body.Close()
+	if response.StatusCode == http.StatusConflict {
+		return ReportStateInactiveConflict
+	}
 	if response.StatusCode != http.StatusOK {
 		return ""
 	}

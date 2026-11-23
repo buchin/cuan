@@ -56,7 +56,7 @@ test('1. Mobile navigation retains New work, Inbox, tasks and account access', (
     'New work must open the existing Studio route'
   )
   const start = appShellSource.indexOf('data-testid="bottom-nav-studio"')
-  const workEntry = appShellSource.slice(start, appShellSource.indexOf('{/* Inbox */}', start))
+  const workEntry = appShellSource.slice(start, appShellSource.indexOf('data-testid="bottom-nav-projects"', start))
   assert.match(workEntry, /<Plus\b/, 'New work must show the Plus icon')
   assert.ok(
     appShellSource.includes("currentTab === 'studio' ? 'page' : undefined"),

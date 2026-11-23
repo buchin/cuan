@@ -15,6 +15,7 @@ type ChatContact struct {
 	ResolutionObservedAt time.Time  `json:"resolution_observed_at"`
 	Resolved             bool       `json:"resolved"`
 	ResolvedAt           *time.Time `json:"resolved_at,omitempty"`
+	OnlySystemNotices    bool       `json:"only_system_notices,omitempty"`
 	ContactID            string     `json:"contact_id,omitempty"`
 	AgentID              string     `json:"agent_id,omitempty"`
 	AgentName            string     `json:"agent_name,omitempty"`
@@ -74,7 +75,7 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 		cutoff, _ := time.Parse(time.RFC3339Nano, state.ReadAt)
 		count := 0
 		for _, message := range messages {
-			if internalInboxReviewInput(message) || !message.CreatedAt.After(cutoff) {
+			if internalInboxReviewInput(message) || isSystemLifecycleNotice(message) || !message.CreatedAt.After(cutoff) {
 				continue
 			}
 			if isAgent {
@@ -130,6 +131,9 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 	resolutionObserved := map[string]time.Time{}
 	observeResolution := func(id string, messages []db.ProjectMessage) {
 		for _, message := range messages {
+			if isSystemLifecycleNotice(message) || internalInboxReviewInput(message) {
+				continue
+			}
 			if message.CreatedAt.After(resolutionObserved[id]) {
 				resolutionObserved[id] = message.CreatedAt
 			}
@@ -451,7 +455,15 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 			observed = contacts[i].LastMessageAt
 		}
 		contacts[i].ResolutionObservedAt = observed
-		contacts[i].Resolved = room.IsResolved(observed) && contacts[i].ActiveTasks == 0 && contacts[i].QueuedTasks == 0 && contacts[i].ReviewTasks == 0 && contacts[i].FailedTasks == 0 && contacts[i].TaskCount == contacts[i].DoneTasks+contacts[i].CanceledTasks
+		onlySystemNotices := hasOnlySystemLifecycleNotices(allMessages[contacts[i].ConversationID])
+		contacts[i].OnlySystemNotices = onlySystemNotices
+		hasNoUnfinishedTasks := contacts[i].ActiveTasks == 0 && contacts[i].QueuedTasks == 0 && contacts[i].ReviewTasks == 0 && contacts[i].FailedTasks == 0 && contacts[i].TaskCount == contacts[i].DoneTasks+contacts[i].CanceledTasks
+		if onlySystemNotices && hasNoUnfinishedTasks {
+			contacts[i].Resolved = true
+			contacts[i].UnreadCount = 0
+		} else {
+			contacts[i].Resolved = room.IsResolved(observed) && hasNoUnfinishedTasks
+		}
 		if contacts[i].Resolved {
 			contacts[i].UnreadCount = 0
 		} else if preferences["conversation:"+contacts[i].ConversationID].Unread && contacts[i].UnreadCount == 0 {

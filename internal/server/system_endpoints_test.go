@@ -114,6 +114,23 @@ func TestSystemEndpoints_UpdateAndScheduler(t *testing.T) {
 		t.Fatalf("expected 200 OK from GET /api/system/scheduler/tasks, got %d", rrList.Code)
 	}
 
+	// Get single task
+	reqGetTask := httptest.NewRequest(http.MethodGet, "/api/system/scheduler/tasks/"+taskID, nil)
+	rrGetTask := httptest.NewRecorder()
+	s.Router().ServeHTTP(rrGetTask, reqGetTask)
+	if rrGetTask.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK from GET /api/system/scheduler/tasks/:id, got %d", rrGetTask.Code)
+	}
+
+	// Update task
+	updateBody, _ := json.Marshal(map[string]interface{}{"title": "Updated Test Task", "project_id": "proj_demo"})
+	reqUpdate := httptest.NewRequest(http.MethodPut, "/api/system/scheduler/tasks/"+taskID, bytes.NewReader(updateBody))
+	rrUpdate := httptest.NewRecorder()
+	s.Router().ServeHTTP(rrUpdate, reqUpdate)
+	if rrUpdate.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK from PUT /api/system/scheduler/tasks/:id, got %d: %s", rrUpdate.Code, rrUpdate.Body.String())
+	}
+
 	// Toggle task
 	toggleBody, _ := json.Marshal(map[string]interface{}{"enabled": false})
 	reqToggle := httptest.NewRequest(http.MethodPatch, "/api/system/scheduler/tasks/"+taskID+"/toggle", bytes.NewReader(toggleBody))

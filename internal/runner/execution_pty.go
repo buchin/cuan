@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -376,7 +377,7 @@ func (r *Runner) executeWithPTY(
 		return state == task.TaskStatusReview || state == task.TaskStatusDone
 	}
 	// Monitor agent task report completion in background
-	reportCheckTicker := time.NewTicker(500 * time.Millisecond)
+	reportCheckTicker := time.NewTicker(2 * time.Second)
 	defer reportCheckTicker.Stop()
 
 	doneChan := make(chan struct{})
@@ -387,7 +388,15 @@ func (r *Runner) executeWithPTY(
 			case <-execCtx.Done():
 				return
 			case <-reportCheckTicker.C:
-				if state := reportState(); state != "" {
+				state := reportState()
+				if state == ReportStateInactiveConflict {
+					log.Printf("[Worker %s] Attempt %s is no longer active on server (HTTP 409 Conflict); terminating detached session.",
+						r.cfg.RunnerID, att.ID)
+					_ = sess.Close()
+					cancelExec()
+					return
+				}
+				if state != "" {
 					// Drain final output, but do not stop a newer progress turn.
 					drain := time.NewTimer(1500 * time.Millisecond)
 					select {
@@ -396,7 +405,13 @@ func (r *Runner) executeWithPTY(
 						return
 					case <-drain.C:
 					}
-					if current := reportState(); current == "" || current != state {
+					current := reportState()
+					if current == ReportStateInactiveConflict {
+						_ = sess.Close()
+						cancelExec()
+						return
+					}
+					if current == "" || current != state {
 						continue
 					}
 					if sess.IsClosed() {
@@ -433,7 +448,7 @@ func (r *Runner) executeWithPTY(
 	}
 	if exitCode != 0 {
 		// Preserve real process failures, even when a final report was saved.
-		if reportedStop.Load() && reportedStopExit(exitCode) && finalState != "" && stoppedReport.Load() == finalState {
+		if reportedStop.Load() && reportedStopExit(exitCode) && finalState != "" && finalState != ReportStateInactiveConflict && stoppedReport.Load() == finalState {
 			r.streamLogLine(ctx, att.ID, "system", fmt.Sprintf("Confirmed final report; runner closed the terminal (native exit %d).", exitCode))
 			res.Status = "SUCCESS"
 			res.ExitCode = 0

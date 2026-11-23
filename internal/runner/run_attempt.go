@@ -235,6 +235,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	if claim.DeployBranch != "" {
 		env["CUAN_DEPLOY_BRANCH"] = claim.DeployBranch
 	}
+	env["GIT_OPTIONAL_LOCKS"] = "0"
 	if claim.Environment != "" {
 		for k, v := range project.ParseEnvironment(claim.Environment) {
 			env[k] = v

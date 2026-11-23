@@ -91,8 +91,25 @@ func (dc *DrainCoordinator) CheckDrainFile() bool {
 			dc.RequestDrain("drain flag file detected at " + dc.drainFile)
 		}
 		return true
+	} else if os.IsNotExist(err) && dc.IsDraining() {
+		// When the drain flag file is removed after deploy, clear drain state
+		dc.CancelDrain()
+		return false
 	}
 	return false
+}
+
+// CancelDrain clears graceful drain mode and resumes normal task claims.
+func (dc *DrainCoordinator) CancelDrain() {
+	dc.mu.Lock()
+	if !dc.draining {
+		dc.mu.Unlock()
+		return
+	}
+	dc.draining = false
+	dc.drainReason = ""
+	dc.mu.Unlock()
+	log.Println("[DrainCoordinator] Graceful drain cleared: worker resumed accepting new task claims.")
 }
 
 // StartMonitor periodically checks for the drain flag file until context is canceled.

@@ -117,6 +117,11 @@ test('6. Quick Project Terminal in ProjectsWorkspace (Header & Item Actions)', (
     /title=\{t\('Open terminal for this project'\)\}/,
     'ProjectsWorkspace must provide Terminal button in project header',
   )
+  assert.match(
+    content,
+    /data-project-row[\s\S]*?onClick=\{\(e\)\s*=>\s*\{[\s\S]*?void handleOpenProjectTerminal\(item\.id\)/,
+    'ProjectsWorkspace must provide direct quick Terminal button on each project row',
+  )
 })
 
 test('7. ProjectsWorkspace renders FolderGit2 or Folder icon before project name in header', () => {

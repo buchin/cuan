@@ -254,7 +254,7 @@ export function App() {
   const conversationArchive = useArchivedItems('conversation')
   const inboxUnread = useMemo(() => {
     return contacts.filter((contact) => {
-      if (contact.has_messages === false || contact.resolved) return false
+      if (contact.has_messages === false || contact.resolved || contact.only_system_notices) return false
       const id = contact.conversation_id || contact.id
       let count = conversationArchive.unreadCount(
         id,

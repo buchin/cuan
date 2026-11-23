@@ -30,7 +30,14 @@ const (
 
 func getTaskTimeout() time.Duration {
 	if v := os.Getenv("CUAN_TASK_TIMEOUT"); v != "" {
-		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+		trimmed := strings.ToLower(strings.TrimSpace(v))
+		if trimmed == "0" || trimmed == "0s" || trimmed == "off" || trimmed == "none" || trimmed == "infinity" || trimmed == "infinite" {
+			return 0
+		}
+		if d, err := time.ParseDuration(v); err == nil {
+			if d <= 0 {
+				return 0
+			}
 			return d
 		}
 	}
@@ -198,8 +205,12 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	defer parentCheck.Stop()
 
 	taskTimeout := getTaskTimeout()
-	timeoutTimer := time.NewTimer(taskTimeout)
-	defer timeoutTimer.Stop()
+	var timeoutChan <-chan time.Time
+	if taskTimeout > 0 {
+		timeoutTimer := time.NewTimer(taskTimeout)
+		defer timeoutTimer.Stop()
+		timeoutChan = timeoutTimer.C
+	}
 
 	var timedOut bool
 	var timeoutStopping <-chan time.Time
@@ -253,7 +264,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			if os.Getppid() != initialParent {
 				stop(syscall.SIGTERM)
 			}
-		case <-timeoutTimer.C:
+		case <-timeoutChan:
 			if !timedOut && stopping == nil {
 				timedOut = true
 				fmt.Fprintln(stderr, "Task execution exceeded hard timeout.")

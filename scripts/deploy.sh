@@ -7,6 +7,7 @@ explicit_branch=0
 frontend_only=0
 force_local=0
 native_sync=0
+devnull_broadcast=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -27,8 +28,12 @@ while [[ $# -gt 0 ]]; do
       native_sync=1
       shift
       ;;
+    --devnull)
+      devnull_broadcast=1
+      shift
+      ;;
     --help)
-      echo 'Usage: scripts/deploy.sh [--branch APPROVED_BRANCH] [--frontend-only] [--local] [--native-sync] (clean tree; default dev). Requires DOJO_TERMAPI_VPS_* env when running remotely; auto-detects or uses --local when running directly on the production host.'
+      echo 'Usage: scripts/deploy.sh [--branch APPROVED_BRANCH] [--frontend-only] [--local] [--native-sync] [--devnull] (clean tree; default dev). Requires DOJO_TERMAPI_VPS_* env when running remotely; auto-detects or uses --local when running directly on the production host.'
       exit 0
       ;;
     *)
@@ -39,6 +44,17 @@ while [[ $# -gt 0 ]]; do
 done
 
 cd "$(dirname "$0")/.."
+
+if [[ -f .env ]]; then
+  set -a
+  source .env 2>/dev/null || true
+  set +a
+fi
+
+# Normalize VPS credentials (supports CUAN_VPS_*, CUAN_NEW_VPS_*, or DOJO_TERMAPI_VPS_*)
+export DOJO_TERMAPI_VPS_PASSWORD="${DOJO_TERMAPI_VPS_PASSWORD:-${CUAN_VPS_PASSWORD:-${CUAN_NEW_VPS_PASSWORD:-}}}"
+export DOJO_TERMAPI_VPS_USERNAME="${DOJO_TERMAPI_VPS_USERNAME:-${CUAN_VPS_USERNAME:-${CUAN_NEW_VPS_USERNAME:-ubuntu}}}"
+export DOJO_TERMAPI_VPS_PUBLIC_IP="${DOJO_TERMAPI_VPS_PUBLIC_IP:-${CUAN_VPS_IP:-${CUAN_NEW_VPS_IP:-}}}"
 
 # Resolve approved deployment branch if not explicitly given:
 # 1. Flag --branch <NAME> (handled above)
@@ -145,7 +161,7 @@ if [[ "$is_local" == 0 ]]; then
   export SSHPASS="${DOJO_TERMAPI_VPS_PASSWORD:-}"
   release_host="${DOJO_TERMAPI_VPS_USERNAME:-}@${DOJO_TERMAPI_VPS_PUBLIC_IP:-}"
   if [[ -z "${DOJO_TERMAPI_VPS_PASSWORD:-}" || -z "${DOJO_TERMAPI_VPS_USERNAME:-}" || -z "${DOJO_TERMAPI_VPS_PUBLIC_IP:-}" ]]; then
-    echo "ERROR: Remote release requires DOJO_TERMAPI_VPS_* environment variables." >&2
+    echo "ERROR: Remote release requires VPS credentials (CUAN_VPS_* or DOJO_TERMAPI_VPS_*)." >&2
     echo "If running directly on the production host, pass --local." >&2
     exit 1
   fi
@@ -194,6 +210,7 @@ for component in server migrate runner; do
     exit "$build_status"
   fi
 done
+ln -sf cuan-server "$release_dir/bin/cuan"
 echo "✓ Backend binaries compiled successfully."
 cp -aL web/dist "$release_dir/web/"
 cp -a migrations "$release_dir/"
@@ -336,3 +353,10 @@ else
 fi
 
 echo "Released $release_sha. Verify the public UI, OAuth, Inbox reply and retained data before marking done."
+
+if [[ "$devnull_broadcast" == 1 || "${DEVNULL_BROADCAST:-false}" == "true" ]]; then
+  echo "==> Broadcasting release announcement to dev-null.sh..."
+  commit_msg="$(git log -1 --pretty=%s "$release_sha" 2>/dev/null || echo "New production update")"
+  "$(dirname "$0")/post-to-devnull.sh" "Shipped Cuan release ${release_sha:0:7}: $commit_msg 🚀 https://app.cuan.work" || echo "Warning: dev-null broadcast failed; continuing." >&2
+fi
+

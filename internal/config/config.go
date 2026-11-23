@@ -171,9 +171,9 @@ func Load() *Config {
 		intervalSec = 5
 	}
 
-	leaseSec, _ := strconv.Atoi(getEnv("CUAN_RUNNER_LEASE_DURATION_SEC", "30"))
+	leaseSec, _ := strconv.Atoi(getEnv("CUAN_RUNNER_LEASE_DURATION_SEC", "120"))
 	if leaseSec < 5 {
-		leaseSec = 30
+		leaseSec = 120
 	}
 
 	maxLogLines, _ := strconv.Atoi(getEnv("CUAN_RUNNER_MAX_LOG_LINES", "5000"))

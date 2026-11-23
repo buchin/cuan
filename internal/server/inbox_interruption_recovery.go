@@ -101,8 +101,11 @@ func (s *Server) recoverInterruptedInboxTask(ctx context.Context, d *task.TaskDe
 	// The launch path revalidates approval, cancellation, scope, ownership and
 	// active execution, and persists an idempotent launch before starting work.
 	now := time.Now().UTC()
-	message := &db.ProjectMessage{ID: delegationMessageID(key + ":notice"), RoomID: d.SourceRoomID, AuthorType: "system", AuthorName: "Cuan", Content: notice + "\n\n" + output, CreatedAt: now, UpdatedAt: now}
+	message := &db.ProjectMessage{ID: delegationMessageID(key + ":notice"), RoomID: d.SourceRoomID, AuthorType: "system", AuthorID: "cuan_system_lifecycle", AuthorName: "Cuan", Content: notice + "\n\n" + output, CreatedAt: now, UpdatedAt: now}
 	if s.projectStudioRepo.CreateMessage(ctx, message) == nil {
+		if receiptRepo, ok := s.projectStudioRepo.(db.ChatReceiptRepository); ok {
+			_ = receiptRepo.AcknowledgeMessages(ctx, d.SourceRoomID, []string{message.ID}, true)
+		}
 		s.publishInbox(d.SourceRoomID)
 	}
 	saved, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, delegationMessageID(key)))

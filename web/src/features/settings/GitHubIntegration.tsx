@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { ApiError, apiFetch } from '../../api/client'
+import { FormField, Input } from '../../components/ui/forms'
 type DeviceLogin = { id: string; state: 'preparing' | 'starting' | 'awaiting_authorization' | 'connected' | 'failed' | 'expired' | 'cancelled'; user_code?: string; expires_at: string; error?: string }
 const pendingLogin = (job?: DeviceLogin) => !!job && ['preparing', 'starting', 'awaiting_authorization'].includes(job.state)
 type Connection = { connected: boolean; account?: { login: string; name: string } }
@@ -85,14 +86,29 @@ export function GitHubIntegration() {
   </section>}
   {params.get('github_status') && params.get('github_status') !== 'connected' && <p role="status" className="text-sm text-muted-foreground">GitHub connection was not completed. Your work is saved. Try connecting again.</p>}
   {connection && !connection.connected && <details className="border-t pt-2"><summary className="flex min-h-11 cursor-pointer items-center text-sm text-muted-foreground">Advanced</summary>
-   <form className="space-y-3 py-3" onSubmit={async event => {
+   <form className="space-y-4 py-3" onSubmit={async event => {
    event.preventDefault(); setBusy(true); setError('')
    try { setConnection(await apiFetch<Connection>('/api/v1/integrations/github', { method: 'PUT', body: JSON.stringify({ token }) })); setToken('') }
    catch { setError('Could not connect. Check your token and try again.') } finally { setBusy(false) }
   }}>
-   <label className="block text-sm font-medium" htmlFor="github-token">GitHub access token</label>
-   <input id="github-token" type="password" autoComplete="off" className="field-control" required maxLength={4096} value={token} disabled={busy} onChange={e => setToken(e.target.value)} />
-   <p className="text-xs leading-5 text-muted-foreground">Create a fine-grained token for the repositories you want Cuan to access. Use Contents read access for cloning, or read and write for pushing. Your token is encrypted and is never displayed again.</p>
+   <FormField
+     label="GitHub access token"
+     htmlFor="github-token"
+     required
+     helperText="Create a fine-grained token for the repositories you want Cuan to access. Use Contents read access for cloning, or read and write for pushing. Your token is encrypted and is never displayed again."
+   >
+     <Input
+       id="github-token"
+       type="password"
+       autoComplete="off"
+       required
+       maxLength={4096}
+       value={token}
+       disabled={busy}
+       onChange={e => setToken(e.target.value)}
+       mono
+     />
+   </FormField>
    <a className="inline-flex min-h-11 items-center text-sm underline" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Create token on GitHub ↗</a>
    <div><button className="action-primary" disabled={busy || !token.trim()}>{busy ? 'Connecting…' : 'Connect with token'}</button></div>
   </form></details>}

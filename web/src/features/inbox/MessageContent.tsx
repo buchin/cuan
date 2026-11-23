@@ -100,7 +100,10 @@ export const MessageContent = memo(function MessageContent({
     effectiveBody.startsWith('The work is waiting for an available AI session.') ||
     effectiveBody.startsWith('The work is queued waiting for the active project task') ||
     effectiveBody.startsWith('The work is waiting to start. I’ll report progress here.') ||
-    effectiveBody.startsWith("The work is waiting to start. I'll report progress here.")
+    effectiveBody.startsWith("The work is waiting to start. I'll report progress here.") ||
+    effectiveBody.startsWith('Pekerjaan masuk dalam antrean menunggu tugas yang sedang aktif') ||
+    effectiveBody.startsWith('Pekerjaan sedang menunggu ketersediaan sesi AI.') ||
+    effectiveBody.startsWith('Pekerjaan sedang menunggu untuk dimulai.')
 
   const shouldRenderBody = effectiveBody && !(isBoilerplateLaunch && hasTaskAction)
 

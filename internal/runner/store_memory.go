@@ -176,7 +176,17 @@ func (m *MemoryStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID strin
 	var oldestQueued *task.TaskAttempt
 	var matchedTask *task.Task
 
+	preferredTaskID, _ := ctx.Value(preferredTaskClaimKey{}).(string)
+
 	for _, t := range tasks {
+		if preferredTaskID != "" && t.ID != preferredTaskID {
+			if prefT, err := m.taskStore.GetTask(ctx, preferredTaskID); err == nil && prefT != nil {
+				if !isTerminalTaskStatus(prefT.Status) && time.Since(prefT.UpdatedAt) < 15*time.Minute {
+					// Full sticky affinity on active task bundle: hold until preferred task reaches terminal status
+					continue
+				}
+			}
+		}
 		candidateLane := t.ExecutionCategory
 		if candidateLane == "" {
 			candidateLane = task.ExecutionCategoryCode
@@ -213,6 +223,9 @@ func (m *MemoryStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID strin
 				if otherTask.ID != t.ID && (otherTask.ProjectID == t.ProjectID || containsString(otherTask.ProjectIDs, t.ProjectID)) {
 					isOtherActive := false
 					if otherTask.Status == task.TaskStatusDoing || otherTask.Status == "working" {
+						isOtherActive = true
+					} else if !isTerminalTaskStatus(otherTask.Status) && otherTask.Status != task.TaskStatusBacklog && otherTask.Status != "todo" && otherTask.Status != task.TaskStatusQueued && time.Since(otherTask.UpdatedAt) < 15*time.Minute {
+						// Full task affinity: in-progress tasks retain lock across review and staging until terminal status
 						isOtherActive = true
 					} else {
 						otherAttempts, _ := m.taskStore.ListAttempts(ctx, otherTask.ID)
@@ -336,7 +349,30 @@ func (m *MemoryStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID strin
 					}
 				}
 
-				if oldestQueued == nil || a.CreatedAt.Before(oldestQueued.CreatedAt) {
+				isBetterCandidate := false
+				if oldestQueued == nil {
+					isBetterCandidate = true
+				} else {
+					aIsPreferred := preferredTaskID != "" && a.TaskID == preferredTaskID
+					bestIsPreferred := preferredTaskID != "" && oldestQueued.TaskID == preferredTaskID
+					if aIsPreferred && !bestIsPreferred {
+						isBetterCandidate = true
+					} else if !aIsPreferred && bestIsPreferred {
+						isBetterCandidate = false
+					} else {
+						aIsContinuation := a.AttemptNumber > 1
+						bestIsContinuation := oldestQueued.AttemptNumber > 1
+						if aIsContinuation && !bestIsContinuation {
+							isBetterCandidate = true
+						} else if aIsContinuation == bestIsContinuation {
+							if a.CreatedAt.Before(oldestQueued.CreatedAt) {
+								isBetterCandidate = true
+							}
+						}
+					}
+				}
+
+				if isBetterCandidate {
 					oldestQueued = a
 					matchedTask = t
 				}
@@ -525,6 +561,18 @@ func containsString(slice []string, val string) bool {
 		}
 	}
 	return false
+}
+
+func isTerminalTaskStatus(status string) bool {
+	switch status {
+	case string(task.TaskStatusDone),
+		string(task.TaskStatusCancelled), "canceled",
+		"failed",
+		string(task.TaskStatusBlocked):
+		return true
+	default:
+		return false
+	}
 }
 
 func (m *MemoryStore) ReleaseAssignment(_ context.Context, runnerID, attemptID string) error {

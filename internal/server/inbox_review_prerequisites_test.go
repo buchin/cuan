@@ -7,14 +7,23 @@ import (
 	"testing"
 	"time"
 
+	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
 )
 
 func prerequisiteReviewFixture(t *testing.T) (*Server, *task.TaskDetailResponse) {
 	t.Helper()
-	s, d := managerFixture(t)
+	s, d, _ := stalledReviewFixture(t, "completed")
+	projects := project.NewMemoryStore()
+	if err := projects.CreateProject(context.Background(), &project.Project{ID: d.ProjectID, Name: "Default"}); err != nil {
+		t.Fatal(err)
+	}
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
 	ctx := context.Background()
 	now := time.Now().UTC()
+	if err := s.taskSvc.Store().CreateAttempt(ctx, &task.TaskAttempt{ID: "earlier-one", TaskID: d.ID, Status: task.AttemptStatusFailed, CreatedAt: d.LatestAttempt.CreatedAt.Add(-time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
 	current := *d.LatestAttempt
 	current.ID = "prerequisite-attempt"
 	current.CreatedAt = now

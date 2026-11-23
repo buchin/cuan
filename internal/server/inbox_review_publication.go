@@ -40,47 +40,61 @@ func (s *Server) inboxReviewPublication(ctx context.Context, d *task.TaskDetailR
 	if d == nil || d.LatestAttempt == nil || s.projectSvc == nil || d.ProjectID == "" || !releaseObjectID.MatchString(d.CommitSHA) || (d.ExecutionCategory != "" && d.ExecutionCategory != task.ExecutionCategoryCode) {
 		return nil
 	}
-	if task.IsAccountOutcome(&d.Task) || (task.SupportsAccountOutcomeInspection(&d.Task) && s.accountOutcomeIndependentlyVerified(ctx, d)) {
-		return &reviewPublication{Required: false, Commit: d.CommitSHA, Provenance: "original_account_scope_no_source_publication"}
+	effectiveDetail := d
+	if source, proof := s.verifiedSupplementalSource(ctx, d); source != nil && proof != nil {
+		effectiveDetail = source
 	}
-	if required := task.AttemptPublicationRequired(d); required != nil && !*required {
-		return &reviewPublication{Required: false, Commit: d.CommitSHA, Provenance: "current_completion_no_publication_required"}
+	if task.IsAccountOutcome(&effectiveDetail.Task) || (task.SupportsAccountOutcomeInspection(&effectiveDetail.Task) && s.accountOutcomeIndependentlyVerified(ctx, effectiveDetail)) {
+		return &reviewPublication{Required: false, Commit: effectiveDetail.CommitSHA, Provenance: "original_account_scope_no_source_publication"}
 	}
-	if task.StagesDeclared(d.RequiredStages) && !task.RequiresPublish(d.RequiredStages) {
-		return &reviewPublication{Required: false, Commit: d.CommitSHA, Provenance: "declared_stages_no_publication_required"}
+	if required := task.AttemptPublicationRequired(effectiveDetail); required != nil && !*required {
+		return &reviewPublication{Required: false, Commit: effectiveDetail.CommitSHA, Provenance: "current_completion_no_publication_required"}
 	}
-	_, err := s.taskPublicationPolicy(ctx, d)
+	if task.StagesDeclared(effectiveDetail.RequiredStages) && !task.RequiresPublish(effectiveDetail.RequiredStages) {
+		return &reviewPublication{Required: false, Commit: effectiveDetail.CommitSHA, Provenance: "declared_stages_no_publication_required"}
+	}
+	_, err := s.taskPublicationPolicy(ctx, effectiveDetail)
 	if err != nil {
-		return &reviewPublication{Required: true, Commit: d.CommitSHA}
+		return &reviewPublication{Required: true, Commit: effectiveDetail.CommitSHA}
 	}
-	base := executionpolicy.FromInstructions(d.Instructions)
+	base := executionpolicy.FromInstructions(effectiveDetail.Instructions)
 	if base.DenyDeploy || base.ReadOnlyRepository {
 		return nil
 	}
-	p, err := s.projectSvc.Get(ctx, d.ProjectID)
+	p, err := s.projectSvc.Get(ctx, effectiveDetail.ProjectID)
 	if err != nil || p == nil {
-		return &reviewPublication{Required: true, Commit: d.CommitSHA}
+		return &reviewPublication{Required: true, Commit: effectiveDetail.CommitSHA}
 	}
 	if !project.SettingsFromMetadata(p.Metadata).IsAutoDeployEnabled() {
 		return nil
 	}
-	result := &reviewPublication{Required: true, Commit: d.CommitSHA, ConnectionState: s.publicationConnectionState(p)}
-	if task.VerifiedDeployment(d.Activities, d.LatestAttempt, d.CommitSHA, time.Now().UTC()) {
+	result := &reviewPublication{Required: true, Commit: effectiveDetail.CommitSHA, ConnectionState: s.publicationConnectionState(p)}
+	if task.VerifiedDeployment(effectiveDetail.Activities, effectiveDetail.LatestAttempt, effectiveDetail.CommitSHA, time.Now().UTC()) {
 		result.Verified, result.Provenance = true, "verified_attempt_deployment"
-	} else if running := s.runningProjectRelease(ctx, d); running != nil && running.Commit == d.CommitSHA {
+	} else if running := s.runningProjectRelease(ctx, effectiveDetail); running != nil && running.Commit == effectiveDetail.CommitSHA {
 		result.Verified, result.Provenance = true, "current_project_process_exact_commit"
 		if running.Provenance == "registered_ssh_release" {
 			result.Provenance = "registered_ssh_release_exact_commit"
 		}
 	}
 	if !result.Verified {
-		if running := s.runningProjectRelease(ctx, d); running != nil {
-			contained, err := s.projectSvc.PublishedCommitContained(ctx, d.ProjectID, d.CommitSHA, running.Commit)
+		if running := s.runningProjectRelease(ctx, effectiveDetail); running != nil {
+			contained, err := s.projectSvc.PublishedCommitContained(ctx, effectiveDetail.ProjectID, effectiveDetail.CommitSHA, running.Commit)
 			if err == nil {
 				result.ObservedRelease = running.Commit
 				result.ResultCommitContained = &contained
 				if contained {
 					result.Verified, result.Provenance = true, running.Provenance+"_contains_result_commit"
+				}
+			}
+			if !result.Verified {
+				if appliedSHA := extractAppliedCommitSHA(effectiveDetail.CompleteNote); appliedSHA != "" {
+					containedApplied, err := s.projectSvc.PublishedCommitContained(ctx, effectiveDetail.ProjectID, appliedSHA, running.Commit)
+					if err == nil && containedApplied {
+						result.ObservedRelease = running.Commit
+						result.ResultCommitContained = &containedApplied
+						result.Verified, result.Provenance = true, running.Provenance+"_contains_applied_commit"
+					}
 				}
 			}
 			if !result.Verified {
@@ -264,6 +278,7 @@ func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetai
 			decision.Decision = "revise"
 			if isPriorVerification || decision.RemainingWork == "verification" {
 				decision.RemainingWork = "publication"
+				decision.SourceReview = "pass"
 			} else {
 				decision.RemainingWork = "implementation"
 			}
@@ -438,4 +453,21 @@ func (s *Server) isPriorVerificationAttempt(ctx context.Context, d *task.TaskDet
 		}
 	}
 	return false
+}
+
+func extractAppliedCommitSHA(note string) string {
+	idx := strings.Index(note, "Perubahan telah berhasil diterapkan (Commit ")
+	if idx < 0 {
+		return ""
+	}
+	sub := note[idx+len("Perubahan telah berhasil diterapkan (Commit "):]
+	end := strings.Index(sub, ")")
+	if end < 0 {
+		return ""
+	}
+	sha := strings.TrimSpace(sub[:end])
+	if releaseObjectID.MatchString(sha) {
+		return sha
+	}
+	return ""
 }

@@ -74,9 +74,9 @@ export function ProjectsView({
         } catch {}
       }
 
-      // 3. Create dedicated terminal task if none exists yet
-      let assignedAgentId = 'default'
-      if (!targetTask) {
+      // 3. Resolve active agent and create dedicated terminal task if none exists yet
+      let assignedAgentId = targetTask?.assignee_id || (targetTask as any)?.assigned_agent || ''
+      if (!assignedAgentId) {
         try {
           const agentList = await agentsApi.list()
           const available = agentList.filter(
@@ -87,7 +87,9 @@ export function ProjectsView({
             available[0]
           if (selected) assignedAgentId = selected.id
         } catch {}
+      }
 
+      if (!targetTask) {
         targetTask = await tasksApi.create({
           title: `Terminal · ${projName}`,
           project_ids: [projId],
@@ -168,11 +170,27 @@ export function ProjectsView({
 
   const displayedProjects = (
     activeTab === 'active' ? activeProjects : archivedProjects
-  ).filter(
-    (p) =>
-      (p.name || '').toLowerCase().includes(search.toLowerCase()) ||
-      (p.repo_url && p.repo_url.toLowerCase().includes(search.toLowerCase())),
   )
+    .filter(
+      (p) =>
+        (p.name || '').toLowerCase().includes(search.toLowerCase()) ||
+        (p.repo_url && p.repo_url.toLowerCase().includes(search.toLowerCase())),
+    )
+    .sort((a, b) => {
+      // 1. Projects with active / queued tasks first
+      const aActive = (a.task_progress?.active || 0) + (a.task_progress?.queued || 0)
+      const bActive = (b.task_progress?.active || 0) + (b.task_progress?.queued || 0)
+      if (aActive > 0 && bActive === 0) return -1
+      if (bActive > 0 && aActive === 0) return 1
+
+      // 2. Latest updated_at (or created_at)
+      const aTime = Date.parse(a.updated_at || a.created_at || '') || 0
+      const bTime = Date.parse(b.updated_at || b.created_at || '') || 0
+      if (bTime !== aTime) return bTime - aTime
+
+      // 3. Alphabetical tie-breaker
+      return (a.name || '').localeCompare(b.name || '')
+    })
 
   const getTaskCountForProject = (projectId: string) => {
     return tasks.filter(

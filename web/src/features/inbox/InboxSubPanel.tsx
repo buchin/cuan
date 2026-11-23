@@ -19,9 +19,20 @@ import { Bot, User, CheckCircle2, CheckCheck, Plus, Circle } from 'lucide-react'
 import { NotificationsPopover } from '../notifications/NotificationsPopover'
 import { cn } from '../../lib/utils'
 import { getContactInitials } from './contact-initials'
+import { TASK_STATUS_THEMES } from '../tasks/task-ui'
 import './chat-calm.css'
 
 export function conversationPreview(message?: string, counts?: ChatContact, t: (value: string) => string = value => value) {
+  const activeTasks = typeof counts?.active_tasks === 'number' ? counts.active_tasks : Number(counts?.active_tasks) || 0
+  const queuedTasks = typeof counts?.queued_tasks === 'number' ? counts.queued_tasks : Number(counts?.queued_tasks) || 0
+
+  if (activeTasks > 0) {
+    return t('Sedang dikerjakan')
+  }
+  if (queuedTasks > 0) {
+    return t('Menunggu antrean')
+  }
+
   if (!message?.trim()) return 'No messages yet.'
   let text = message.trim()
   const workPreview = workConversationPreview(text, counts)
@@ -131,7 +142,7 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
     now,
   )
   const id = contact.conversation_id || contact.id
-  const unread = archive.unreadCount(id, contact.unread_count, contact.last_message_at || contact.updated_at)
+  const unread = contact.only_system_notices ? 0 : archive.unreadCount(id, contact.unread_count, contact.last_message_at || contact.updated_at)
   const activeTasks = typeof contact.active_tasks === 'number' ? contact.active_tasks : Number(contact.active_tasks) || 0
   const reviewTasks = Number(contact.review_tasks) || 0
   const failedTasks = Number(contact.failed_tasks) || 0
@@ -202,6 +213,27 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
     void archive.markRead(id, true, contact.last_message_at).catch(() => {})
   }
 
+  const prefetchConversation = () => {
+    if (!id) return
+    try {
+      if (sessionStorage.getItem('cuan_chat_cache:' + id)) return
+    } catch {}
+    chatApi.getConversation(id, { limit: 50 }).then((data) => {
+      if (data && data.messages) {
+        try {
+          const trimmed = {
+            messages: (data.messages || []).slice(-30),
+            requests: (data.requests || []).slice(-5),
+            tasks: data.tasks || [],
+            hasMore: Boolean(data.has_more),
+            cachedAt: Date.now(),
+          }
+          sessionStorage.setItem('cuan_chat_cache:' + id, JSON.stringify(trimmed))
+        } catch {}
+      }
+    }).catch(() => {})
+  }
+
   const handleResolveAction = async () => {
     if (!contact.resolved && (contact.active_tasks || 0) > 0) {
       const confirmMessage = t('Ada {{count}} tugas yang sedang berjalan di background. Batalkan tugas dan tuntaskan percakapan?')
@@ -259,6 +291,7 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
       <button
         type="button"
         onClick={openContact}
+        onMouseEnter={prefetchConversation}
         aria-pressed={isSelected}
         data-testid="conversation-item"
         className={cn(
@@ -316,13 +349,13 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
             className={cn(
               'workflow-status-toggle absolute -bottom-0.5 -right-0.5 rounded-full bg-transparent flex items-center justify-center transition-transform hover:scale-110 cursor-pointer select-none',
               isComplete
-                ? 'text-emerald-600 dark:text-emerald-400'
+                ? TASK_STATUS_THEMES.done.textColor
                 : isWorking
-                  ? 'text-[color:var(--status-working)]'
+                  ? TASK_STATUS_THEMES.working.textColor
                   : hasFailed
-                    ? 'text-amber-500/90 dark:text-amber-400'
+                    ? TASK_STATUS_THEMES.attention.textColor
                     : hasReview
-                      ? 'text-purple-500/90 dark:text-purple-400'
+                      ? TASK_STATUS_THEMES.review.textColor
                       : 'text-muted-foreground/60 hover:text-foreground',
             )}
           >
@@ -341,7 +374,7 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="1.5"
-                  opacity={isWorking || hasFailed ? "0.9" : "0.65"}
+                  opacity={isWorking || hasFailed || hasReview ? "0.9" : "0.65"}
                 />
                 {fraction > 0 && (
                   <path
@@ -369,6 +402,15 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
               <span className={cn("text-sm truncate", unread > 0 ? "font-bold text-foreground" : "font-medium text-foreground/90")}>
                 {contact.name}
               </span>
+              {isWorking && (
+                <StatusDot
+                  status="working"
+                  size="md"
+                  title={t('Working on tasks')}
+                  aria-label={t('Working on tasks')}
+                  className="shrink-0"
+                />
+              )}
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <span className="text-xs tabular-nums text-muted-foreground">
@@ -506,7 +548,7 @@ export function InboxSubPanel({
   }
 
   const filteredContacts = contacts.filter((c) => {
-    if (showArchived ? !c.resolved : unresolvedOnly && c.resolved) return false
+    if (showArchived ? !c.resolved : unresolvedOnly && (c.resolved || c.only_system_notices)) return false
     if (activeTab === 'all') {
       if (c.type === 'customer' && c.has_messages === false) return false
     }
@@ -522,7 +564,8 @@ export function InboxSubPanel({
         .join(' ')
         .toLowerCase()
         .includes(q)
-      const matchMsg = (c.last_message || '').toLowerCase().includes(q)
+      const preview = conversationPreview(c.last_message, c, t).toLowerCase()
+      const matchMsg = (c.last_message || '').toLowerCase().includes(q) || preview.includes(q)
       const matchProduct = (c.product || '').toLowerCase().includes(q)
       const matchUrl = (c.current_url || '').toLowerCase().includes(q)
       const matchPage = (c.page_title || '').toLowerCase().includes(q)

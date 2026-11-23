@@ -88,11 +88,27 @@ export function ProjectsWorkspace({
 
   const visible = useMemo(() => {
     const q = query.toLowerCase().trim()
-    return projects.filter(
-      (item) =>
-        !!item.is_archived === archived &&
-        (!q || item.name.toLowerCase().includes(q)),
-    )
+    return projects
+      .filter(
+        (item) =>
+          !!item.is_archived === archived &&
+          (!q || item.name.toLowerCase().includes(q)),
+      )
+      .sort((a, b) => {
+        // 1. Projects with active / queued tasks first
+        const aActive = (a.task_progress?.active || 0) + (a.task_progress?.queued || 0)
+        const bActive = (b.task_progress?.active || 0) + (b.task_progress?.queued || 0)
+        if (aActive > 0 && bActive === 0) return -1
+        if (bActive > 0 && aActive === 0) return 1
+
+        // 2. Latest updated_at (or created_at)
+        const aTime = Date.parse(a.updated_at || a.created_at || '') || 0
+        const bTime = Date.parse(b.updated_at || b.created_at || '') || 0
+        if (bTime !== aTime) return bTime - aTime
+
+        // 3. Alphabetical tie-breaker
+        return (a.name || '').localeCompare(b.name || '')
+      })
   }, [projects, archived, query])
   async function archive() {
     if (!project || !onArchiveProject || busy) return
@@ -184,9 +200,9 @@ export function ProjectsWorkspace({
         } catch {}
       }
 
-      // 3. Create dedicated terminal task if none exists yet
-      let assignedAgentId = 'default'
-      if (!targetTask) {
+      // 3. Resolve active agent and create dedicated terminal task if none exists yet
+      let assignedAgentId = targetTask?.assignee_id || (targetTask as any)?.assigned_agent || ''
+      if (!assignedAgentId) {
         try {
           const agentList = await agentsApi.list()
           const available = agentList.filter(
@@ -197,7 +213,9 @@ export function ProjectsWorkspace({
             available[0]
           if (selected) assignedAgentId = selected.id
         } catch {}
+      }
 
+      if (!targetTask) {
         targetTask = await tasksApi.create({
           title: `Terminal · ${projName}`,
           project_ids: [projId],
@@ -305,6 +323,24 @@ export function ProjectsWorkspace({
                       <TaskProgress {...item.task_progress} />
                     </div>
                   )}
+                  <button
+                    type="button"
+                    disabled={Boolean(openingTerminalId)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      e.preventDefault()
+                      void handleOpenProjectTerminal(item.id)
+                    }}
+                    className="icon-action text-muted-foreground hover:text-emerald-500 shrink-0"
+                    title={t('Open terminal for this project')}
+                    aria-label={t('Open terminal for this project')}
+                  >
+                    {openingTerminalId === item.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-emerald-500" />
+                    ) : (
+                      <Terminal className="h-4 w-4 text-emerald-500" />
+                    )}
+                  </button>
                 </div>
               </ItemActions>
             )

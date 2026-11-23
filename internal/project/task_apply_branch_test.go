@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -76,3 +77,72 @@ func TestRemoteTaskBranchApplyUsesSavedConnectionAndPreservesCache(t *testing.T)
 		})
 	}
 }
+
+func TestRemoteTaskBranchApplyFallbackLocalMergePushesDefaultBranch(t *testing.T) {
+	ctx := context.Background()
+	repoDir := t.TempDir()
+
+	// Initialize local repo with dev and task branch
+	gitExec := func(args ...string) string {
+		c := exec.CommandContext(ctx, "git", append([]string{"-C", repoDir}, args...)...)
+		data, err := c.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v failed: %v, output: %s", args, err, string(data))
+		}
+		return strings.TrimSpace(string(data))
+	}
+	gitExec("init", "-b", "dev")
+	gitExec("config", "user.name", "Test")
+	gitExec("config", "user.email", "test@test.local")
+	if err := os.WriteFile(filepath.Join(repoDir, "base.txt"), []byte("base"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	gitExec("add", "base.txt")
+	gitExec("commit", "-m", "initial base")
+
+	gitExec("checkout", "-b", "task/one")
+	if err := os.WriteFile(filepath.Join(repoDir, "feature.txt"), []byte("feature"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	gitExec("add", "feature.txt")
+	gitExec("commit", "-m", "feature commit")
+	source := gitExec("rev-parse", "HEAD")
+	gitExec("checkout", "dev")
+
+	// API server returns 500 for merges so MergeBranch fails
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+	}))
+	defer api.Close()
+
+	client := git.NewClient()
+	client.SetAPIBaseURL(api.URL)
+	store := NewMemoryStore()
+	p := &Project{
+		ID:            "project-fallback",
+		RepoURL:       "https://github.com/owner/repo.git",
+		DefaultBranch: "dev",
+		LocalPath:     repoDir,
+	}
+	if err := store.CreateProject(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	svc := NewService(store, client, "fixture", t.TempDir())
+	svc.SetSharedRepositoryAccess(func(context.Context) (string, error) { return "test-token", nil })
+
+	res, err := svc.ApplyTaskBranch(ctx, p.ID, "task/one", "Apply feature", "Details", source)
+	if err != nil {
+		t.Fatalf("expected ApplyTaskBranch fallback to succeed locally, got err: %v", err)
+	}
+	if res == nil || !res.Merged || !git.IsCommitHash(res.SHA) {
+		t.Fatalf("unexpected result: %+v", res)
+	}
+
+	// Verify that dev HEAD now has the merged commit
+	currentHead := gitExec("rev-parse", "HEAD")
+	if currentHead != res.SHA {
+		t.Fatalf("dev HEAD %s != res.SHA %s", currentHead, res.SHA)
+	}
+}
+
+

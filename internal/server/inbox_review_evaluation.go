@@ -510,6 +510,9 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 	if d != nil && (d.Status == "cancelled" || d.Status == "canceled") {
 		return "Pekerjaan sudah dibatalkan. Riwayat dan hasil sementara tetap tersimpan; review lama tidak menjalankannya kembali.\n\n[View work](/tasks/" + d.ID + ")"
 	}
+	if d != nil && d.Status == task.TaskStatusDone {
+		return "Hasil pekerjaan ini sudah diterima. Bukti dan hasil tersimpan; pembaruan review lama tidak membuka ulang pekerjaan.\n\n[View work](/tasks/" + d.ID + ")"
+	}
 	if d != nil && d.Status != task.TaskStatusDone && d.LatestAttempt != nil && d.LatestAttempt.Status == task.AttemptStatusCanceled {
 		return "Pekerjaan dibatalkan. Hasil dan kriteria selesai belum diverifikasi. Konteks task tetap tersimpan; tidak ada pekerjaan yang dijalankan ulang dari laporan ini.\n\n[View work](/tasks/" + d.ID + ")"
 	}
@@ -550,7 +553,9 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 	decision = s.requirePublicationReview(ctx, d, decision)
 	decision = s.requireIndependentCodeReview(ctx, d, decision)
 	decision = s.requireIndependentArtifactReview(ctx, q, d, decision)
-	decision.SourceReview = sourceReview
+	if sourceReview != "" {
+		decision.SourceReview = sourceReview
+	}
 	if nativeProjectCheckFailure(d) != "" {
 		decision.SourceReview = "not_checked"
 	}
@@ -648,6 +653,15 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 				return "Hasil dan bukti tersimpan. Penerimaan akan diperiksa kembali sebelum pekerjaan berikutnya dimulai.\n\n[View work](/tasks/" + d.ID + ")"
 			}
 			if d.Status != task.TaskStatusDone {
+				if s.projectSvc != nil && d.ProjectID != "" && (d.ExecutionCategory == "" || d.ExecutionCategory == task.ExecutionCategoryCode) && (d.BranchName != "" || d.PRNumber > 0) && releaseObjectID.MatchString(d.CommitSHA) {
+					if proj, err := s.projectSvc.Get(ctx, d.ProjectID); err == nil && proj != nil && project.SettingsFromMetadata(proj.Metadata).IsAutoDeployEnabled() {
+						observation := s.inboxReviewPublication(ctx, d)
+						if observation != nil && observation.Required && !observation.Verified {
+							s.autoApplyAndDeployTask(ctx, d.ID, d.ProjectID)
+							return "Hasil perubahan sudah diperiksa secara independen. Cuan sedang menerapkannya melalui jalur rilis proyek.\n\n[View work](/tasks/" + d.ID + ")"
+						}
+					}
+				}
 				if d.Status != task.TaskStatusReview {
 					reviewStatus := task.TaskStatusReview
 					if _, err := s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{Status: &reviewStatus}); err != nil {
@@ -723,7 +737,10 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 			}
 			// Never replace a failed exact-source verifier admission with an
 			// ordinary developer execution or accept the worker's own report.
-			if d.Status != "cancelled" && d.Status != "canceled" && !d.LatestAttempt.CancelRequested && d.LatestAttempt.CanceledAt == nil {
+			if d.Status != "cancelled" && d.Status != "canceled" && d.Status != task.TaskStatusDone && !d.LatestAttempt.CancelRequested && d.LatestAttempt.CanceledAt == nil {
+				if fresh, err := s.taskSvc.GetTaskDetail(ctx, d.ID); err == nil && fresh != nil && fresh.Status == task.TaskStatusDone {
+					return "Hasil pekerjaan ini sudah diterima. Bukti dan hasil tersimpan; pembaruan review lama tidak membuka ulang pekerjaan.\n\n[View work](/tasks/" + d.ID + ")"
+				}
 				blocked := task.TaskStatusBlocked
 				_, _ = s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{Status: &blocked})
 				if s.queueManagerAssessment(ctx, q, d) {
@@ -747,8 +764,13 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 			if outcome, scheduled := s.startVerificationFollowup(ctx, q, d, decision); scheduled {
 				return outcome
 			}
-			blocked := task.TaskStatusBlocked
-			_, _ = s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{Status: &blocked})
+			if d.Status != task.TaskStatusDone {
+				if fresh, err := s.taskSvc.GetTaskDetail(ctx, d.ID); err == nil && fresh != nil && fresh.Status == task.TaskStatusDone {
+					return "Hasil pekerjaan ini sudah diterima. Bukti dan hasil tersimpan; pembaruan review lama tidak membuka ulang pekerjaan.\n\n[View work](/tasks/" + d.ID + ")"
+				}
+				blocked := task.TaskStatusBlocked
+				_, _ = s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{Status: &blocked})
+			}
 			return strings.TrimSpace(decision.Finding) + "\n\n[View work](/tasks/" + d.ID + ")"
 		}
 		// Infrastructure interruptions and canceled runs do not spend the business
