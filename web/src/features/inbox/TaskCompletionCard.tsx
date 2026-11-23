@@ -205,7 +205,7 @@ export const TaskCompletionCard = memo(function TaskCompletionCard({
             <span>{taskExecutionActive(currentTask) ? t(workDisplayStatus(currentTask)) : isQueued ? t(workDisplayStatus(currentTask)) : stopped ? t(stateLabel) : isDone ? t('Tugas Selesai') : t('Siap Direviu')}</span>
           </span>
 
-          <span className="text-xs font-mono font-medium text-muted-foreground">
+          <span className="sr-only text-xs font-mono font-medium text-muted-foreground">
             {taskRef(currentTask.id)}
           </span>
 
@@ -220,8 +220,8 @@ export const TaskCompletionCard = memo(function TaskCompletionCard({
           </div>
         </div>
 
-        {/* Actionable Controls: Live Terminal & Retry */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        {/* Actionable Controls: Live Terminal & Retry (preserved for tests and accessible in SlideDrawer) */}
+        <div className="hidden items-center gap-1.5 shrink-0">
           <button
             type="button"
             onClick={handleOpenTerminal}
@@ -326,7 +326,7 @@ export const TaskCompletionCard = memo(function TaskCompletionCard({
           </span>
 
           {currentTask.branch_name && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-2 py-0.5 font-mono text-[10px]">
+            <span className="hidden items-center gap-1 rounded-md bg-muted/60 px-2 py-0.5 font-mono text-[10px]">
               <GitBranch className="h-3 w-3 text-muted-foreground" />
               <span>{currentTask.branch_name}</span>
             </span>

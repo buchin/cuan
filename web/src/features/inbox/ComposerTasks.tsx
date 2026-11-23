@@ -128,15 +128,15 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
             ) : (
               <StatusDot status="neutral" size="xs" label={t('Status')} />
             )}
-            <span className="text-xs font-medium text-foreground truncate" title={latestTask.title}>
+            <span className="text-xs font-medium text-foreground line-clamp-2 min-w-0 flex-1 sm:line-clamp-1 leading-snug" title={latestTask.title}>
               {latestTask.title}
             </span>
           </div>
         )}
         <div className="ml-auto inline-flex shrink-0 items-center gap-1.5">
           <span className={cn(
-            "composer-tasks-count tabular-nums px-1.5 text-[11px] rounded",
-            TASK_STATUS_THEMES[badgeStatus]?.counterBadgeClass || "bg-muted text-muted-foreground"
+            "composer-tasks-count tabular-nums px-1.5 py-0.5 text-[11px] font-medium rounded-full",
+            TASK_STATUS_THEMES[badgeStatus]?.counterBadgeClass || "bg-muted/80 text-muted-foreground border border-border/30"
           )}>{ordered.length}</span>
           <span className="inline-flex min-h-11 min-w-11 sm:min-h-8 sm:min-w-8 items-center justify-center -mr-2 text-muted-foreground">
             <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200 ease-in-out", open && "rotate-180")} />
@@ -179,8 +179,8 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
             pinnedAction: isLatest ? (
               <span className="inline-flex shrink-0 items-center gap-1.5">
                 <span className={cn(
-                  "composer-tasks-count tabular-nums px-1.5 text-[11px] rounded",
-                  TASK_STATUS_THEMES[badgeStatus]?.counterBadgeClass || "bg-muted text-muted-foreground"
+                  "composer-tasks-count tabular-nums px-1.5 py-0.5 text-[11px] font-medium rounded-full",
+                  TASK_STATUS_THEMES[badgeStatus]?.counterBadgeClass || "bg-muted/80 text-muted-foreground border border-border/30"
                 )}>{ordered.length}</span>
                 <span
                   role="button"

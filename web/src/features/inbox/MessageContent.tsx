@@ -1,5 +1,5 @@
 import { memo, useState } from 'react'
-import { withoutTaskLaunchAcknowledgement } from './task-launch-text'
+import { withoutTaskLaunchAcknowledgement, withoutDuplicateTaskSummary } from './task-launch-text'
 import { Link } from 'react-router-dom'
 import { CheckSquare, ArrowRight } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
@@ -91,7 +91,8 @@ export const MessageContent = memo(function MessageContent({
 
   const hasTaskAction = effectiveActions.some((a) => extractTaskId(a.href) || /^\/tasks\/[A-Za-z0-9_-]+$/.test(a.href.split(/[?#]/)[0]))
   const shouldHideTaskCard = Boolean(hideTaskActions || hasTaskAction)
-  const effectiveBody = withoutTaskLaunchAcknowledgement(rawBody, Boolean(hideTaskActions || actions.some(a => extractTaskId(a.href))), isOutgoing)
+  const launchedBody = withoutTaskLaunchAcknowledgement(rawBody, Boolean(hideTaskActions || actions.some(a => extractTaskId(a.href))), isOutgoing)
+  const effectiveBody = withoutDuplicateTaskSummary(launchedBody, Boolean(hideTaskActions || actions.some(a => extractTaskId(a.href))), isOutgoing)
 
   const isBoilerplateLaunch =
     effectiveBody.startsWith('Work queued. I’ll report progress and the result here.') ||
