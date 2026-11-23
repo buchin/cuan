@@ -6,18 +6,42 @@
 # ==============================================================================
 set -euo pipefail
 
+# Detect operating system
+OS_TYPE="${CUAN_OS_TYPE:-$(uname -s)}"
+
+if [[ "$OS_TYPE" == "Darwin" ]]; then
+  for p in /usr/local/bin /opt/homebrew/bin /Applications/Docker.app/Contents/Resources/bin; do
+    if [[ -d "$p" && ":$PATH:" != *":$p:"* ]]; then
+      PATH="$p:$PATH"
+    fi
+  done
+  export PATH
+fi
+
 # Support both direct script execution and remote curl | bash piping
-if [[ -n "${BASH_SOURCE[0]:-}" ]] && [[ -f "${BASH_SOURCE[0]}" ]]; then
+if [[ "${CUAN_FORCE_REMOTE:-false}" != "true" && -n "${BASH_SOURCE[0]:-}" ]] && [[ -f "${BASH_SOURCE[0]}" ]]; then
   ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 else
-  ROOT_DIR="${CUAN_INSTALL_DIR:-/opt/cuan}"
+  if [[ "$OS_TYPE" == "Darwin" ]]; then
+    ROOT_DIR="${CUAN_INSTALL_DIR:-$HOME/.cuan}"
+  else
+    ROOT_DIR="${CUAN_INSTALL_DIR:-/opt/cuan}"
+  fi
   mkdir -p "$ROOT_DIR"
   if [[ ! -f "$ROOT_DIR/docker-compose.yml" && ! -f "$ROOT_DIR/bin/cuan-server" ]]; then
     echo "==> Fresh remote installation detected. Bootstrapping Cuan into ${ROOT_DIR}..."
+    bootstrap_done=false
     if command -v git >/dev/null 2>&1; then
-      git clone --depth 1 https://github.com/buchin/cuan.git "$ROOT_DIR"
-    elif command -v curl >/dev/null 2>&1; then
+      if git clone --depth 1 https://github.com/buchin/cuan.git "$ROOT_DIR" 2>/dev/null; then
+        bootstrap_done=true
+      fi
+    fi
+    if [[ "$bootstrap_done" != "true" ]] && command -v curl >/dev/null 2>&1; then
       curl -fsSL https://github.com/buchin/cuan/archive/refs/heads/main.tar.gz | tar -xz --strip-components=1 -C "$ROOT_DIR"
+    fi
+    if [[ ! -f "$ROOT_DIR/docker-compose.yml" && ! -f "$ROOT_DIR/bin/cuan-server" ]]; then
+      echo "[ERROR] Failed to download Cuan files into ${ROOT_DIR}." >&2
+      exit 1
     fi
   fi
 fi
@@ -117,8 +141,7 @@ run_preflight() {
   local preflight_passed=true
 
   # 1.1 OS & Architecture
-  local os_type
-  os_type="$(uname -s)"
+  local os_type="$OS_TYPE"
   local arch_type
   arch_type="$(uname -m)"
   echo "    [OK] Operating System: ${os_type} (${arch_type})"
@@ -147,6 +170,13 @@ run_preflight() {
         echo "    [OK] Available memory: ${mem_mb}MB."
       fi
     fi
+  elif [[ "$os_type" == "Darwin" ]] && command -v sysctl >/dev/null 2>&1; then
+    local mem_bytes
+    mem_bytes="$(sysctl -n hw.memsize 2>/dev/null || echo 0)"
+    if [[ "$mem_bytes" -gt 0 ]]; then
+      local mem_mb=$((mem_bytes / 1024 / 1024))
+      echo "    [OK] Total system memory: ${mem_mb}MB."
+    fi
   fi
 
   # 1.4 Docker and Compose Tooling
@@ -167,7 +197,12 @@ run_preflight() {
   fi
 
   if [[ "$has_docker" != "true" || "$has_compose" != "true" ]]; then
-    echo "    [INFO] Docker Compose is unavailable. An actual installation requires Docker Engine and Compose."
+    if [[ "$os_type" == "Darwin" ]]; then
+      echo "    [WARN] Docker Desktop belum terdeteksi di Mac Anda."
+      echo "           Unduh dan instal Docker Desktop dari: https://www.docker.com/products/docker-desktop/"
+    else
+      echo "    [INFO] Docker Compose is unavailable. An actual installation requires Docker Engine and Compose."
+    fi
   fi
 
   # 1.5 Port conflict & proxy detection
@@ -179,6 +214,10 @@ run_preflight() {
     ss -tlpn | grep -q ':80 ' && port_80_busy=true || true
     ss -tlpn | grep -q ':443 ' && port_443_busy=true || true
     ss -tlpn | grep -q ":${APP_PORT} " && port_app_busy=true || true
+  elif [[ "$os_type" == "Darwin" ]] && command -v lsof >/dev/null 2>&1; then
+    lsof -iTCP:80 -sTCP:LISTEN >/dev/null 2>&1 && port_80_busy=true || true
+    lsof -iTCP:443 -sTCP:LISTEN >/dev/null 2>&1 && port_443_busy=true || true
+    lsof -iTCP:"${APP_PORT}" -sTCP:LISTEN >/dev/null 2>&1 && port_app_busy=true || true
   elif command -v netstat >/dev/null 2>&1; then
     netstat -tlpn 2>/dev/null | grep -q ':80 ' && port_80_busy=true || true
     netstat -tlpn 2>/dev/null | grep -q ':443 ' && port_443_busy=true || true
@@ -186,7 +225,10 @@ run_preflight() {
   fi
 
   if [[ "$MODE" == "auto" ]]; then
-    if [[ "$port_80_busy" == "true" || "$port_443_busy" == "true" ]]; then
+    if [[ "$os_type" == "Darwin" ]]; then
+      echo "    [DETECTED] Lingkungan macOS: Menjalankan Cuan dalam mode lokal (port ${APP_PORT})."
+      MODE="existing-proxy"
+    elif [[ "$port_80_busy" == "true" || "$port_443_busy" == "true" ]]; then
       echo "    [DETECTED] Port 80/443 is already in use by host services."
       echo "               Auto-selecting Mode B: Behind existing reverse proxy."
       MODE="existing-proxy"
@@ -230,6 +272,14 @@ generate_secret() {
   fi
 }
 
+sedi() {
+  if sed --version >/dev/null 2>&1; then
+    sed -i "$@"
+  else
+    sed -i '' "$@"
+  fi
+}
+
 setup_environment() {
   echo "==> Configuring environment (${ENV_FILE})..."
   if [[ -f "$ENV_FILE" ]]; then
@@ -244,14 +294,14 @@ setup_environment() {
     auth_secret="$(generate_secret)"
     (umask 077; cp .env.example "$ENV_FILE")
 
-    sed -i "s/replace_with_strong_password_min_16_chars/${db_secret}/g" "$ENV_FILE"
-    sed -i "s/replace_with_random_32_character_auth_secret_key/${auth_secret}/g" "$ENV_FILE"
+    sedi "s/replace_with_strong_password_min_16_chars/${db_secret}/g" "$ENV_FILE"
+    sedi "s/replace_with_random_32_character_auth_secret_key/${auth_secret}/g" "$ENV_FILE"
     
     if [[ "$TARGET_ENV" == "staging" ]]; then
-      sed -i "s/CUAN_ENV=production/CUAN_ENV=staging/g" "$ENV_FILE"
-      sed -i "s/POSTGRES_DB=cuan/POSTGRES_DB=cuan_staging/g" "$ENV_FILE"
-      sed -i "s/POSTGRES_USER=cuan/POSTGRES_USER=cuan_staging/g" "$ENV_FILE"
-      sed -i "s/PORT=8080/PORT=8081/g" "$ENV_FILE"
+      sedi "s/CUAN_ENV=production/CUAN_ENV=staging/g" "$ENV_FILE"
+      sedi "s/POSTGRES_DB=cuan/POSTGRES_DB=cuan_staging/g" "$ENV_FILE"
+      sedi "s/POSTGRES_USER=cuan/POSTGRES_USER=cuan_staging/g" "$ENV_FILE"
+      sedi "s/PORT=8080/PORT=8081/g" "$ENV_FILE"
     fi
   fi
 
@@ -261,17 +311,17 @@ setup_environment() {
     local domain_key=CUAN_DOMAIN
     if [[ "$TARGET_ENV" == "staging" ]]; then domain_key=CUAN_STAGING_DOMAIN; fi
     if ! grep -q "^${domain_key}=" "$ENV_FILE"; then echo "${domain_key}=" >> "$ENV_FILE"; fi
-    sed -i "s|^${domain_key}=.*|${domain_key}=${DOMAIN}|" "$ENV_FILE"
+    sedi "s|^${domain_key}=.*|${domain_key}=${DOMAIN}|" "$ENV_FILE"
     echo "    [CONFIG] CUAN_DOMAIN set to: ${DOMAIN}"
   fi
 
   if [[ -n "$EMAIL" ]]; then
-    sed -i "s/^ACME_EMAIL=.*/ACME_EMAIL=${EMAIL}/" "$ENV_FILE"
+    sedi "s/^ACME_EMAIL=.*/ACME_EMAIL=${EMAIL}/" "$ENV_FILE"
     echo "    [CONFIG] ACME_EMAIL set to: ${EMAIL}"
   fi
 
   if [[ -n "$PORT" ]]; then
-    sed -i "s/^PORT=.*/PORT=${PORT}/" "$ENV_FILE"
+    sedi "s/^PORT=.*/PORT=${PORT}/" "$ENV_FILE"
     echo "    [CONFIG] PORT set to: ${PORT}"
   fi
 }
@@ -286,6 +336,7 @@ if [[ "$DRY_RUN" == "true" ]]; then
   echo " DRY-RUN EXECUTION PLAN (No changes made)"
   echo "--------------------------------------------------------------------------------"
   echo " Environment:         ${TARGET_ENV}"
+  echo " Root Directory:      ${ROOT_DIR}"
   echo " Compose file:        ${COMPOSE_FILE}"
   echo " Env file:            ${ENV_FILE}"
   echo " Deployment Mode:     ${MODE}"
@@ -314,11 +365,24 @@ if [[ "$MODE" == "standalone" ]]; then
 fi
 
 if ! command -v docker >/dev/null 2>&1; then
-  echo "[ERROR] Docker Engine is required for this installer. See docs/guides/onboarding.md for native setup." >&2
+  if [[ "$OS_TYPE" == "Darwin" ]]; then
+    echo "[ERROR] Docker Desktop belum terinstal di Mac Anda." >&2
+    echo "        Silakan unduh dan instal Docker Desktop dari:" >&2
+    echo "        👉 https://www.docker.com/products/docker-desktop/" >&2
+    echo "        Setelah instalasi selesai, buka Docker Desktop lalu jalankan kembali script ini." >&2
+  else
+    echo "[ERROR] Docker Engine is required for this installer. See docs/guides/onboarding.md for native setup." >&2
+  fi
   exit 1
 fi
 if ! docker info >/dev/null 2>&1; then
-  echo "[ERROR] Docker Engine is not reachable. Start the daemon and check permissions, then retry." >&2
+  if [[ "$OS_TYPE" == "Darwin" ]]; then
+    echo "[ERROR] Docker Desktop belum aktif / berjalan." >&2
+    echo "        Silakan buka aplikasi Docker Desktop di Mac Anda dan tunggu hingga statusnya 'Engine running'." >&2
+    echo "        Setelah itu, jalankan kembali perintah instalasi ini." >&2
+  else
+    echo "[ERROR] Docker Engine is not reachable. Start the daemon and check permissions, then retry." >&2
+  fi
   exit 1
 fi
 if docker compose version >/dev/null 2>&1; then
@@ -326,7 +390,11 @@ if docker compose version >/dev/null 2>&1; then
 elif command -v docker-compose >/dev/null 2>&1; then
   COMPOSE_CMD="docker-compose"
 else
-  echo "[ERROR] Docker Compose is required. Install the Compose plugin, then retry." >&2
+  if [[ "$OS_TYPE" == "Darwin" ]]; then
+    echo "[ERROR] Docker Compose tidak ditemukan. Pastikan instalasi Docker Desktop lengkap, lalu coba lagi." >&2
+  else
+    echo "[ERROR] Docker Compose is required. Install the Compose plugin, then retry." >&2
+  fi
   exit 1
 fi
 setup_environment
@@ -361,11 +429,23 @@ echo "    [AI] The stock Docker image does not yet provide supported AI executio
 echo "         For the verified native AI setup, follow docs/guides/onboarding.md."
 echo "         Web/database health does not verify an AI account or completed work."
 
+if [[ "$OS_TYPE" == "Darwin" ]]; then
+  echo "==> Membuka Cuan di browser: http://localhost:${APP_PORT} ..."
+  if command -v open >/dev/null 2>&1; then
+    open "http://localhost:${APP_PORT}" 2>/dev/null || true
+  fi
+fi
+
 echo ""
 echo "================================================================================"
-echo " Cuan ${TARGET_ENV} web application installation completed successfully!"
-echo " Deployment Mode: ${MODE}"
-echo " App Port:        ${APP_PORT}"
+if [[ "$OS_TYPE" == "Darwin" ]]; then
+  echo " Cuan berhasil dipasang dan berjalan di Mac Anda!"
+  echo " URL Aplikasi:    http://localhost:${APP_PORT}"
+else
+  echo " Cuan ${TARGET_ENV} web application installation completed successfully!"
+  echo " Deployment Mode: ${MODE}"
+  echo " App Port:        ${APP_PORT}"
+fi
 echo " Health Checks:   /healthz (liveness), /readyz (readiness)"
 echo " Docs Reference:  docs/guides/deployment_recovery_guide.md"
 echo "================================================================================"
