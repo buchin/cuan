@@ -81,6 +81,7 @@ export function SlideDrawer({
     <dialog
       ref={dialogRef}
       aria-modal="true"
+      data-slide-drawer
       data-testid={dataTestId}
       aria-label={ariaLabel || (typeof title === "string" ? title : "Slide Drawer")}
       onKeyDown={(e) => {

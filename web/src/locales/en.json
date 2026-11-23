@@ -934,5 +934,7 @@
   "Device timezone": "Device timezone",
   "Update routine parameters and agent execution instructions.": "Update routine parameters and agent execution instructions.",
   "Configure routine parameters and agent execution instructions.": "Configure routine parameters and agent execution instructions.",
-  "Markdown and multi-step workflows supported": "Markdown and multi-step workflows supported"
+  "Markdown and multi-step workflows supported": "Markdown and multi-step workflows supported",
+  "characters": "characters",
+  "This instruction will be executed automatically by the AI assistant on schedule.": "This instruction will be executed automatically by the AI assistant on schedule."
 }

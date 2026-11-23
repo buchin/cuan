@@ -2321,5 +2321,7 @@
   "Device timezone": "Zona waktu perangkat",
   "Update routine parameters and agent execution instructions.": "Perbarui parameter rutinitas dan instruksi eksekusi agen.",
   "Configure routine parameters and agent execution instructions.": "Atur parameter rutinitas dan instruksi eksekusi agen.",
-  "Markdown and multi-step workflows supported": "Mendukung markdown & alur multi-langkah"
+  "Markdown and multi-step workflows supported": "Mendukung markdown & alur multi-langkah",
+  "characters": "karakter",
+  "This instruction will be executed automatically by the AI assistant on schedule.": "Instruksi ini akan dieksekusi secara otomatis oleh asisten AI sesuai jadwal."
 }

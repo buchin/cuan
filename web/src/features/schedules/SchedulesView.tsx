@@ -618,6 +618,9 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
                     </option>
                   ))}
                 </select>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {t('Binds this routine to a specific project repository and isolated worktree.')}
+                </p>
               </div>
 
               <div className="space-y-1.5">
@@ -703,7 +706,11 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
                 {t('Markdown and multi-step workflows supported')}
               </span>
             </div>
-            <div className="rounded-xl border border-border/50 bg-background/50 focus-within:border-primary/60 transition-colors">
+            <div className="rounded-xl border border-border/60 bg-muted/10 overflow-hidden focus-within:border-primary/60 focus-within:ring-1 focus-within:ring-ring/20 transition-all">
+              <div className="flex items-center justify-between px-3.5 py-1.5 border-b border-border/30 bg-muted/30 text-[11px] text-muted-foreground font-mono">
+                <span>prompt.md</span>
+                <span>{prompt.length} {t('characters')}</span>
+              </div>
               <textarea
                 required
                 rows={12}
@@ -714,7 +721,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
               />
             </div>
             <p className="text-[11px] text-muted-foreground leading-normal">
-              {t('Binds this routine to a specific project repository and isolated worktree.')}
+              {t('This instruction will be executed automatically by the AI assistant on schedule.')}
             </p>
           </div>
         </form>

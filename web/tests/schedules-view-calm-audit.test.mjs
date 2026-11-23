@@ -148,6 +148,8 @@ test('5. Locales: id.json and en.json provide 100% complete dictionaries for Sch
     'Update routine parameters and agent execution instructions.',
     'Configure routine parameters and agent execution instructions.',
     'Markdown and multi-step workflows supported',
+    'characters',
+    'This instruction will be executed automatically by the AI assistant on schedule.',
   ]
 
   for (const key of requiredKeys) {
@@ -175,5 +177,28 @@ test('6. SchedulesView: SlideDrawer side-sheet replaces cramped modal with spaci
     content,
     /resize-y/,
     'Prompt textarea must allow vertical resizing for comfortable multi-step prompt editing',
+  )
+  assert.match(
+    content,
+    /prompt\.md/,
+    'Prompt editor must include document studio header with prompt.md title',
+  )
+})
+
+test('7. SlideDrawer: data-slide-drawer attribute and index.css true slide-in edge pinning', () => {
+  const drawerPath = path.join(srcDir, 'components/layout/SlideDrawer.tsx')
+  const drawerContent = fs.readFileSync(drawerPath, 'utf8')
+  assert.match(
+    drawerContent,
+    /data-slide-drawer/,
+    'SlideDrawer must declare data-slide-drawer attribute on dialog',
+  )
+
+  const cssPath = path.join(srcDir, 'index.css')
+  const cssContent = fs.readFileSync(cssPath, 'utf8')
+  assert.match(
+    cssContent,
+    /dialog\[data-slide-drawer\]:modal[\s\S]*margin:\s*0 0 0 auto !important/,
+    'index.css must pin slide drawer to right edge and override native modal centering',
   )
 })
