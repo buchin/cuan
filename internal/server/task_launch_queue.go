@@ -97,7 +97,7 @@ func (s *Server) startAuthorizedLaunch(ctx context.Context, q db.InboxRequest, t
 		if len([]rune(candidate.Revision)) > task.ExecutionRevisionStorageLimit(candidate.Revision) {
 			code = "revision_too_large"
 		}
-		log.Printf("inbox launch persistence task=%s code=%s revision_runes=%d limit=%d", t.ID, code, len([]rune(candidate.Revision)), task.ExecutionRevisionStorageLimit(candidate.Revision))
+		log.Printf("inbox launch persistence task=%s code=%s err=%v revision_runes=%d limit=%d", t.ID, code, e, len([]rune(candidate.Revision)), task.ExecutionRevisionStorageLimit(candidate.Revision))
 		recordInboxReviewLaunchError(ctx, e)
 		return "The work is saved, but its launch could not be recorded. No new execution was started." + link
 	}
@@ -484,8 +484,12 @@ func (s *Server) publishTaskLaunchOutcome(ctx context.Context, job task.TaskLaun
 		}
 	}
 
+	msgID := delegationMessageID("launch-outcome:" + job.ID + ":" + state)
+	if existing, err := s.projectStudioRepo.GetMessageByID(ctx, msgID); err == nil && existing != nil {
+		return
+	}
 	now := time.Now().UTC()
-	message := &db.ProjectMessage{ID: delegationMessageID("launch-outcome:" + job.ID + ":" + state), RoomID: job.RoomID, AuthorType: "agent", AuthorID: job.AgentID, AuthorName: "Cuan", Content: text, CreatedAt: now, UpdatedAt: now}
+	message := &db.ProjectMessage{ID: msgID, RoomID: job.RoomID, AuthorType: "agent", AuthorID: job.AgentID, AuthorName: "Cuan", Content: text, CreatedAt: now, UpdatedAt: now}
 	if s.projectStudioRepo.CreateMessage(ctx, message) == nil {
 		s.publishInbox(job.RoomID)
 	}

@@ -21,6 +21,7 @@ var (
 	watchdogAlertMu      sync.Mutex
 	lastStorageAlertTime time.Time
 	lastIdleGitSync      time.Time
+	watchdogTaskCooldown = make(map[string]time.Time)
 )
 
 // StartProactiveWatchdog starts a periodic background watchdog daemon to proactively
@@ -200,6 +201,13 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			continue
 		}
 
+		watchdogAlertMu.Lock()
+		cooldown, inCooldown := watchdogTaskCooldown[t.ID]
+		watchdogAlertMu.Unlock()
+		if inCooldown && time.Now().Before(cooldown) {
+			continue
+		}
+
 		// Don't interfere if an attempt is currently running or queued
 		latest := latestMap[t.ID]
 		if latest == nil {
@@ -320,10 +328,9 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 
 		// 2. Autonomous Self-Healing:
 		// When within budget (< 3 attempts), manager indicates continue/replan, actionable revision is available,
-		// and work is internal (not external or publication).
+		// and work is internal (not external).
 		if latestAssessment != nil && attemptCount < 3 &&
 			latestAssessment.RemainingWork != "external" &&
-			latestAssessment.RemainingWork != "publication" &&
 			!strings.HasPrefix(latestAssessment.Revision, "Native publication reconciliation:") &&
 			(latestAssessment.ManagerAction == "continue" || latestAssessment.ManagerAction == "replan") &&
 			latestAssessment.Decision == "revise" &&
@@ -331,11 +338,31 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			strings.TrimSpace(latestAssessment.Revision) != "" {
 
 			sourceRequestID := origin.RequestID
-			launchID := delegationMessageID(fmt.Sprintf("watchdog-continuation:%s:%s:%d", detail.ID, sourceRequestID, len(detail.Attempts)+1))
+			baseKey := fmt.Sprintf("watchdog-continuation:%s:%s:%d", detail.ID, sourceRequestID, len(detail.Attempts)+1)
+			launchID := delegationMessageID(baseKey)
+			for retrySeq := 1; retrySeq <= 10; retrySeq++ {
+				if existing, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(detail.ID, launchID)); err == nil && existing != nil {
+					if existing.State == "stopped" || existing.State == "cancelled" {
+						launchID = delegationMessageID(fmt.Sprintf("%s:retry:%d", baseKey, retrySeq))
+						continue
+					}
+				}
+				break
+			}
 			notice := s.startAuthorizedLaunch(ctx, origin, detail, launchID, sourceRequestID, latestAssessment.Revision)
 			s.kickTaskLaunches()
 			log.Printf("[Watchdog AI Orchestrator] Autonomously launched continuation for blocked task %s (attempt %d/3, notice=%s): %s",
 				detail.ID, attemptCount+1, notice, latestAssessment.Revision)
+
+			if launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(detail.ID, launchID)); err == nil && launch != nil && (launch.State == "queued" || launch.State == "claimed" || launch.State == "started") {
+				watchdogAlertMu.Lock()
+				delete(watchdogTaskCooldown, detail.ID)
+				watchdogAlertMu.Unlock()
+			} else {
+				watchdogAlertMu.Lock()
+				watchdogTaskCooldown[detail.ID] = time.Now().Add(5 * time.Minute)
+				watchdogAlertMu.Unlock()
+			}
 			continue
 		}
 

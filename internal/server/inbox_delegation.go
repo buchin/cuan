@@ -661,10 +661,12 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 			// repairing project setup). Deliver that recorded result without inventing
 			// an execution attempt or replaying its previously stopped launch.
 			id := delegationMessageID("recorded-completion:" + detail.ID + ":" + detail.UpdatedAt.UTC().Format(time.RFC3339Nano))
-			now := time.Now().UTC()
-			message := &db.ProjectMessage{ID: id, RoomID: detail.SourceRoomID, AuthorType: "system", AuthorName: "Cuan", Content: "Pekerjaan ditandai selesai.\n\n" + detail.Summary + "\n\n[View work](/tasks/" + detail.ID + ")", CreatedAt: now, UpdatedAt: now}
-			if s.projectStudioRepo.CreateMessage(ctx, message) == nil {
-				s.publishInbox(detail.SourceRoomID)
+			if existing, _ := s.projectStudioRepo.GetMessageByID(ctx, id); existing == nil {
+				now := time.Now().UTC()
+				message := &db.ProjectMessage{ID: id, RoomID: detail.SourceRoomID, AuthorType: "system", AuthorName: "Cuan", Content: "Pekerjaan ditandai selesai.\n\n" + detail.Summary + "\n\n[View work](/tasks/" + detail.ID + ")", CreatedAt: now, UpdatedAt: now}
+				if s.projectStudioRepo.CreateMessage(ctx, message) == nil {
+					s.publishInbox(detail.SourceRoomID)
+				}
 			}
 		}
 		if err != nil || detail.LatestAttempt == nil {
