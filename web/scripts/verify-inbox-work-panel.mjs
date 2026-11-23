@@ -195,6 +195,34 @@ try{
   })
   await page.goto(new URL('/inbox/work-fixture',origin).href,{waitUntil:'domcontentloaded'})
   await page.evaluate(dark=>document.documentElement.classList.toggle('dark',dark),width===1920)
+  // Verify unified calm navigation styling (Things 3 & Bear Notes)
+  if(width===390){
+    const bottomNav = page.locator('nav.bottom-navigation')
+    await bottomNav.waitFor({ state: 'visible' })
+    const activeBottomInbox = bottomNav.locator('[data-testid="bottom-nav-inbox"][aria-current="page"]')
+    await activeBottomInbox.waitFor({ state: 'visible' })
+    const inactiveBottomTasks = bottomNav.locator('[data-testid="bottom-nav-tasks"]')
+    await inactiveBottomTasks.waitFor({ state: 'visible' })
+    assert.equal(await inactiveBottomTasks.getAttribute('aria-current'), null, 'Mobile tasks must be inactive')
+    await bottomNav.screenshot({ path: path.join(output, 'mobile-navigation-active-inbox.png') })
+    await inactiveBottomTasks.hover()
+    await page.waitForTimeout(100)
+    await bottomNav.screenshot({ path: path.join(output, 'mobile-navigation-hover.png') })
+  }
+  if(width>=1200){
+    const desktopNav = page.locator('nav.primary-navigation')
+    await desktopNav.waitFor({ state: 'visible' })
+    const activeInbox = desktopNav.locator('.nav-action[aria-current="page"]')
+    await activeInbox.waitFor({ state: 'visible' })
+    assert.equal(await activeInbox.getAttribute('data-nav-tone'), 'inbox', 'Active nav item must be inbox')
+    const inactiveTasks = desktopNav.locator('.nav-action[data-nav-tone="tasks"]')
+    await inactiveTasks.waitFor({ state: 'visible' })
+    assert.equal(await inactiveTasks.getAttribute('aria-current'), null, 'Tasks must be inactive')
+    await desktopNav.screenshot({ path: path.join(output, 'desktop-navigation-active-inbox.png') })
+    await inactiveTasks.hover()
+    await page.waitForTimeout(100)
+    await desktopNav.screenshot({ path: path.join(output, 'desktop-navigation-hover.png') })
+  }
   // Verify avatar monograms in Inbox header and contact list
   if(width===390){
     const backBtn=page.locator('button[aria-label="Kembali ke percakapan"], button[aria-label="Back to conversations"]').first()
@@ -539,6 +567,21 @@ try{
   await studioGoal.waitFor({ state: 'visible' })
   const initialStudioHeight = await studioGoal.evaluate(el => el.getBoundingClientRect().height)
   assert.ok(initialStudioHeight >= 104, 'Studio goal textarea must have minimum 104px height')
+  if(width===390){
+    const bottomNav = page.locator('nav.bottom-navigation')
+    await bottomNav.waitFor({ state: 'visible' })
+    const activeBottomStudio = bottomNav.locator('[data-testid="bottom-nav-studio"][aria-current="page"]')
+    await activeBottomStudio.waitFor({ state: 'visible' })
+    await bottomNav.screenshot({ path: path.join(output, 'mobile-navigation-active-studio.png') })
+  }
+  if(width>=1200){
+    const desktopNav = page.locator('nav.primary-navigation')
+    await desktopNav.waitFor({ state: 'visible' })
+    const activeStudio = desktopNav.locator('.nav-action[aria-current="page"]')
+    await activeStudio.waitFor({ state: 'visible' })
+    assert.equal(await activeStudio.getAttribute('data-nav-tone'), 'studio', 'Active nav item must be studio')
+    await desktopNav.screenshot({ path: path.join(output, 'desktop-navigation-active-studio.png') })
+  }
   await page.screenshot({ path: path.join(output, `studio-${width}.png`) })
 
   await studioGoal.fill('Target pekerjaan baru:\n1. Integrasi API\n2. Penyesuaian layout\n3. Verifikasi otomatis\n4. Dokumentasi lengkap\n5. Pengujian di perangkat nyata')
