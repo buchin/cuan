@@ -781,7 +781,7 @@ export function TaskSessionPage({
               </section>
             )}
             {(canAccept || !result) && <div className="flex flex-wrap items-center gap-2">
-              {detail.pr_url && !applied && canAccept && (
+              {Boolean(detail.pr_url || detail.branch_name) && !applied && canAccept && (
                 <button
                   type="button"
                   disabled={busy || applying}

@@ -1,4 +1,5 @@
 // Visual verification of InboxActivity dynamic rotating status text
+import fsSync from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
@@ -7,7 +8,11 @@ import { createRequire } from 'node:module'
 import { createServer } from 'vite'
 
 const require = createRequire(import.meta.url)
-const { chromium } = require(process.env.CUAN_BROWSER_MODULE || path.join(os.homedir(), '.local/lib/node_modules/playwright'))
+const playwrightPath = process.env.CUAN_BROWSER_MODULE ||
+  (fsSync.existsSync(path.join(os.homedir(), '.local/node_modules/playwright'))
+    ? path.join(os.homedir(), '.local/node_modules/playwright')
+    : path.join(os.homedir(), '.local/lib/node_modules/playwright'))
+const { chromium } = require(playwrightPath)
 
 const output = process.argv[2] || process.env.CUAN_TASK_ARTIFACTS_DIR
 if (!output) throw new Error('Supply an output directory')

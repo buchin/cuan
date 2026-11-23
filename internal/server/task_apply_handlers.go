@@ -7,6 +7,8 @@ import (
 	"github.com/buchin/cuan/internal/executionpolicy"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/buchin/cuan/internal/git"
@@ -138,6 +140,14 @@ func (s *Server) applyTaskInternal(ctx context.Context, taskID, projectID, title
 		return s.projectSvc.ApplyTaskPullRequest(ctx, projectID, prNumber, commitTitle, commitMessage, detail.CommitSHA)
 	}
 	if branchName != "" {
+		if s.cfg != nil && s.cfg.WorkspacesDir != "" && s.projectSvc != nil {
+			sourcePath := filepath.Join(s.cfg.WorkspacesDir, taskID)
+			if info, err := os.Stat(sourcePath); err == nil && info.IsDir() {
+				if _, _, pushErr := s.projectSvc.PushNativeTaskBranch(ctx, taskID, projectID, detail.Instructions, sourcePath, branchName, false, title); pushErr != nil {
+					log.Printf("[applyTaskInternal] note: PushNativeTaskBranch for %s: %v", taskID, pushErr)
+				}
+			}
+		}
 		return s.projectSvc.ApplyTaskBranch(ctx, projectID, branchName, commitTitle, commitMessage, detail.CommitSHA)
 	}
 	return nil, errors.New("neither pull request nor task branch is available")
@@ -239,21 +249,23 @@ func (s *Server) autoApplyAndDeployTask(ctx context.Context, taskID, projectID s
 	if err != nil || taskApplyPermission(policy) != nil {
 		return
 	}
-	branch := taskDetail.BranchName
-	if branch == "" && taskDetail.PRNumber <= 0 {
-		branch = fmt.Sprintf("task/%s", taskDetail.ID)
-	}
-	if taskDetail.PRNumber <= 0 && branch == "" {
-		return
-	}
-	if taskDetail.ExecutionCategory == task.ExecutionCategoryReadOnly {
-		log.Printf("[AutoDeploy] Skipping auto-apply and deploy for read-only task %s", taskID)
+	if taskDetail.ExecutionCategory != "" && taskDetail.ExecutionCategory != task.ExecutionCategoryCode {
+		log.Printf("[AutoDeploy] Skipping auto-apply and deploy for non-code task %s (category: %s)", taskID, taskDetail.ExecutionCategory)
 		return
 	}
 	if taskDetail.ExecutionCategory != task.ExecutionCategoryCode && isInvestigationOrNonCodeText(taskDetail.Title) {
 		log.Printf("[AutoDeploy] Skipping auto-apply and deploy for non-code investigation task %s", taskID)
 		return
 	}
+	if taskDetail.PRNumber <= 0 && taskDetail.BranchName == "" {
+		log.Printf("[AutoDeploy] Skipping auto-apply and deploy for task %s without branch or PR", taskID)
+		return
+	}
+	if !releaseObjectID.MatchString(taskDetail.CommitSHA) {
+		log.Printf("[AutoDeploy] Skipping auto-apply and deploy for task %s without valid commit SHA", taskID)
+		return
+	}
+	branch := taskDetail.BranchName
 	mergeRes, err := s.applyTaskInternal(ctx, taskDetail.ID, taskDetail.ProjectID, taskDetail.Title, taskDetail.Summary, branch, taskDetail.PRNumber)
 	if err != nil {
 		log.Printf("[AutoDeploy] Auto-apply failed for task %s: %v", taskID, err)
