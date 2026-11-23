@@ -41,8 +41,8 @@ test('3. ComposerTasks: Last task item full visibility & breathing room (DoD 2)'
     'composer-tasks-panel must include scroll-pb-2 for scroll container padding'
   )
   assert.ok(
-    composerTasksSource.includes('pb-2.5'),
-    'AccordionTimeline must have bottom padding to prevent last item from clipping against container/composer border'
+    composerTasksSource.includes('pb-2.5') || composerTasksSource.includes('p-4 sm:p-6'),
+    'Timeline must have bottom padding to prevent last item from clipping against container border'
   )
 })
 

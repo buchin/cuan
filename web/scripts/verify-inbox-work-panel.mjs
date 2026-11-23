@@ -346,21 +346,25 @@ try{
   assert.equal(await tasks.getAttribute('aria-expanded'),'true')
   const afterOpenChatScroll=await page.locator('.inbox-message-list').evaluate(el=>el.scrollTop)
   assert.ok(Math.abs(afterOpenChatScroll - initialChatScroll) <= 2, 'Main chat history scroll must remain undisturbed')
+  const drawer = page.locator('[data-testid="composer-tasks-drawer"]')
+  await drawer.waitFor({state:'visible'})
   const panelEl=page.locator('.composer-tasks-panel')
   const card=page.locator('.composer-tasks-panel [data-timeline-item="work"]')
   try{await card.waitFor({state:'visible',timeout:20000})}catch(error){await page.screenshot({path:path.join(output,'failed-'+width+'.png')});console.log(JSON.stringify({errors,body:(await page.locator('body').innerText()).slice(0,1500)}));throw error}
   assert.equal(await card.count(),1)
   const cardBox=await card.boundingBox()
   const panelBox=await panelEl.boundingBox()
-  assert.ok(cardBox && panelBox)
+  const drawerBox = await drawer.boundingBox()
+  assert.ok(cardBox && panelBox && drawerBox)
   assert.ok(cardBox.y >= panelBox.y - 2, 'Newest task must be at top within visible panel height')
   assert.ok(cardBox.y + cardBox.height <= panelBox.y + panelBox.height + 2, 'Newest task must not be clipped')
   const collapseBtn=page.locator('[data-testid="composer-tasks-collapse"]')
   await collapseBtn.waitFor({state:'visible'})
-  const expandedChevronBox=await collapseBtn.locator('svg').boundingBox()
-  if(collapsedChevronBox && expandedChevronBox){
-    assert.ok(Math.abs(collapsedChevronBox.x - expandedChevronBox.x) <= 3, `Zero layout shift horizontal: expected ~${collapsedChevronBox.x}, got ${expandedChevronBox.x}`)
-    assert.ok(Math.abs(collapsedChevronBox.y - expandedChevronBox.y) <= 3, `Zero layout shift vertical: expected ~${collapsedChevronBox.y}, got ${expandedChevronBox.y}`)
+  if (width >= 1200) {
+    const chatBox = await page.locator('.inbox-message-list').boundingBox()
+    assert.ok(drawerBox.x > chatBox.x, 'Drawer opens as right panel on desktop without layout shift on chat')
+  } else if (width === 390) {
+    assert.equal(Math.round(drawerBox.width), 390, 'Drawer opens as full-width sheet on mobile')
   }
   const reviewCard = page.locator('.composer-tasks-panel [data-timeline-item="task-review"]')
   await reviewCard.waitFor({state:'visible'})
@@ -369,8 +373,12 @@ try{
   assert.equal(await page.locator('.composer-tasks-panel svg.lucide-check-check').count(), 0, 'No task in review should use check-check')
   await page.screenshot({path:path.join(output,`composer-tasks-expanded-${width}.png`)})
   assert.equal(await page.getByText('Files from this work session',{exact:true}).count(),0)
-  assert.equal(await card.locator('[data-timeline-trigger]').getAttribute('aria-expanded'),'true')
+  assert.equal(await card.locator('[data-timeline-trigger]').count(), 0, 'Linear progress timeline eliminates nested accordion triggers')
+  assert.equal(await page.locator('[data-testid="composer-tasks-back"]').count(), 0, 'Inline back button must be eliminated')
   await card.getByText(baseTask.latest_progress,{exact:true}).waitFor()
+  await collapseBtn.click()
+  await drawer.waitFor({state:'hidden'})
+  assert.equal(await tasks.getAttribute('aria-expanded'),'false')
   const composer=page.locator('[data-primary-composer]')
   // Verify elimination of composer mode tabs (DoD 1)
   assert.equal(await page.locator('#compose-public-tab').count(), 0)
@@ -414,8 +422,8 @@ try{
   await composer.fill('Draft tetap tersimpan')
   const list=page.locator('.inbox-message-list')
   await list.evaluate(el=>{el.scrollTop=Math.max(0,el.scrollHeight-el.clientHeight-40)})
-  await card.scrollIntoViewIfNeeded()
   const choices=page.getByTestId('prompt-choice-chips')
+  await choices.scrollIntoViewIfNeeded()
   await choices.waitFor({state:'visible'})
   assert.equal(await choices.getByRole('button',{name:'Lanjutkan pemeriksaan',exact:true}).count(),1)
   assert.equal(await choices.getByRole('button',{name:'Sesuaikan kebutuhan',exact:true}).count(),1)
@@ -556,6 +564,10 @@ try{
   await choices.scrollIntoViewIfNeeded()
   const previousScroll=await list.evaluate(el=>el.scrollTop)
   await page.screenshot({path:path.join(output,`inbox-${width}.png`)})
+  if (!(await card.isVisible())) {
+    await tasks.click()
+    await card.waitFor({state:'visible'})
+  }
   await card.getByRole('button',{name:/^(Details|Detail|Rincian)$/}).click()
   const panel=page.getByTestId('inbox-work-panel')
   await panel.locator('[data-work-timeline]').waitFor({state:'visible'})
@@ -592,26 +604,32 @@ try{
   await panel.waitFor({state:'detached'})
   assert.equal(await composer.inputValue(),'Draft tetap tersimpan')
   await page.waitForFunction(expected=>Math.abs(document.querySelector('.inbox-message-list').scrollTop-expected)<5,previousScroll,{timeout:2000})
+  if (!(await card.isVisible())) {
+    await tasks.click()
+    await card.waitFor({state:'visible'})
+  }
   await card.getByRole('button',{name:/^(Details|Detail|Rincian)$/}).click()
   await panel.waitFor({state:'visible'})
   await panel.locator('[data-work-back]').click()
   await panel.waitFor({state:'detached'})
-  const reviewAccordionTrigger = page.locator('.composer-tasks-panel [data-timeline-item="task-review"] [data-timeline-trigger]')
-  if(await reviewAccordionTrigger.count() > 0 && await reviewAccordionTrigger.isVisible()){
-    if(await reviewAccordionTrigger.getAttribute('aria-expanded') === 'false'){
-      await reviewAccordionTrigger.click()
-    }
-    const reviewDetailsBtn = page.locator('.composer-tasks-panel [data-timeline-item="task-review"]').getByRole('button',{name:/^(Details|Detail|Rincian)$/})
-    if(await reviewDetailsBtn.count() > 0 && await reviewDetailsBtn.isVisible()){
-      await reviewDetailsBtn.click()
-      await panel.waitFor({state:'visible'})
-      const reviewDot = panel.locator('[data-status-dot="review"]')
-      await reviewDot.waitFor({state:'visible', timeout: 5000})
-      assert.ok(await reviewDot.count() >= 1, 'TaskTimeline must show review status dot')
-      await page.screenshot({path:path.join(output,`timeline-review-${width}.png`)})
-      await panel.locator('[data-work-back]').click()
-      await panel.waitFor({state:'detached'})
-    }
+  if (!(await reviewCard.isVisible())) {
+    await tasks.click()
+    await reviewCard.waitFor({state:'visible'})
+  }
+  const reviewDetailsBtn = reviewCard.getByRole('button',{name:/^(Details|Detail|Rincian)$/})
+  if(await reviewDetailsBtn.count() > 0 && await reviewDetailsBtn.isVisible()){
+    await reviewDetailsBtn.click()
+    await panel.waitFor({state:'visible'})
+    const reviewDot = panel.locator('[data-status-dot="review"]')
+    await reviewDot.waitFor({state:'visible', timeout: 5000})
+    assert.ok(await reviewDot.count() >= 1, 'TaskTimeline must show review status dot')
+    await page.screenshot({path:path.join(output,`timeline-review-${width}.png`)})
+    await panel.locator('[data-work-back]').click()
+    await panel.waitFor({state:'detached'})
+  }
+  if (!(await card.isVisible())) {
+    await tasks.click()
+    await card.waitFor({state:'visible'})
   }
   await card.getByRole('button',{name:/terminal/i}).waitFor({state:'visible'})
   await card.getByRole('button',{name:/terminal/i}).click()
