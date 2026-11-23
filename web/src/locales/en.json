@@ -381,6 +381,8 @@
   "In review": "In review",
   "Work is in progress.": "Work is in progress.",
   "Work is waiting to start.": "Work is waiting to start.",
+  "Sedang dikerjakan": "Working",
+  "Menunggu antrean": "Waiting in queue",
   "The result needs attention.": "The result needs attention.",
   "Result ready for review.": "Result ready for review.",
   "A task was canceled; other results are in review.": "A task was canceled; other results are in review.",

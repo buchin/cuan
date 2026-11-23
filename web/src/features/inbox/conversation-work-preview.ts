@@ -8,7 +8,9 @@ export function workConversationPreview(message: string, counts?: Counts): strin
   const report = reportHeader && (/\bStatus\s*:/i.test(text) || /^This review /i.test(text))
   const canceled=/^(?:(?:Pekerjaan|Tugas)\s+(?:telah\s+)?dibatalkan|(?:The\s+)?work\s+(?:(?:has\s+been|was)\s+)?cancel(?:led|ed)|Task\b[^\n]{0,180}\bhas been cancel(?:led|ed))/i.test(text)
   const stopped=/^(?:The work has stopped\.|Pekerjaan (?:telah |sudah )?dihentikan\.)/i.test(text)
-  const launchPreview = /(?:^|\n\n)Work (?:queued|started)\. I[’']ll report progress and the result here\.(?:\s|$)/.test(text) && /\[View work\]\(\/tasks\/[A-Za-z0-9_-]+\)/.test(text)
+  const launchPreview = (
+    /(?:^|\n\n)(?:Work (?:queued|started)\. I[’']ll report progress and the result here\.|The work is (?:queued waiting for the active|waiting for an available AI session|waiting to start))/i.test(text)
+  ) && /\[View work\]\(\/tasks\/[A-Za-z0-9_-]+\)/.test(text)
   const taskOnly = /^\[View work\]\(\/tasks\/[A-Za-z0-9_-]+\)\s*$/.test(text)
   const intermediateNotice = /\[View work\]\(\/tasks\/[A-Za-z0-9_-]+\)\s*$/.test(text) && (
     /^(?:The work is saved, but could not start|Pemeriksaan pada sistem yang aktif|Daftar riwayat dan rincian log|Hasil kode tersimpan; sesi pemeriksaan|Perbaikan [^\n]+ belum diterapkan|Penghapusan [^\n]+ belum terbukti|Peniadaan [^\n]+ belum terbukti|Fitur [^\n]+ belum aktif)/i.test(text)
