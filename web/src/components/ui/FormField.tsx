@@ -2,6 +2,7 @@ import * as React from 'react'
 import { cn } from '../../lib/utils'
 
 export interface FormFieldProps {
+  id?: string
   label?: React.ReactNode
   accessory?: React.ReactNode
   helperText?: React.ReactNode
@@ -9,10 +10,12 @@ export interface FormFieldProps {
   required?: boolean
   htmlFor?: string
   className?: string
+  labelClassName?: string
   children: React.ReactNode
 }
 
 export function FormField({
+  id,
   label,
   accessory,
   helperText,
@@ -20,16 +23,22 @@ export function FormField({
   required,
   htmlFor,
   className,
+  labelClassName,
   children,
 }: FormFieldProps) {
+  const targetId = htmlFor || id
+
   return (
     <div className={cn('space-y-1.5', className)}>
       {(label || accessory) && (
         <div className="flex items-center justify-between gap-2">
           {label && (
             <label
-              htmlFor={htmlFor}
-              className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+              htmlFor={targetId}
+              className={cn(
+                'text-xs font-semibold uppercase tracking-wider text-muted-foreground',
+                labelClassName,
+              )}
             >
               {label}
               {required && <span className="ml-1 text-destructive">*</span>}

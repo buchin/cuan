@@ -3,7 +3,8 @@ import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import { type ChatContact } from '../../api/chat'
 import { Link } from 'react-router-dom'
 import { apiFetch } from '../../api/client'
-import { Bot, User } from 'lucide-react'
+import { Bot, User, Search } from 'lucide-react'
+import { Input } from '../../components/ui/forms'
 import { getContactInitials } from './contact-initials'
 
 export function NewMessageDialog({
@@ -99,12 +100,13 @@ export function NewMessageDialog({
         </p>
       )}
       {creating && <p role="status">Opening conversation…</p>}
-      <input
-        className="field-control mb-3"
+      <Input
+        className="mb-3"
         aria-label="Search recipients"
         placeholder="Search agents or customers"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
+        prefixIcon={<Search className="h-4 w-4" />}
       />
       {loading ? (
         <p role="status" className="py-4 text-sm">

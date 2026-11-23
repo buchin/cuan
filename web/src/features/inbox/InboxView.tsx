@@ -107,6 +107,16 @@ const EscalateTaskDialog = lazy(() =>
   })),
 )
 
+interface CachedConversation {
+  messages: any[]
+  requests: any[]
+  tasks: Task[]
+  hasMore: boolean
+  cachedAt: number
+}
+// SWR conversation cache: eliminates blank screen and loading delays when switching conversations
+const conversationCache = new Map<string, CachedConversation>()
+
 interface InboxViewProps {
   onNewMessage?: () => void
   onNewStudio?: () => void
@@ -580,7 +590,18 @@ export function InboxView({
         if (activeConvRef.current !== convId || version !== httpFetchVersion.current)
           return
         setLoading(false)
-        setMessages((prev) => mergeConversationMessages(prev, data.messages || []))
+        setMessages((prev) => {
+          const merged = mergeConversationMessages(prev, data.messages || [])
+          const existing = conversationCache.get(convId)
+          conversationCache.set(convId, {
+            messages: merged,
+            requests: data.requests || existing?.requests || [],
+            tasks: data.tasks || existing?.tasks || [],
+            hasMore: !!data.has_more,
+            cachedAt: Date.now(),
+          })
+          return merged
+        })
         setHasMoreOlder(!!data.has_more)
         markConversationSeen(convId, data.messages || [])
         setStreamingReplies((prev) => {
@@ -811,15 +832,25 @@ export function InboxView({
       isScrollingToBottomRef.current = false
       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current)
       if (isDifferentConv) {
-        setMessages([])
-        setRequests([])
+        const cached = conversationCache.get(convId)
+        if (cached && cached.messages.length > 0) {
+          setMessages(cached.messages)
+          setRequests(cached.requests || [])
+          setLinkedTasks(cached.tasks || [])
+          setHasMoreOlder(Boolean(cached.hasMore))
+          setLoading(false)
+        } else {
+          setMessages([])
+          setRequests([])
+          setLinkedTasks([])
+          setLoading(true)
+        }
         setStreamingReplies({})
         if (streamRafRef.current) {
           cancelAnimationFrame(streamRafRef.current)
           streamRafRef.current = null
         }
         deltaBufferRef.current = {}
-        setLinkedTasks([])
         setSendError('')
         setRetryCount(0)
         pendingRef.current = null
@@ -841,7 +872,8 @@ export function InboxView({
           ),
         )
       }
-      loadConversation(convId, isDifferentConv)
+      const hasCached = Boolean(conversationCache.get(convId)?.messages?.length)
+      loadConversation(convId, isDifferentConv && !hasCached)
     }
   }, [convKey, loadConversation])
 
@@ -862,7 +894,17 @@ export function InboxView({
           failures = 0
           setStreamState('live')
           setLoading(false)
-          setMessages((prev) => mergeConversationMessages(prev, data.messages || []))
+          setMessages((prev) => {
+            const merged = mergeConversationMessages(prev, data.messages || [])
+            conversationCache.set(convId, {
+              messages: merged,
+              requests: data.requests || [],
+              tasks: data.tasks || [],
+              hasMore: false,
+              cachedAt: Date.now(),
+            })
+            return merged
+          })
           markConversationSeen(convId, data.messages || [])
           setStreamingReplies((prev) => {
             let changed = false
@@ -2282,6 +2324,31 @@ export function InboxView({
                 className="inbox-message-list wa-conversation calm-conversation min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-6 sm:py-4 space-y-2"
               >
                 <div className="calm-stream-constraint max-w-[75ch] mx-auto w-full space-y-2 pb-4">
+              {messages.length === 0 && loading && (
+                <div className="py-8 px-4 space-y-4 max-w-lg mx-auto animate-pulse" data-testid="chat-loading-skeleton">
+                  <div className="flex gap-3 items-start">
+                    <div className="h-8 w-8 rounded-full bg-muted/60 shrink-0" />
+                    <div className="space-y-2 flex-1">
+                      <div className="h-3 w-24 rounded bg-muted/60" />
+                      <div className="h-14 w-3/4 rounded-2xl bg-muted/40" />
+                    </div>
+                  </div>
+                  <div className="flex gap-3 items-start justify-end">
+                    <div className="space-y-2 flex-1 flex flex-col items-end">
+                      <div className="h-3 w-20 rounded bg-muted/60" />
+                      <div className="h-10 w-2/3 rounded-2xl bg-muted/40" />
+                    </div>
+                    <div className="h-8 w-8 rounded-full bg-muted/60 shrink-0" />
+                  </div>
+                  <div className="flex gap-3 items-start">
+                    <div className="h-8 w-8 rounded-full bg-muted/60 shrink-0" />
+                    <div className="space-y-2 flex-1">
+                      <div className="h-3 w-32 rounded bg-muted/60" />
+                      <div className="h-16 w-5/6 rounded-2xl bg-muted/40" />
+                    </div>
+                  </div>
+                </div>
+              )}
               {messages.length === 0 && !loading && (
                 <div className="flex flex-col items-center justify-center py-10 px-4 text-center text-muted-foreground space-y-3 max-w-sm mx-auto">
                   {activeContact?.type === 'customer' ? (
