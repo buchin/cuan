@@ -57,7 +57,9 @@ export function ProjectsView({
       let targetTask = tasks.find(
         (item) =>
           (item.project_id === projId || item.project_ids?.includes(projId)) &&
-          item.title.startsWith('Terminal ·'),
+          item.title.startsWith('Terminal ·') &&
+          item.status !== 'done' &&
+          (item.status as string) !== 'cancelled',
       )
 
       // 2. Query API if not cached in memory (without restrictive status filter so any previous terminal task is reused)
@@ -69,7 +71,9 @@ export function ProjectsView({
             page_size: 20,
           })
           targetTask = res.tasks.find((item) =>
-            item.title.startsWith('Terminal ·'),
+            item.title.startsWith('Terminal ·') &&
+            item.status !== 'done' &&
+            (item.status as string) !== 'cancelled',
           )
         } catch {}
       }
