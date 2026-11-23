@@ -832,6 +832,10 @@ export function InboxView({
       isScrollingToBottomRef.current = false
       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current)
       if (isDifferentConv) {
+        setMessages([])
+        setRequests([])
+        setLinkedTasks([])
+        setLoading(true)
         const cached = conversationCache.get(convId)
         if (cached && cached.messages.length > 0) {
           setMessages(cached.messages)
@@ -839,11 +843,6 @@ export function InboxView({
           setLinkedTasks(cached.tasks || [])
           setHasMoreOlder(Boolean(cached.hasMore))
           setLoading(false)
-        } else {
-          setMessages([])
-          setRequests([])
-          setLinkedTasks([])
-          setLoading(true)
         }
         setStreamingReplies({})
         if (streamRafRef.current) {
