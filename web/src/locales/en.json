@@ -946,5 +946,11 @@
   "Stopping…": "Stopping…",
   "Keep running": "Keep running",
   "Stop the active process? Saved output and existing file changes are retained.": "Stop the active process? Saved output and existing file changes are retained.",
-  "Stop the active agent process? Existing output is retained. Changes already made by the agent are not rolled back.": "Stop the active agent process? Existing output is retained. Changes already made by the agent are not rolled back."
+  "Stop the active agent process? Existing output is retained. Changes already made by the agent are not rolled back.": "Stop the active agent process? Existing output is retained. Changes already made by the agent are not rolled back.",
+  "Checking result": "Checking result",
+  "Memeriksa hasil": "Checking result",
+  "Ready for review": "Ready for review",
+  "Siap ditinjau": "Ready for review",
+  "Waiting for checks": "Waiting for checks",
+  "Files from this work session": "Files from this work session"
 }

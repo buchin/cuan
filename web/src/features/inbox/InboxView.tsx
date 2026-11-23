@@ -8,7 +8,8 @@ import { ComposerInput, resizeComposerInput } from '../../components/ui/Composer
 import { ReplyDraftCard } from './ReplyDraftCard'
 import { useMessageReceipts } from './useMessageReceipts'
 import { InternalVisibility } from '../../components/ui/InternalVisibility'
-import { workStatus } from '../tasks/task-ui'
+import { workStatus, workDisplayStatus } from '../tasks/task-ui'
+import { setRoomActiveSubstage } from './task-substage'
 import { startsMessageGroup } from './message-group'
 import { PageHeader, PageTitle } from '../../components/layout/PageHeader'
 import { IconButton } from '../../components/ui/IconButton'
@@ -727,6 +728,9 @@ export function InboxView({
           const ct = count('canceled_tasks', states.filter(state => state === 'Cancelled').length)
           const ft = count('failed_tasks', states.filter(state => ['Needs attention', 'Not running'].includes(state)).length)
 
+          const activeTask = data.tasks.find(t => isTaskActive(t)) || data.tasks.find(t => workStatus(t) === 'Ready for review') || data.tasks[0]
+          const substage = activeTask ? workDisplayStatus(activeTask) : undefined
+
           const changed =
             activeContact.task_count !== total ||
             activeContact.active_tasks !== at ||
@@ -734,7 +738,8 @@ export function InboxView({
             activeContact.queued_tasks !== qt ||
             activeContact.done_tasks !== dt ||
             activeContact.canceled_tasks !== ct ||
-            activeContact.failed_tasks !== ft
+            activeContact.failed_tasks !== ft ||
+            activeContact.active_substage !== substage
           activeContact.task_count = total
           activeContact.active_tasks = at
           activeContact.review_tasks = rt
@@ -742,8 +747,17 @@ export function InboxView({
           activeContact.done_tasks = dt
           activeContact.canceled_tasks = ct
           activeContact.failed_tasks = ft
+          activeContact.active_substage = substage
+          if (convId) {
+            setRoomActiveSubstage(convId, substage)
+          }
           if (changed) {
             onContactUpdated?.()
+            window.dispatchEvent(
+              new CustomEvent('cuan:task-substage-changed', {
+                detail: { roomId: convId, substage },
+              }),
+            )
           }
         }
         const pending = pendingRef.current
@@ -1014,6 +1028,9 @@ export function InboxView({
             const ct = states.filter(state => state === 'Cancelled').length
             const ft = states.filter(state => ['Needs attention', 'Not running'].includes(state)).length
 
+            const activeTask = data.tasks.find(t => isTaskActive(t)) || data.tasks.find(t => workStatus(t) === 'Ready for review') || data.tasks[0]
+            const substage = activeTask ? workDisplayStatus(activeTask) : undefined
+
             const changed =
               activeContact.task_count !== total ||
               activeContact.active_tasks !== at ||
@@ -1021,7 +1038,8 @@ export function InboxView({
               activeContact.queued_tasks !== qt ||
               activeContact.done_tasks !== dt ||
               activeContact.canceled_tasks !== ct ||
-              activeContact.failed_tasks !== ft
+              activeContact.failed_tasks !== ft ||
+              activeContact.active_substage !== substage
             activeContact.task_count = total
             activeContact.active_tasks = at
             activeContact.review_tasks = rt
@@ -1029,8 +1047,17 @@ export function InboxView({
             activeContact.done_tasks = dt
             activeContact.canceled_tasks = ct
             activeContact.failed_tasks = ft
+            activeContact.active_substage = substage
+            if (convId) {
+              setRoomActiveSubstage(convId, substage)
+            }
             if (changed) {
               onContactUpdated?.()
+              window.dispatchEvent(
+                new CustomEvent('cuan:task-substage-changed', {
+                  detail: { roomId: convId, substage },
+                }),
+              )
             }
           }
           const pending = pendingRef.current

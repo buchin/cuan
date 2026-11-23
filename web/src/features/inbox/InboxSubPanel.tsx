@@ -15,26 +15,52 @@ import { agentForContact, connectionStatus } from '../agents/connection'
 import { useState, useEffect, memo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { ChatContact, chatApi } from '../../api/chat'
-import { Bot, User, CheckCircle2, CheckCheck, Plus, Circle } from 'lucide-react'
+import { Bot, User, CheckCircle2, CheckCheck, Plus, Circle, Eye } from 'lucide-react'
 import { NotificationsPopover } from '../notifications/NotificationsPopover'
 import { cn } from '../../lib/utils'
 import { getContactInitials } from './contact-initials'
-import { TASK_STATUS_THEMES } from '../tasks/task-ui'
+import { TASK_STATUS_THEMES, workStatus, workDisplayStatus } from '../tasks/task-ui'
+import { isTaskActive } from './task-progress'
+import { getRoomActiveSubstage, setRoomActiveSubstage } from './task-substage'
 import './chat-calm.css'
 
 export function conversationPreview(message?: string, counts?: ChatContact, t: (value: string) => string = value => value) {
   const activeTasks = typeof counts?.active_tasks === 'number' ? counts.active_tasks : Number(counts?.active_tasks) || 0
   const queuedTasks = typeof counts?.queued_tasks === 'number' ? counts.queued_tasks : Number(counts?.queued_tasks) || 0
+  const reviewTasks = typeof counts?.review_tasks === 'number' ? counts.review_tasks : Number(counts?.review_tasks) || 0
+
+  const roomId = counts?.conversation_id || counts?.id
+  const cachedSubstage = roomId ? getRoomActiveSubstage(roomId) : undefined
+  const substage = counts?.active_substage || cachedSubstage
 
   if (activeTasks > 0) {
+    if (substage) {
+      return t(substage) || substage
+    }
     return t('Sedang dikerjakan')
   }
+  if (reviewTasks > 0) {
+    if (substage) {
+      return t(substage) || substage
+    }
+    return t('Siap ditinjau')
+  }
   if (queuedTasks > 0) {
+    if (substage) {
+      return t(substage) || substage
+    }
     return t('Menunggu antrean')
   }
 
   if (!message?.trim()) return 'No messages yet.'
   let text = message.trim()
+  if (/^Files from this work session/i.test(text)) {
+    if (substage) return t(substage) || substage
+    if (reviewTasks > 0) return t('Siap ditinjau')
+    if (activeTasks > 0) return t('Sedang dikerjakan')
+    if (queuedTasks > 0) return t('Menunggu antrean')
+    return t('File dari sesi kerja ini')
+  }
   const workPreview = workConversationPreview(text, counts)
   if (workPreview) return t(workPreview)
   if (/the work is saved, but could not start|create attempt:|invalid task status/i.test(text)) return t('The work is saved, but could not start.')
@@ -183,10 +209,10 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
       : hasTasks
         ? (isWorking
             ? t('Working on tasks')
-            : hasFailed
-              ? t('Action required / paused')
-              : hasReview
-                ? t('Review in progress')
+            : hasReview
+              ? t('Siap ditinjau')
+              : hasFailed
+                ? t('Action required / paused')
                 : queuedTasks > 0
                   ? t('Task queued in background')
                   : t('{{done}} of {{total}} tasks completed')
@@ -199,7 +225,7 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
     : allTasksDone
       ? t('All tasks completed')
       : hasTasks
-        ? t('Task progress')
+        ? (hasReview ? t('Ready for review') : t('Task progress'))
         : t('Unresolved')
 
   const isAgentConnectionIssue =
@@ -224,6 +250,12 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
     chatApi.getConversation(id, { limit: 50 }).then((data) => {
       if (data && data.messages) {
         try {
+          if (data.tasks?.length) {
+            const activeTask = data.tasks.find(t => isTaskActive(t)) || data.tasks.find(t => workStatus(t) === 'Ready for review') || data.tasks[0]
+            if (activeTask) {
+              setRoomActiveSubstage(id, workDisplayStatus(activeTask))
+            }
+          }
           const trimmed = {
             messages: (data.messages || []).slice(-30),
             requests: (data.requests || []).slice(-5),
@@ -355,10 +387,10 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
                 ? TASK_STATUS_THEMES.done.textColor
                 : isWorking
                   ? TASK_STATUS_THEMES.working.textColor
-                  : hasFailed
-                    ? TASK_STATUS_THEMES.attention.textColor
-                    : hasReview
-                      ? TASK_STATUS_THEMES.review.textColor
+                  : hasReview
+                    ? TASK_STATUS_THEMES.review.textColor
+                    : hasFailed
+                      ? TASK_STATUS_THEMES.attention.textColor
                       : queuedTasks > 0
                         ? 'text-amber-500/80 dark:text-amber-400/80'
                         : 'text-muted-foreground/60 hover:text-foreground',
@@ -368,6 +400,8 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
               <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
             ) : isWorking ? (
               <StatusDot status="working" size="md" className="m-0.5" />
+            ) : hasReview ? (
+              <Eye className="h-3.5 w-3.5" strokeWidth={2} aria-label={t('Ready for review')} />
             ) : hasTasks ? (
               <svg
                 viewBox="0 0 16 16"
@@ -503,9 +537,22 @@ export function InboxSubPanel({
   const [showArchived, setShowArchived] = useState(false)
   const [unresolvedOnly, setUnresolvedOnly] = useState(true)
   const [resolutionError, setResolutionError] = useState('')
+  const [, setSubstageTick] = useState(0)
   const clock = useConnectionClock(agents)
   const now = suppliedNow ?? clock
   const { t, language } = useLanguage()
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const custom = e as CustomEvent<{ roomId: string; substage?: string }>
+      if (custom?.detail?.roomId) {
+        setRoomActiveSubstage(custom.detail.roomId, custom.detail.substage)
+        setSubstageTick((v) => v + 1)
+      }
+    }
+    window.addEventListener('cuan:task-substage-changed', handler)
+    return () => window.removeEventListener('cuan:task-substage-changed', handler)
+  }, [])
 
   const [internalTab, setInternalTab] = useState<ContactFilterTab>(selectedTab)
   const [internalQuery, setInternalQuery] = useState(searchQuery)

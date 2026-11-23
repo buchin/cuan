@@ -16,12 +16,20 @@ const workPreviewUrl = 'data:text/javascript;base64,' + Buffer.from(workPreviewT
 
 const { workConversationPreview } = await import(workPreviewUrl)
 
+const substageSource = fs.readFileSync(path.resolve(__dirname, '../src/features/inbox/task-substage.ts'), 'utf8')
+const substageTranspiled = ts.transpileModule(substageSource, {
+  compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+}).outputText
+const substageUrl = 'data:text/javascript;base64,' + Buffer.from(substageTranspiled).toString('base64')
+
+const { getRoomActiveSubstage, setRoomActiveSubstage } = await import(substageUrl)
+
 const subPanelSource = fs.readFileSync(path.resolve(__dirname, '../src/features/inbox/InboxSubPanel.tsx'), 'utf8')
 const fnMatch = subPanelSource.match(/export function conversationPreview[\s\S]*?\n\}/)
 if (!fnMatch) throw new Error('conversationPreview not found in InboxSubPanel.tsx')
 
 const previewTranspiled = ts.transpileModule(
-  `import { workConversationPreview } from '${workPreviewUrl}';\n${fnMatch[0]}`,
+  `import { workConversationPreview } from '${workPreviewUrl}';\nimport { getRoomActiveSubstage, setRoomActiveSubstage } from '${substageUrl}';\n${fnMatch[0]}`,
   { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }
 ).outputText
 const previewUrl = 'data:text/javascript;base64,' + Buffer.from(previewTranspiled).toString('base64')
@@ -153,4 +161,67 @@ test('5. Locales contain complete consistent translations for status preview', (
 
   assert.equal(enDict['Sedang dikerjakan'], 'Working')
   assert.equal(enDict['Menunggu antrean'], 'Waiting in queue')
+})
+
+test('6. conversationPreview displays active sub-stage matching task card (Memeriksa hasil)', () => {
+  const activeCheckingContact = {
+    id: 'room-checking',
+    conversation_id: 'room-checking',
+    name: 'Ganti Ring Avatar dengan Pulsating Dot',
+    task_count: 1,
+    active_tasks: 1,
+    queued_tasks: 0,
+    active_substage: 'Checking result',
+    last_message: 'Pekerjaan sedang berjalan',
+  }
+  assert.equal(
+    conversationPreview(activeCheckingContact.last_message, activeCheckingContact, tId),
+    'Memeriksa hasil',
+    'Active task with "Checking result" substage must display "Memeriksa hasil"'
+  )
+  assert.equal(
+    conversationPreview(activeCheckingContact.last_message, activeCheckingContact, tEn),
+    'Checking result',
+    'Active task with "Checking result" substage must display "Checking result"'
+  )
+})
+
+test('7. conversationPreview displays "Siap ditinjau" for review tasks and prevents "Files from this work session" leak', () => {
+  const reviewContact = {
+    id: 'room-review',
+    conversation_id: 'room-review',
+    name: 'Optimasi Storage',
+    task_count: 1,
+    active_tasks: 0,
+    review_tasks: 1,
+    last_message: 'Files from this work session',
+  }
+  assert.equal(
+    conversationPreview(reviewContact.last_message, reviewContact, tId),
+    'Siap ditinjau',
+    'Review task must display "Siap ditinjau" instead of system files notice'
+  )
+  assert.equal(
+    conversationPreview(reviewContact.last_message, reviewContact, tEn),
+    'Ready for review',
+    'Review task must display "Ready for review" in English'
+  )
+})
+
+test('8. conversationPreview reflects reactive room active substage via setRoomActiveSubstage', () => {
+  const reactiveContact = {
+    id: 'room-reactive-1',
+    conversation_id: 'room-reactive-1',
+    name: 'Sinkronisasi Task',
+    task_count: 1,
+    active_tasks: 1,
+    last_message: 'Pekerjaan sedang berlangsung',
+  }
+  assert.equal(conversationPreview(reactiveContact.last_message, reactiveContact, tId), 'Sedang dikerjakan')
+
+  setRoomActiveSubstage('room-reactive-1', 'Checking result')
+  assert.equal(conversationPreview(reactiveContact.last_message, reactiveContact, tId), 'Memeriksa hasil')
+
+  setRoomActiveSubstage('room-reactive-1', undefined)
+  assert.equal(conversationPreview(reactiveContact.last_message, reactiveContact, tId), 'Sedang dikerjakan')
 })
