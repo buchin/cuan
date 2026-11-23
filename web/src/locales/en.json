@@ -932,6 +932,8 @@
   "min": "min",
   "Save Changes": "Save Changes",
   "Save Schedule": "Save Schedule",
+  "Execution Cadence": "Execution Cadence",
+  "Execution Time": "Execution Time",
   "routine(s) configured": "routine(s) configured",
   "Device timezone": "Device timezone",
   "Update routine parameters and agent execution instructions.": "Update routine parameters and agent execution instructions.",

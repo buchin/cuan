@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { apiFetch } from '../../api/client'
+import { Input, Select } from '../../components/ui/forms'
 
 type Contact = {
   search_note?: { id: string; snippet: string }
@@ -350,9 +351,8 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
 
             {filtersOpen && (
               <div id="contact-filters" className="grid grid-cols-2 gap-2 pt-1">
-                <select
+                <Select
                   aria-label={t('Filter by tag')}
-                  className="field-control min-w-0 text-sm"
                   value={tag}
                   onChange={(e) => setTag(e.target.value)}
                 >
@@ -360,10 +360,9 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
                   {tags.map((t) => (
                     <option key={t}>{t}</option>
                   ))}
-                </select>
-                <select
+                </Select>
+                <Select
                   aria-label={t('Filter by source')}
-                  className="field-control min-w-0 text-sm"
                   value={product}
                   onChange={(e) => setProduct(e.target.value)}
                 >
@@ -371,7 +370,7 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
                   {sources.map((s) => (
                     <option key={s}>{s}</option>
                   ))}
-                </select>
+                </Select>
                 {filteredActive && (
                   <button
                     className="action-secondary col-span-2 text-xs"
@@ -671,10 +670,10 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
                         }}
                       >
                         <div className="flex gap-2">
-                          <input
+                          <Input
                             id="contact-add-tag"
                             aria-label={t('Add tag')}
-                            className="field-control min-w-0 flex-1 text-xs"
+                            className="min-w-0 flex-1 text-xs"
                             placeholder={t('For example: New customer')}
                             value={tagInput}
                             disabled={saving}

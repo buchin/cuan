@@ -2319,6 +2319,8 @@
   "min": "mnt",
   "Save Changes": "Simpan Perubahan",
   "Save Schedule": "Simpan Jadwal",
+  "Execution Cadence": "Jadwal & Waktu Eksekusi",
+  "Execution Time": "Jam Eksekusi",
   "routine(s) configured": "rutinitas aktif",
   "Device timezone": "Zona waktu perangkat",
   "Update routine parameters and agent execution instructions.": "Perbarui parameter rutinitas dan instruksi eksekusi agen.",

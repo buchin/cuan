@@ -19,6 +19,7 @@ import { apiFetch } from '../../api/client'
 import { BackAction } from '../../components/layout/DetailLayout'
 import { IconButton } from '../../components/ui/IconButton'
 import { SlideDrawer } from '../../components/layout/SlideDrawer'
+import { FormField, Input, Textarea } from '../../components/ui/forms'
 
 export type BroadcastRecipient = {
   email: string
@@ -501,14 +502,15 @@ export function BroadcastAudiencePanel({ onClose, initialTags = [], initialTab =
               {t('Masukkan alamat email tambahan (pisahkan dengan koma, spasi, atau baris baru).')}
             </p>
 
-            <textarea
+            <Textarea
               id="custom-emails-textarea"
               aria-label={t('Alamat email kustom')}
               rows={3}
               value={customEmails}
               onChange={(e) => setCustomEmails(e.target.value)}
               placeholder="misal: investor@example.com, partner@example.com"
-              className="field-control w-full font-mono text-xs leading-relaxed resize-y min-h-[72px]"
+              mono
+              className="min-h-[72px]"
             />
           </section>
 
@@ -657,42 +659,29 @@ export function BroadcastAudiencePanel({ onClose, initialTags = [], initialTab =
               </span>
             </div>
 
-            <div className="space-y-3">
-              <div>
-                <label
-                  htmlFor="broadcast-subject-input"
-                  className="block text-xs font-medium text-foreground mb-1"
-                >
-                  {t('Subjek Pesan')}
-                </label>
-                <input
+            <div className="space-y-4">
+              <FormField label={t('Subjek Pesan')} htmlFor="broadcast-subject-input">
+                <Input
                   id="broadcast-subject-input"
                   type="text"
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
                   placeholder={t('misal: Update Rilis Fitur & Berita Penting')}
                   disabled={sending || !!sendSuccess}
-                  className="field-control text-xs"
                 />
-              </div>
+              </FormField>
 
-              <div>
-                <label
-                  htmlFor="broadcast-content-textarea"
-                  className="block text-xs font-medium text-foreground mb-1"
-                >
-                  {t('Isi Pesan')}
-                </label>
-                <textarea
+              <FormField label={t('Isi Pesan')} htmlFor="broadcast-content-textarea">
+                <Textarea
                   id="broadcast-content-textarea"
                   rows={6}
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   placeholder={t('Tulis isi pengumuman broadcast di sini…')}
                   disabled={sending || !!sendSuccess}
-                  className="field-control text-xs resize-y min-h-[140px] leading-relaxed"
+                  className="min-h-[140px]"
                 />
-              </div>
+              </FormField>
 
               {/* Quiet RFC 8058 notice */}
               <div className="flex items-center gap-2 text-[11px] text-muted-foreground pt-1">

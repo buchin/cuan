@@ -1,6 +1,7 @@
 import { useLanguage } from '../../context/LanguageContext'
 import { useState, useEffect } from 'react'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
+import { FormField, Input, Select, Textarea } from '../../components/ui/forms'
 import { apiFetch } from '../../api/client'
 import { projectsApi } from '../../api/projects'
 import type { Project, Task } from '../../api/types'
@@ -121,65 +122,44 @@ export function EscalateTaskDialog({
           </div>
         )}
 
-        <div className="space-y-1.5">
-          <label
-            htmlFor="escalate-title"
-            className="text-xs font-medium text-foreground"
-          >
-            {t('Task title')}
-          </label>
-          <input
+        <FormField label={t('Task title')} htmlFor="escalate-title" required>
+          <Input
             id="escalate-title"
             type="text"
             required
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             disabled={busy}
-            className="field-control w-full text-sm"
             placeholder={t('Enter task title')}
           />
-        </div>
+        </FormField>
 
-        <div className="space-y-1.5">
-          <label
-            htmlFor="escalate-project"
-            className="text-xs font-medium text-foreground"
-          >
-            {t('Project')}
-          </label>
-          <select
+        <FormField label={t('Project')} htmlFor="escalate-project" required>
+          <Select
             id="escalate-project"
             required
             value={projectId}
             onChange={(e) => setProjectId(e.target.value)}
             disabled={busy || loadingProjects}
-            className="field-control w-full text-sm"
           >
             {projects.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name || p.id}
               </option>
             ))}
-          </select>
-        </div>
+          </Select>
+        </FormField>
 
-        <div className="space-y-1.5">
-          <label
-            htmlFor="escalate-desc"
-            className="text-xs font-medium text-foreground"
-          >
-            {t('Instructions / Description')}
-          </label>
-          <textarea
+        <FormField label={t('Instructions / Description')} htmlFor="escalate-desc">
+          <Textarea
             id="escalate-desc"
             rows={4}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             disabled={busy}
-            className="field-control w-full text-sm resize-y"
             placeholder={t('Enter details for the developer or agent')}
           />
-        </div>
+        </FormField>
 
         <div className="flex items-center justify-end gap-2 pt-2">
           <button

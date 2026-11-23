@@ -15,6 +15,7 @@ import { ProjectType } from '../../api/types'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import { useLanguage } from '../../context/LanguageContext'
 import { GitHubRepositoryPicker } from '../settings/GitHubRepositoryPicker'
+import { FormField, Input } from '../../components/ui/forms'
 
 interface CreateProjectModalProps {
   isOpen: boolean
@@ -136,13 +137,9 @@ export function CreateProjectModal({
           {/* TAB 1: Mulai Proyek Baru dari Nol */}
           {mode === 'new' && (
             <div className="space-y-3.5">
-              <div>
-                <label className="text-sm font-medium text-foreground" htmlFor="new-project-name">
-                  {t('Project name')}
-                </label>
-                <input
+              <FormField label={t('Project name')} htmlFor="new-project-name" required>
+                <Input
                   id="new-project-name"
-                  className="field-control mt-1.5"
                   required
                   maxLength={200}
                   placeholder={t('e.g. Coffee Shop Website')}
@@ -151,7 +148,7 @@ export function CreateProjectModal({
                   onChange={(e) => setName(e.target.value)}
                   autoFocus
                 />
-              </div>
+              </FormField>
 
               {/* Quick Starter Inspiration Chips with Active Highlight */}
               <div>
@@ -227,30 +224,25 @@ export function CreateProjectModal({
                   </button>
                 </div>
               ) : (
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground" htmlFor="new-project-repo">
-                    {t('Or enter GitHub repository URL manually')}
-                  </label>
-                  <input
+                <FormField
+                  label={t('Or enter GitHub repository URL manually')}
+                  htmlFor="new-project-repo"
+                >
+                  <Input
                     id="new-project-repo"
                     type="text"
                     inputMode="url"
-                    className="field-control mt-1"
                     placeholder="https://github.com/username/repository"
                     value={repoUrl}
                     disabled={loading}
                     onChange={(e) => handleSelectRepo(e.target.value)}
                   />
-                </div>
+                </FormField>
               )}
 
-              <div>
-                <label className="text-sm font-medium text-foreground" htmlFor="new-project-name-gh">
-                  {t('Project name')}
-                </label>
-                <input
+              <FormField label={t('Project name')} htmlFor="new-project-name-gh" required>
+                <Input
                   id="new-project-name-gh"
-                  className="field-control mt-1.5"
                   required
                   maxLength={200}
                   placeholder={t('e.g. Shoe Store')}
@@ -258,7 +250,7 @@ export function CreateProjectModal({
                   disabled={loading}
                   onChange={(e) => setName(e.target.value)}
                 />
-              </div>
+              </FormField>
 
               {/* Optional Collapsible Access Token */}
               <div className="pt-0.5">
@@ -272,21 +264,21 @@ export function CreateProjectModal({
                     <span>{t('+ Enter Personal Access Token (for private repos)')}</span>
                   </button>
                 ) : (
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground" htmlFor="new-project-token">
-                      {t('Personal Access Token (GitHub PAT)')}
-                    </label>
-                    <input
+                  <FormField
+                    label={t('Personal Access Token (GitHub PAT)')}
+                    htmlFor="new-project-token"
+                  >
+                    <Input
                       id="new-project-token"
                       type="password"
-                      className="field-control mt-1"
                       autoComplete="off"
                       placeholder="ghp_..."
                       value={githubToken}
                       disabled={loading}
                       onChange={(e) => setGithubToken(e.target.value)}
+                      mono
                     />
-                  </div>
+                  </FormField>
                 )}
               </div>
             </div>

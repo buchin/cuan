@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   CalendarClock,
   Plus,
@@ -18,6 +19,7 @@ import { HairlineList } from '../../components/layout/HairlineList'
 import { StatusDot } from '../../components/ui/StatusDot'
 import { SlideDrawer } from '../../components/layout/SlideDrawer'
 import { projectsApi } from '../../api/projects'
+import { FormField, Input, Select, FormCard } from '../../components/ui/forms'
 import { cn } from '../../lib/utils'
 
 export interface ScheduledTask {
@@ -47,16 +49,24 @@ interface SchedulesViewProps {
   embedded?: boolean
 }
 
+export const fieldControlClass =
+  'h-11 min-h-11 w-full rounded-xl border border-border/60 bg-background/80 px-3.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors'
+
 export function SchedulesView({ embedded = false }: SchedulesViewProps) {
   const { t } = useLanguage()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [tasks, setTasks] = useState<ScheduledTask[]>([])
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [loading, setLoading] = useState(true)
-  const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<ScheduledTask | null>(null)
   const [triggeringId, setTriggeringId] = useState<string | null>(null)
   const [actionFeedback, setActionFeedback] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  // URL deep-linking: ?action=new opens creation drawer, ?edit=<id> opens edit drawer
+  const editParam = searchParams.get('edit') || ''
+  const isCreating = searchParams.get('action') === 'new'
+  const isDrawerOpen = Boolean(editParam || isCreating)
 
   // Form states
   const [title, setTitle] = useState('')
@@ -74,6 +84,30 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
     }
   })
   const [submitting, setSubmitting] = useState(false)
+
+  const resetForm = useCallback(() => {
+    setEditingTask(null)
+    setTitle('')
+    setPrompt('')
+    setProjectId('')
+    setScheduleType('daily')
+    setTimeOfDay('09:00')
+    setDayOfWeek(1)
+    setIntervalMins(60)
+    setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jakarta')
+  }, [])
+
+  const populateFormWithTask = useCallback((task: ScheduledTask) => {
+    setEditingTask(task)
+    setTitle(task.title || '')
+    setPrompt(task.prompt || '')
+    setProjectId(task.project_id || '')
+    setScheduleType(task.schedule_type || 'daily')
+    setTimeOfDay(task.time_of_day || '09:00')
+    setDayOfWeek(task.day_of_week ?? 1)
+    setIntervalMins(task.interval_mins || 60)
+    setTimezone(task.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jakarta')
+  }, [])
 
   const fetchTasks = async () => {
     try {
@@ -104,30 +138,60 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
     fetchProjects()
   }, [])
 
+  // Deep linking sync: react to URL query changes or direct page refresh with ?edit=<id> / ?action=new
+  useEffect(() => {
+    if (editParam) {
+      const existing = tasks.find((item) => item.id === editParam)
+      if (existing) {
+        populateFormWithTask(existing)
+      } else {
+        // Direct fetch when page reloads or user bookmarks direct edit URL
+        fetch(`/api/system/scheduler/tasks/${encodeURIComponent(editParam)}`)
+          .then((res) => (res.ok ? res.json() : null))
+          .then((task) => {
+            if (task && task.id) {
+              populateFormWithTask(task)
+            }
+          })
+          .catch(() => {
+            // ignore
+          })
+      }
+    } else if (isCreating) {
+      resetForm()
+    } else {
+      setEditingTask(null)
+    }
+  }, [editParam, isCreating, tasks, populateFormWithTask, resetForm])
+
   const handleOpenCreate = () => {
-    setEditingTask(null)
-    setTitle('')
-    setPrompt('')
-    setProjectId('')
-    setScheduleType('daily')
-    setTimeOfDay('09:00')
-    setDayOfWeek(1)
-    setIntervalMins(60)
-    setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jakarta')
-    setIsModalOpen(true)
+    resetForm()
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.set('action', 'new')
+      next.delete('edit')
+      return next
+    })
   }
 
   const handleOpenEdit = (task: ScheduledTask) => {
-    setEditingTask(task)
-    setTitle(task.title || '')
-    setPrompt(task.prompt || '')
-    setProjectId(task.project_id || '')
-    setScheduleType(task.schedule_type || 'daily')
-    setTimeOfDay(task.time_of_day || '09:00')
-    setDayOfWeek(task.day_of_week ?? 1)
-    setIntervalMins(task.interval_mins || 60)
-    setTimezone(task.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jakarta')
-    setIsModalOpen(true)
+    populateFormWithTask(task)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.set('edit', task.id)
+      next.delete('action')
+      return next
+    })
+  }
+
+  const handleCloseDrawer = () => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.delete('action')
+      next.delete('edit')
+      return next
+    })
+    setEditingTask(null)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -160,13 +224,12 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
       })
 
       if (res.ok) {
-        setIsModalOpen(false)
+        handleCloseDrawer()
         setActionFeedback(
           editingTask
             ? t('Schedule updated successfully')
             : t('Schedule created successfully'),
         )
-        setEditingTask(null)
         setTimeout(() => setActionFeedback(null), 3000)
         fetchTasks()
       }
@@ -543,10 +606,10 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
         </div>
       )}
 
-      {/* Create / Edit SlideDrawer (Spacious Side Sheet & Mobile Full-Screen) */}
+      {/* Create / Edit SlideDrawer (Spacious Side Sheet & Mobile Full-Screen with URL Deep Linking) */}
       <SlideDrawer
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        isOpen={isDrawerOpen}
+        onClose={handleCloseDrawer}
         title={editingTask ? t('Edit Scheduled Routine') : t('New Scheduled Routine')}
         description={
           editingTask
@@ -565,7 +628,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
           <div className="flex items-center justify-end gap-2 w-full">
             <button
               type="button"
-              onClick={() => setIsModalOpen(false)}
+              onClick={handleCloseDrawer}
               className="action-secondary min-h-11 sm:min-h-9 px-4 text-xs"
             >
               {t('Cancel')}
@@ -586,103 +649,86 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
         }
       >
         <form id="schedule-form" onSubmit={handleSubmit} className="space-y-5">
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {t('Routine Title')}
-            </label>
-            <input
+          {/* 1. Judul Rutinitas */}
+          <FormField label={t('Routine Title')}>
+            <Input
               type="text"
               required
               placeholder={t('e.g. Follow-up Pelanggan WhatsApp')}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="field-control w-full rounded-lg border-border/60 text-sm font-medium focus-visible:ring-1"
+              className="font-medium"
             />
-          </div>
+          </FormField>
 
-          <div className="rounded-xl border border-border/40 bg-muted/20 p-3.5 sm:p-4 space-y-3.5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  {t('Target Project')}
-                </label>
-                <select
-                  value={projectId}
-                  onChange={(e) => setProjectId(e.target.value)}
-                  className="field-control w-full rounded-md border-border/60 text-sm"
-                >
-                  <option value="">{t('None / System-wide')}</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[11px] text-muted-foreground mt-1">
-                  {t('Binds this routine to a specific project repository and isolated worktree.')}
-                </p>
-              </div>
+          {/* 2. Proyek Target (Dedicated full-width row with contextual help text) */}
+          <FormField
+            label={t('Target Project')}
+            helperText={t('Binds this routine to a specific project repository and isolated worktree.')}
+          >
+            <Select
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+            >
+              <option value="">{t('None / System-wide')}</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </Select>
+          </FormField>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  {t('Frequency')}
-                </label>
-                <select
-                  value={scheduleType}
-                  onChange={(e) => setScheduleType(e.target.value as any)}
-                  className="field-control w-full rounded-md border-border/60 text-sm"
-                >
-                  <option value="daily">{t('Daily')}</option>
-                  <option value="weekly">{t('Weekly')}</option>
-                  <option value="interval">{t('Interval (Minutes)')}</option>
-                </select>
-              </div>
-            </div>
+          {/* 3. Kadens & Waktu Eksekusi (Clean symmetrical card with zero asymmetric gaps) */}
+          <FormCard
+            title={t('Execution Cadence')}
+            icon={<Clock className="h-3.5 w-3.5 text-muted-foreground/70" />}
+            accessory={timezone}
+          >
+            {/* Daily: 2 equal 50% columns */}
+            {scheduleType === 'daily' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <FormField label={t('Frequency')}>
+                  <Select
+                    value={scheduleType}
+                    onChange={(e) => setScheduleType(e.target.value as any)}
+                  >
+                    <option value="daily">{t('Daily')}</option>
+                    <option value="weekly">{t('Weekly')}</option>
+                    <option value="interval">{t('Interval (Minutes)')}</option>
+                  </Select>
+                </FormField>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/30">
-              {scheduleType === 'interval' ? (
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    {t('Every (Minutes)')}
-                  </label>
-                  <input
-                    type="number"
-                    min={15}
-                    step={15}
-                    value={intervalMins}
-                    onChange={(e) => setIntervalMins(Number(e.target.value))}
-                    className="field-control w-full rounded-md border-border/60 text-sm font-mono"
-                  />
-                </div>
-              ) : (
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      {t('Time')}
-                    </label>
-                    <span className="text-[10px] text-muted-foreground font-mono">
-                      {t('Device timezone')}: {timezone}
-                    </span>
-                  </div>
-                  <input
+                <FormField label={t('Execution Time')}>
+                  <Input
                     type="time"
                     required
+                    mono
                     value={timeOfDay}
                     onChange={(e) => setTimeOfDay(e.target.value)}
-                    className="field-control w-full rounded-md border-border/60 text-sm font-mono"
                   />
-                </div>
-              )}
+                </FormField>
+              </div>
+            )}
 
-              {scheduleType === 'weekly' && (
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    {t('Day of Week')}
-                  </label>
-                  <select
+            {/* Weekly: 3 equal 33% columns */}
+            {scheduleType === 'weekly' && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <FormField label={t('Frequency')}>
+                  <Select
+                    value={scheduleType}
+                    onChange={(e) => setScheduleType(e.target.value as any)}
+                  >
+                    <option value="daily">{t('Daily')}</option>
+                    <option value="weekly">{t('Weekly')}</option>
+                    <option value="interval">{t('Interval (Minutes)')}</option>
+                  </Select>
+                </FormField>
+
+                <FormField label={t('Day of Week')}>
+                  <Select
                     value={dayOfWeek}
                     onChange={(e) => setDayOfWeek(Number(e.target.value))}
-                    className="field-control w-full rounded-md border-border/60 text-sm"
                   >
                     <option value={1}>{t('Monday')}</option>
                     <option value={2}>{t('Tuesday')}</option>
@@ -691,21 +737,55 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
                     <option value={5}>{t('Friday')}</option>
                     <option value={6}>{t('Saturday')}</option>
                     <option value={0}>{t('Sunday')}</option>
-                  </select>
-                </div>
-              )}
-            </div>
-          </div>
+                  </Select>
+                </FormField>
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {t('Agent Instruction (Prompt)')}
-              </label>
-              <span className="text-[11px] text-muted-foreground">
-                {t('Markdown and multi-step workflows supported')}
-              </span>
-            </div>
+                <FormField label={t('Execution Time')}>
+                  <Input
+                    type="time"
+                    required
+                    mono
+                    value={timeOfDay}
+                    onChange={(e) => setTimeOfDay(e.target.value)}
+                  />
+                </FormField>
+              </div>
+            )}
+
+            {/* Interval: 2 equal 50% columns */}
+            {scheduleType === 'interval' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <FormField label={t('Frequency')}>
+                  <Select
+                    value={scheduleType}
+                    onChange={(e) => setScheduleType(e.target.value as any)}
+                  >
+                    <option value="daily">{t('Daily')}</option>
+                    <option value="weekly">{t('Weekly')}</option>
+                    <option value="interval">{t('Interval (Minutes)')}</option>
+                  </Select>
+                </FormField>
+
+                <FormField label={t('Every (Minutes)')}>
+                  <Input
+                    type="number"
+                    min={15}
+                    step={15}
+                    mono
+                    value={intervalMins}
+                    onChange={(e) => setIntervalMins(Number(e.target.value))}
+                  />
+                </FormField>
+              </div>
+            )}
+          </FormCard>
+
+          {/* 4. Instruksi Agen (Prompt) */}
+          <FormField
+            label={t('Agent Instruction (Prompt)')}
+            accessory={t('Markdown and multi-step workflows supported')}
+            helperText={t('This instruction will be executed automatically by the AI assistant on schedule.')}
+          >
             <div className="rounded-xl border border-border/60 bg-muted/10 overflow-hidden focus-within:border-primary/60 focus-within:ring-1 focus-within:ring-ring/20 transition-all">
               <div className="flex items-center justify-between px-3.5 py-1.5 border-b border-border/30 bg-muted/30 text-[11px] text-muted-foreground font-mono">
                 <span>prompt.md</span>
@@ -720,10 +800,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
                 className="w-full bg-transparent p-3.5 font-mono text-xs leading-relaxed text-foreground placeholder:text-muted-foreground/60 focus:outline-none resize-y min-h-[260px]"
               />
             </div>
-            <p className="text-[11px] text-muted-foreground leading-normal">
-              {t('This instruction will be executed automatically by the AI assistant on schedule.')}
-            </p>
-          </div>
+          </FormField>
         </form>
       </SlideDrawer>
     </div>

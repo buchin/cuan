@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Plus, Search, Trash2, Edit2, Check, AlertCircle } from 'lucide-react'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import { Button } from '../../components/ui/button'
-import { Input } from '../../components/ui/input'
+import { FormField, FormGrid, Input, Select, Textarea } from '../../components/ui/forms'
 import { useLanguage } from '../../context/LanguageContext'
 import {
   chatApi,
@@ -176,47 +176,35 @@ export function CannedResponsesDialog({
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">
-                  {t('Shortcut')} (e.g. halo)
-                </label>
-                <div className="flex items-center rounded-md border border-input bg-background px-2.5">
-                  <span className="text-muted-foreground text-sm font-mono">/</span>
-                  <input
-                    type="text"
-                    required
-                    maxLength={50}
-                    value={formShortcut}
-                    onChange={(e) => setFormShortcut(e.target.value.replace(/\s+/g, ''))}
-                    placeholder="shortcut"
-                    className="w-full bg-transparent p-1.5 text-sm outline-none font-mono"
-                  />
-                </div>
-              </div>
+            <FormGrid cols={2}>
+              <FormField label={`${t('Shortcut')} (e.g. halo)`}>
+                <Input
+                  type="text"
+                  required
+                  maxLength={50}
+                  mono
+                  prefixIcon={<span className="font-mono text-sm">/</span>}
+                  value={formShortcut}
+                  onChange={(e) => setFormShortcut(e.target.value.replace(/\s+/g, ''))}
+                  placeholder="shortcut"
+                />
+              </FormField>
 
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">
-                  {t('Category')}
-                </label>
-                <select
+              <FormField label={t('Category')}>
+                <Select
                   value={formCategory}
                   onChange={(e) => setFormCategory(e.target.value)}
-                  className="w-full rounded-md border border-input bg-background p-2 text-sm outline-none"
                 >
                   <option value="general">{t('General')}</option>
                   <option value="greeting">{t('Greeting')}</option>
                   <option value="sales">{t('Sales')}</option>
                   <option value="support">{t('Support')}</option>
                   <option value="closing">{t('Closing')}</option>
-                </select>
-              </div>
-            </div>
+                </Select>
+              </FormField>
+            </FormGrid>
 
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">
-                {t('Title')}
-              </label>
+            <FormField label={t('Title')}>
               <Input
                 type="text"
                 required
@@ -225,22 +213,19 @@ export function CannedResponsesDialog({
                 onChange={(e) => setFormTitle(e.target.value)}
                 placeholder={t('e.g. Salam Pembuka')}
               />
-            </div>
+            </FormField>
 
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">
-                {t('Content')}
-              </label>
-              <textarea
+            <FormField label={t('Content')}>
+              <Textarea
                 required
                 rows={4}
                 maxLength={6000}
                 value={formContent}
                 onChange={(e) => setFormContent(e.target.value)}
                 placeholder={t('Write the reply template text…')}
-                className="w-full rounded-md border border-input bg-background p-2.5 text-sm outline-none resize-y min-h-[90px]"
+                className="min-h-[90px]"
               />
-            </div>
+            </FormField>
 
             <div className="flex justify-end gap-2 pt-2 border-t border-border">
               <Button

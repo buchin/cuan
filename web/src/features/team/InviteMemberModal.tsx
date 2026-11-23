@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useLanguage } from '../../context/LanguageContext'
 import { teamApi } from '../../api/team'
 import { X, Copy, Check, MessageSquare, UserPlus, Shield, User, Loader2 } from 'lucide-react'
+import { FormField, Input } from '../../components/ui/forms'
 
 interface InviteMemberModalProps {
   open: boolean
@@ -163,11 +164,8 @@ export function InviteMemberModal({
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label htmlFor="invite-email" className="block text-xs font-medium text-foreground mb-1.5">
-                  {t('Alamat Email Staf')} <span className="text-destructive">*</span>
-                </label>
-                <input
+              <FormField label={t('Alamat Email Staf')} required htmlFor="invite-email">
+                <Input
                   ref={emailInputRef}
                   id="invite-email"
                   type="email"
@@ -175,25 +173,20 @@ export function InviteMemberModal({
                   placeholder={t('misal: staf@workspace.com')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="field-control w-full text-sm"
                   disabled={busy}
                 />
-              </div>
+              </FormField>
 
-              <div>
-                <label htmlFor="invite-name" className="block text-xs font-medium text-foreground mb-1.5">
-                  {t('Nama Staf / Panggilan (Opsional)')}
-                </label>
-                <input
+              <FormField label={t('Nama Staf / Panggilan (Opsional)')} htmlFor="invite-name">
+                <Input
                   id="invite-name"
                   type="text"
                   placeholder={t('misal: Budi Santoso / Tim Ruang Kerja')}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="field-control w-full text-sm"
                   disabled={busy}
                 />
-              </div>
+              </FormField>
 
               <div>
                 <label className="block text-xs font-medium text-foreground mb-2">
@@ -302,19 +295,17 @@ export function InviteMemberModal({
               </div>
             </div>
 
-            <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2">
-              <label htmlFor="generated-invite-url" className="block text-[11px] font-medium text-muted-foreground">
-                {t('Tautan Aktivasi Akun')}
-              </label>
-              <div className="flex items-center gap-2">
-                <input
+            <div className="rounded-xl border border-border/60 bg-muted/30 p-3.5 space-y-2">
+              <FormField label={t('Tautan Aktivasi Akun')} htmlFor="generated-invite-url">
+                <Input
                   id="generated-invite-url"
                   readOnly
                   value={inviteResult.inviteUrl}
                   onClick={(e) => (e.target as HTMLInputElement).select()}
-                  className="field-control flex-1 text-xs font-mono bg-background"
+                  mono
+                  className="text-xs"
                 />
-              </div>
+              </FormField>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-2.5 pt-2">

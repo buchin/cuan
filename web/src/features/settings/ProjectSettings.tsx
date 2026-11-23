@@ -6,6 +6,7 @@ import type { Project } from '../../api/types'
 import { ApiError } from '../../api/client'
 import { projectsApi } from '../../api/projects'
 import { useLanguage } from '../../context/LanguageContext'
+import { FormField, Input, Textarea } from '../../components/ui/forms'
 
 export function ProjectSettings({ project, onUpdated, onArchive, embedded = false }: {
   embedded?: boolean
@@ -91,19 +92,44 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
       finally { setBusy(false) }
     }}>
       {!repositoryView && !environmentView && <>
-      <div className="space-y-2">
-        <label htmlFor="project-name" className="text-sm font-medium">{t('Project name')}</label>
-        <input id="project-name" className="field-control" value={form.name} required maxLength={120} disabled={busy || isDefault} onChange={event => change('name', event.target.value)} />
-      </div>
-      <div className="space-y-2">
-        <label htmlFor="project-goal" className="text-sm font-medium">{t('Goal')}</label>
-        <textarea id="project-goal" className="field-control min-h-24 resize-y py-3" rows={3} maxLength={2000} disabled={busy} value={form.goal} onChange={event => change('goal', event.target.value)} placeholder={t('What should this project achieve?')} />
-      </div>
-      <div className="space-y-2">
-        <label htmlFor="project-instructions" className="text-sm font-medium">{t('Instructions for Cuan')}</label>
-        <textarea id="project-instructions" className="field-control min-h-28 resize-y py-3" rows={4} maxLength={4000} disabled={busy} value={form.instructions} onChange={event => change('instructions', event.target.value)} placeholder={t('Preferences, constraints, or context Cuan should remember.')} />
-        <p className="text-xs text-muted-foreground">{t('Applies to new tasks. Existing tasks keep their original instructions.')}</p>
-      </div>
+      <FormField label={t('Project name')} htmlFor="project-name" required>
+        <Input
+          id="project-name"
+          value={form.name}
+          required
+          maxLength={120}
+          disabled={busy || isDefault}
+          onChange={event => change('name', event.target.value)}
+        />
+      </FormField>
+      <FormField label={t('Goal')} htmlFor="project-goal">
+        <Textarea
+          id="project-goal"
+          className="min-h-24"
+          rows={3}
+          maxLength={2000}
+          disabled={busy}
+          value={form.goal}
+          onChange={event => change('goal', event.target.value)}
+          placeholder={t('What should this project achieve?')}
+        />
+      </FormField>
+      <FormField
+        label={t('Instructions for Cuan')}
+        htmlFor="project-instructions"
+        helperText={t('Applies to new tasks. Existing tasks keep their original instructions.')}
+      >
+        <Textarea
+          id="project-instructions"
+          className="min-h-28"
+          rows={4}
+          maxLength={4000}
+          disabled={busy}
+          value={form.instructions}
+          onChange={event => change('instructions', event.target.value)}
+          placeholder={t('Preferences, constraints, or context Cuan should remember.')}
+        />
+      </FormField>
       <div className="flex items-center justify-between rounded-xl border border-border/40 bg-muted/20 p-4">
         <div className="space-y-0.5">
           <label htmlFor="project-auto-deploy" className="text-sm font-medium">{t('Auto-deploy completed tasks to live server')}</label>
@@ -119,11 +145,15 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
         />
       </div>
       {form.auto_deploy && !isDefault && (
-        <div className="space-y-2">
-          <label htmlFor="project-deploy-script" className="text-sm font-medium">{t('Deploy Script (Optional)')}</label>
-          <textarea
+        <FormField
+          label={t('Deploy Script (Optional)')}
+          htmlFor="project-deploy-script"
+          helperText={t('Shell command or script executed to publish this project. If empty, Cuan uses the default publication verifier.')}
+        >
+          <Textarea
             id="project-deploy-script"
-            className="field-control font-mono text-xs min-h-20 resize-y py-2.5 leading-relaxed"
+            mono
+            className="min-h-20 leading-relaxed"
             rows={2}
             maxLength={10000}
             disabled={busy}
@@ -131,8 +161,7 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
             onChange={event => change('deploy_script', event.target.value)}
             placeholder={t('e.g. bash scripts/release.sh or npm run deploy')}
           />
-          <p className="text-xs text-muted-foreground">{t('Shell command or script executed to publish this project. If empty, Cuan uses the default publication verifier.')}</p>
-        </div>
+        </FormField>
       )}
       {isDefault && <p className="text-xs leading-5 text-muted-foreground">{t('Default is for general work and has no repository. Cuan can create a separate project when your work needs one.')}</p>}
       </>}
@@ -182,14 +211,44 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
         <details className="border-t border-border/40 pt-2">
         <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">{t('Advanced')}</summary>
         <div className="space-y-4 pb-3 pt-2">
-          <div className="space-y-2"><label htmlFor="project-repository" className="text-sm font-medium">{t('Repository URL')}</label>
-            <input id="project-repository" className="field-control" disabled={busy} maxLength={500} value={form.repo_url} onChange={event => { setForm(old => ({ ...old, repo_url: event.target.value, default_branch: event.target.value === baseline.repo_url ? baseline.default_branch : '' })); setNotice(''); setError('') }} placeholder="https://github.com/owner/repository" /></div>
-          <div className="space-y-2"><label htmlFor="project-branch" className="text-sm font-medium">{t('Default branch')}</label>
-            <input id="project-branch" className="field-control" disabled={busy} maxLength={200} value={form.default_branch} placeholder={t('Use repository default')} onChange={event => change('default_branch', event.target.value)} /></div>
-          <p className="text-xs leading-5 text-muted-foreground">{t('Leave the branch empty to use the repository default. Changes apply to new work; existing work keeps its connection.')}</p>
-          <div className="space-y-2"><label htmlFor="project-deploy-branch" className="text-sm font-medium">{t('Deployment branch')}</label>
-            <input id="project-deploy-branch" className="field-control" disabled={busy} maxLength={200} value={form.deploy_branch} placeholder={t('Same as default branch')} onChange={event => change('deploy_branch', event.target.value)} /></div>
-          <p className="text-xs leading-5 text-muted-foreground">{t('Leave empty to deploy from default branch. Used when production release branch differs from development.')}</p>
+          <FormField label={t('Repository URL')} htmlFor="project-repository">
+            <Input
+              id="project-repository"
+              disabled={busy}
+              maxLength={500}
+              value={form.repo_url}
+              onChange={event => { setForm(old => ({ ...old, repo_url: event.target.value, default_branch: event.target.value === baseline.repo_url ? baseline.default_branch : '' })); setNotice(''); setError('') }}
+              placeholder="https://github.com/owner/repository"
+            />
+          </FormField>
+          <FormField
+            label={t('Default branch')}
+            htmlFor="project-branch"
+            helperText={t('Leave the branch empty to use the repository default. Changes apply to new work; existing work keeps its connection.')}
+          >
+            <Input
+              id="project-branch"
+              disabled={busy}
+              maxLength={200}
+              value={form.default_branch}
+              placeholder={t('Use repository default')}
+              onChange={event => change('default_branch', event.target.value)}
+            />
+          </FormField>
+          <FormField
+            label={t('Deployment branch')}
+            htmlFor="project-deploy-branch"
+            helperText={t('Leave empty to deploy from default branch. Used when production release branch differs from development.')}
+          >
+            <Input
+              id="project-deploy-branch"
+              disabled={busy}
+              maxLength={200}
+              value={form.deploy_branch}
+              placeholder={t('Same as default branch')}
+              onChange={event => change('deploy_branch', event.target.value)}
+            />
+          </FormField>
         </div>
       </details>
       </section>)}

@@ -2,6 +2,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import { useEffect, useState } from 'react'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import { apiFetch } from '../../api/client'
+import { FormField, Input } from '../../components/ui/forms'
 
 export function NewContactDialog({
   open,
@@ -69,13 +70,9 @@ export function NewContactDialog({
           }
         }}
       >
-        <div>
-          <label htmlFor="new-contact-name" className="text-sm font-medium">
-            {t('Name')}
-          </label>
-          <input
+        <FormField label={t('Name')} htmlFor="new-contact-name" required>
+          <Input
             id="new-contact-name"
-            className="field-control mt-1"
             required
             maxLength={120}
             autoComplete="name"
@@ -83,22 +80,18 @@ export function NewContactDialog({
             disabled={busy}
             onChange={(e) => setName(e.target.value)}
           />
-        </div>
-        <div>
-          <label htmlFor="new-contact-email" className="text-sm font-medium">
-            {t('Email (optional)')}
-          </label>
-          <input
+        </FormField>
+        <FormField label={t('Email (optional)')} htmlFor="new-contact-email">
+          <Input
             id="new-contact-email"
             type="email"
-            className="field-control mt-1"
             maxLength={254}
             autoComplete="email"
             value={email}
             disabled={busy}
             onChange={(e) => setEmail(e.target.value)}
           />
-        </div>
+        </FormField>
         {error && (
           <p role="alert" className="text-sm text-destructive">
             {t(error)}

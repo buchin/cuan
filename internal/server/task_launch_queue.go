@@ -127,15 +127,24 @@ func (s *Server) startAuthorizedLaunch(ctx context.Context, q db.InboxRequest, t
 	if s.isProjectLaneActive(ctx, t.ProjectID, lane, t.ID) {
 		status := task.TaskStatusQueued
 		_, _ = s.taskSvc.UpdateTask(ctx, t.ID, "runner", task.UpdateTaskRequest{Status: &status})
+		if s.resolveOwnerLocale(ctx, q.OwnerID) == "id" {
+			return "Pekerjaan masuk dalam antrean menunggu tugas yang sedang aktif selesai. Saya akan memulainya secara otomatis dan mengabarkan progresnya di sini." + link
+		}
 		return "The work is queued waiting for the active project task to complete. I’ll start it automatically and report progress here." + link
 	}
 	claimed, e := s.taskSvc.ClaimLaunch(ctx, now, db.GenerateUUID(), job.ID)
 	if e != nil {
+		if s.resolveOwnerLocale(ctx, q.OwnerID) == "id" {
+			return "Pekerjaan tersimpan. Saya akan memeriksa antrean peluncuran sebelum memulai proses." + link
+		}
 		return "The work is saved. I’ll check its pending launch before starting anything." + link
 	}
 	if claimed == nil {
 		status := task.TaskStatusQueued
 		_, _ = s.taskSvc.UpdateTask(ctx, t.ID, "runner", task.UpdateTaskRequest{Status: &status})
+		if s.resolveOwnerLocale(ctx, q.OwnerID) == "id" {
+			return "Pekerjaan sedang menunggu untuk dimulai. Saya akan mengabarkan perkembangannya di sini." + link
+		}
 		return "The work is waiting to start. I’ll report progress here." + link
 	}
 	return s.executeQueuedTaskLaunch(ctx, *claimed, false)
@@ -182,18 +191,38 @@ func (s *Server) finishQueuedTaskLaunch(ctx context.Context, job task.TaskLaunch
 		return "The launch status is being reconciled. I have not started a replacement." + link
 	}
 	job.SafeError = reason
+	isID := s.resolveOwnerLocale(ctx, job.OwnerID) == "id"
 	text := "The work is saved, but could not start. " + reason + link
+	if isID {
+		text = "Pekerjaan tersimpan, namun belum dapat dimulai. " + reason + link
+	}
 	if state == "queued" {
-		text = "The work is waiting for an available AI session. I’ll start it automatically and report progress here." + link
+		if isID {
+			text = "Pekerjaan sedang menunggu ketersediaan sesi AI. Saya akan memulainya secara otomatis dan mengabarkan progresnya di sini." + link
+		} else {
+			text = "The work is waiting for an available AI session. I’ll start it automatically and report progress here." + link
+		}
 		if strings.Contains(job.Revision, "Cuan native-release intent") {
-			text = "The release is saved and will continue when its execution requirements are available." + link
+			if isID {
+				text = "Rilis tersimpan dan akan dilanjutkan saat kebutuhan eksekusi tersedia." + link
+			} else {
+				text = "The release is saved and will continue when its execution requirements are available." + link
+			}
 		}
 		if strings.Contains(reason, "project") || strings.Contains(reason, "task") || strings.Contains(reason, "active") {
-			text = "The work is queued waiting for the active project task to complete. I’ll start it automatically and report progress here." + link
+			if isID {
+				text = "Pekerjaan masuk dalam antrean menunggu tugas yang sedang aktif selesai. Saya akan memulainya secara otomatis dan mengabarkan progresnya di sini." + link
+			} else {
+				text = "The work is queued waiting for the active project task to complete. I’ll start it automatically and report progress here." + link
+			}
 		}
 	}
 	if state == "queued" && strings.Contains(reason, "Project files could not be downloaded.") {
-		text = "I’m preparing the project files and will continue automatically. Your request and approval are saved." + link
+		if isID {
+			text = "Saya sedang menyiapkan berkas proyek dan akan melanjutkan secara otomatis. Permintaan dan persetujuan Anda tersimpan aman." + link
+		} else {
+			text = "I’m preparing the project files and will continue automatically. Your request and approval are saved." + link
+		}
 	}
 	if state == "started" {
 		text = strings.TrimSpace(link)

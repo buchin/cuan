@@ -13,6 +13,7 @@ import { FileText, Terminal, Folder, FolderGit2, Clock3, Check, CheckCircle2, Ey
 import { StatusDot } from '../../components/ui/StatusDot'
 import { workStatus, workDisplayStatus, taskExecutionActive, taskDetailUrl, taskTerminalUrl } from '../tasks/task-ui'
 import { taskAttention } from '../tasks/task-attention'
+import { FormField, Input, Select, Textarea } from '../../components/ui/forms'
 
 
 export function InboxTaskAction({
@@ -180,34 +181,29 @@ export function InboxTaskAction({
           started.
         </p>
       </div>
-      <label className="block">
-        Task title
-        <input
-          className="field-control mt-1"
+      <FormField label="Task title" required>
+        <Input
           maxLength={200}
           required
           disabled={busy}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
-      </label>
-      <label className="block">
-        Description
-        <textarea
+      </FormField>
+      <FormField label="Description" required>
+        <Textarea
           aria-label="Description"
-          className="field-control mt-1 min-h-36 resize-y"
+          className="min-h-36"
           maxLength={6000}
           required
           disabled={busy}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
-      </label>
-      <label className="block">
-        Project
-        <select
+      </FormField>
+      <FormField label="Project" required>
+        <Select
           aria-label="Project"
-          className="field-control mt-1"
           required
           disabled={loading || busy || !ready}
           value={projectId}
@@ -219,8 +215,8 @@ export function InboxTaskAction({
               {p.name}
             </option>
           ))}
-        </select>
-      </label>
+        </Select>
+      </FormField>
       {loading && <p role="status">Loading projects and task status…</p>}
       {!loading && projects.length === 0 && !error && (
         <p>
