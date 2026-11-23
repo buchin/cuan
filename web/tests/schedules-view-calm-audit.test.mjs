@@ -30,13 +30,48 @@ test('2. SchedulesView: responsive mobile layout prevents aggressive title trunc
 
   assert.match(
     content,
-    /hidden sm:flex w-32 shrink-0 items-center gap-2 text-xs font-mono/,
+    /hidden sm:flex w-28 shrink-0 items-center gap-1.5 text-xs font-mono/,
     'SchedulesView must hide dedicated left column on mobile to save horizontal space',
   )
   assert.match(
     content,
-    /sm:hidden font-mono font-medium text-foreground\/80/,
+    /sm:hidden font-mono font-medium text-foreground\/85/,
     'SchedulesView must render cadence/time cleanly on mobile subtitle line',
+  )
+  assert.match(
+    content,
+    /line-clamp-2 block/,
+    'SchedulesView title must be allowed to wrap naturally without aggressive early truncation',
+  )
+})
+
+test('2b. SchedulesView: projectsApi resolution, zero raw UUID fallback, and metadata placement', () => {
+  const viewPath = path.join(srcDir, 'features/schedules/SchedulesView.tsx')
+  const content = fs.readFileSync(viewPath, 'utf8')
+
+  assert.match(
+    content,
+    /import\s*\{\s*projectsApi\s*\}\s*from\s*['"]\.\.\/\.\.\/api\/projects['"]/,
+    'SchedulesView must import projectsApi from api/projects',
+  )
+  assert.match(
+    content,
+    /await projectsApi\.list\(\)/,
+    'SchedulesView must fetch projects using projectsApi.list()',
+  )
+  assert.ok(
+    !content.includes('task.project_id ? projects.find((p) => p.id === task.project_id)?.name || task.project_id : null'),
+    'SchedulesView must never fallback to raw project UUID hash',
+  )
+  assert.match(
+    content,
+    /StatusDot[\s\S]*pt-0\.5 shrink-0/,
+    'StatusDot must be top-aligned to title row with pt-0.5',
+  )
+  assert.match(
+    content,
+    /bg-emerald-600 dark:bg-emerald-500/,
+    'Switch toggle must use calm emerald tone instead of screaming neon',
   )
 })
 
@@ -108,6 +143,8 @@ test('5. Locales: id.json and en.json provide 100% complete dictionaries for Sch
     'Sunday',
     'Save Changes',
     'Save Schedule',
+    'routine(s) configured',
+    'Device timezone',
   ]
 
   for (const key of requiredKeys) {

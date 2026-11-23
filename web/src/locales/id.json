@@ -2316,5 +2316,7 @@
   "Sun": "Min",
   "min": "mnt",
   "Save Changes": "Simpan Perubahan",
-  "Save Schedule": "Simpan Jadwal"
+  "Save Schedule": "Simpan Jadwal",
+  "routine(s) configured": "rutinitas aktif",
+  "Device timezone": "Zona waktu perangkat"
 }

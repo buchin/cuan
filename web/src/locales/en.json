@@ -929,5 +929,7 @@
   "Sun": "Sun",
   "min": "min",
   "Save Changes": "Save Changes",
-  "Save Schedule": "Save Schedule"
+  "Save Schedule": "Save Schedule",
+  "routine(s) configured": "routine(s) configured",
+  "Device timezone": "Device timezone"
 }

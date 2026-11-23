@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	_ "time/tzdata"
 )
 
 // ScheduledTask represents an automated routine defined by a user or agent.
@@ -24,6 +25,7 @@ type ScheduledTask struct {
 	TimeOfDay    string       `json:"time_of_day,omitempty"` // e.g. "08:00"
 	DayOfWeek    int          `json:"day_of_week,omitempty"` // 0=Sunday, 1=Monday... 6=Saturday
 	IntervalMins int          `json:"interval_mins,omitempty"`
+	Timezone     string       `json:"timezone,omitempty"` // e.g. "Asia/Jakarta"
 	Enabled      bool         `json:"enabled"`
 	CreatedAt    time.Time    `json:"created_at"`
 	NextRunAt    *time.Time   `json:"next_run_at,omitempty"`
@@ -156,7 +158,15 @@ func (tm *TaskManager) load() {
 	}
 	var list []*ScheduledTask
 	if err := json.Unmarshal(data, &list); err == nil {
+		now := time.Now()
 		for _, t := range list {
+			if t.Timezone == "" {
+				t.Timezone = "Asia/Jakarta"
+			}
+			if t.Enabled {
+				next := calculateTaskNextRun(t, now)
+				t.NextRunAt = &next
+			}
 			tm.tasks[t.ID] = t
 		}
 	}
@@ -210,6 +220,11 @@ func (tm *TaskManager) CreateTask(t *ScheduledTask) (*ScheduledTask, error) {
 	}
 	if t.TimeOfDay == "" {
 		t.TimeOfDay = "08:00"
+	}
+	if t.Timezone != "" {
+		t.Timezone = strings.TrimSpace(t.Timezone)
+	} else {
+		t.Timezone = "Asia/Jakarta"
 	}
 	t.Enabled = true
 	t.CreatedAt = time.Now().UTC()
@@ -331,6 +346,9 @@ func (tm *TaskManager) UpdateTask(id string, update *ScheduledTask) (*ScheduledT
 	if update.IntervalMins > 0 {
 		t.IntervalMins = update.IntervalMins
 	}
+	if update.Timezone != "" {
+		t.Timezone = strings.TrimSpace(update.Timezone)
+	}
 
 	if t.Enabled {
 		now := time.Now()
@@ -397,7 +415,22 @@ func (tm *TaskManager) TriggerTask(ctx context.Context, id string) error {
 	return nil
 }
 
+func getTaskLocation(t *ScheduledTask) *time.Location {
+	if t != nil && t.Timezone != "" {
+		if loc, err := time.LoadLocation(t.Timezone); err == nil {
+			return loc
+		}
+	}
+	if loc, err := time.LoadLocation("Asia/Jakarta"); err == nil {
+		return loc
+	}
+	return time.Local
+}
+
 func calculateTaskNextRun(t *ScheduledTask, ref time.Time) time.Time {
+	loc := getTaskLocation(t)
+	refInLoc := ref.In(loc)
+
 	switch t.ScheduleType {
 	case ScheduleInterval:
 		mins := t.IntervalMins
@@ -408,8 +441,8 @@ func calculateTaskNextRun(t *ScheduledTask, ref time.Time) time.Time {
 
 	case ScheduleDaily:
 		h, m := parseTimeOfDay(t.TimeOfDay)
-		target := time.Date(ref.Year(), ref.Month(), ref.Day(), h, m, 0, 0, ref.Location())
-		if !target.After(ref) {
+		target := time.Date(refInLoc.Year(), refInLoc.Month(), refInLoc.Day(), h, m, 0, 0, loc)
+		if !target.After(refInLoc) {
 			target = target.AddDate(0, 0, 1)
 		}
 		return target
@@ -420,10 +453,10 @@ func calculateTaskNextRun(t *ScheduledTask, ref time.Time) time.Time {
 		if targetDay < 0 || targetDay > 6 {
 			targetDay = 1
 		}
-		currentDay := int(ref.Weekday())
+		currentDay := int(refInLoc.Weekday())
 		daysUntil := (targetDay - currentDay + 7) % 7
-		target := time.Date(ref.Year(), ref.Month(), ref.Day(), h, m, 0, 0, ref.Location()).AddDate(0, 0, daysUntil)
-		if !target.After(ref) {
+		target := time.Date(refInLoc.Year(), refInLoc.Month(), refInLoc.Day(), h, m, 0, 0, loc).AddDate(0, 0, daysUntil)
+		if !target.After(refInLoc) {
 			target = target.AddDate(0, 0, 7)
 		}
 		return target

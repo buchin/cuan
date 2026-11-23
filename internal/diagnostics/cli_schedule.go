@@ -68,6 +68,7 @@ Options for create / update:
   --time      Time of day in HH:MM format (default: 08:00)
   --day       Day of week: 0=Sunday..6=Saturday (default: 1)
   --interval  Interval in minutes when type is interval (default: 60)
+  --timezone  Timezone for schedule (default: Asia/Jakarta)
   --project   Target project ID or name
   --json      Output machine-readable JSON`)
 }
@@ -153,6 +154,7 @@ func runScheduleCreate(ctx context.Context, args []string, out, errOut io.Writer
 	dayOfWeek := fs.Int("day", 1, "Day of week: 0=Sun..6=Sat")
 	intervalMins := fs.Int("interval", 60, "Interval in minutes")
 	projectID := fs.String("project", "default", "Target project ID")
+	timezone := fs.String("timezone", "Asia/Jakarta", "Timezone for schedule (default: Asia/Jakarta)")
 	jsonOutput := fs.Bool("json", false, "Output JSON")
 
 	if err := fs.Parse(args); err != nil {
@@ -184,6 +186,7 @@ func runScheduleCreate(ctx context.Context, args []string, out, errOut io.Writer
 		"day_of_week":   *dayOfWeek,
 		"interval_mins": *intervalMins,
 		"project_id":    strings.TrimSpace(*projectID),
+		"timezone":      strings.TrimSpace(*timezone),
 	}
 
 	created, err := client.CreateScheduledTask(ctx, payload)
@@ -229,6 +232,7 @@ func runScheduleUpdate(ctx context.Context, args []string, out, errOut io.Writer
 	dayOfWeek := fs.Int("day", -1, "Day of week (0=Sunday, 1=Monday... 6=Saturday)")
 	intervalMins := fs.Int("interval", 0, "Interval in minutes")
 	projectID := fs.String("project", "", "Target project ID or name")
+	timezone := fs.String("timezone", "", "Timezone for schedule (e.g. Asia/Jakarta)")
 	jsonOutput := fs.Bool("json", false, "Output JSON")
 
 	if err := fs.Parse(args[1:]); err != nil {
@@ -262,6 +266,9 @@ func runScheduleUpdate(ctx context.Context, args []string, out, errOut io.Writer
 	}
 	if pID := strings.TrimSpace(*projectID); pID != "" {
 		payload["project_id"] = pID
+	}
+	if tz := strings.TrimSpace(*timezone); tz != "" {
+		payload["timezone"] = tz
 	}
 
 	if len(payload) == 0 {
