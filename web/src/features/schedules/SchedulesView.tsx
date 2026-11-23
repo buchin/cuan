@@ -217,7 +217,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
 
   const formatScheduleTime = (task: ScheduledTask) => {
     if (task.schedule_type === 'daily') {
-      return `${task.time_of_day || '08:00'} WIB`
+      return `${task.time_of_day || '08:00'}`
     }
     if (task.schedule_type === 'weekly') {
       const days = [
@@ -229,7 +229,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
         t('Fri'),
         t('Sat'),
       ]
-      return `${days[task.day_of_week ?? 1]} · ${task.time_of_day || '09:00'} WIB`
+      return `${days[task.day_of_week ?? 1]} · ${task.time_of_day || '09:00'}`
     }
     return `${task.interval_mins || 60} ${t('min')}`
   }
@@ -328,8 +328,8 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
                       isExpanded && 'bg-muted/20',
                     )}
                   >
-                    {/* Left: Time & Cadence (Things 3 repeating routine style) */}
-                    <div className="w-28 sm:w-36 shrink-0 flex items-center gap-2 text-xs font-mono font-medium text-muted-foreground">
+                    {/* Left: Time & Cadence (Desktop / Tablet view: Things 3 column) */}
+                    <div className="hidden sm:flex w-32 shrink-0 items-center gap-2 text-xs font-mono font-medium text-muted-foreground">
                       <Clock className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" />
                       <span className="truncate">{formatScheduleTime(task)}</span>
                     </div>
@@ -359,11 +359,16 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5 flex-wrap">
+                          <span className="sm:hidden font-mono font-medium text-foreground/80 inline-flex items-center gap-1">
+                            <Clock className="h-3 w-3 text-muted-foreground/70" />
+                            {formatScheduleTime(task)}
+                          </span>
+                          <span className="sm:hidden text-muted-foreground/40">·</span>
                           <span>{formatScheduleTypeLabel(task)}</span>
                           {task.next_run_at && task.enabled && (
                             <>
-                              <span>·</span>
+                              <span className="text-muted-foreground/40">·</span>
                               <span className="truncate">
                                 {t('Next run:')}{' '}
                                 {new Date(task.next_run_at).toLocaleTimeString([], {
@@ -375,7 +380,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
                           )}
                           {!task.enabled && (
                             <>
-                              <span>·</span>
+                              <span className="text-muted-foreground/40">·</span>
                               <span className="text-muted-foreground/70">
                                 {t('Paused')}
                               </span>
@@ -456,7 +461,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
                           )}
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <button
                             type="button"
                             onClick={(e) => {
@@ -464,10 +469,10 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
                               handleOpenEdit(task)
                             }}
                             title={t('Edit schedule')}
-                            className="action-secondary text-xs p-1.5 text-muted-foreground hover:text-foreground min-h-[32px] inline-flex items-center gap-1.5"
+                            className="action-secondary text-xs px-2.5 min-h-11 sm:min-h-9 text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5"
                           >
                             <Pencil className="h-3.5 w-3.5" />
-                            <span className="hidden sm:inline">{t('Edit')}</span>
+                            <span>{t('Edit')}</span>
                           </button>
 
                           <button
@@ -477,10 +482,10 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
                               void handleDelete(task.id)
                             }}
                             title={t('Delete schedule')}
-                            className="action-secondary text-xs p-1.5 text-muted-foreground hover:text-destructive min-h-[32px] inline-flex items-center gap-1.5"
+                            className="action-secondary text-xs px-2.5 min-h-11 sm:min-h-9 text-muted-foreground hover:text-destructive inline-flex items-center gap-1.5"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
-                            <span className="hidden sm:inline">{t('Delete')}</span>
+                            <span>{t('Delete')}</span>
                           </button>
 
                           <button
@@ -490,7 +495,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
                               void handleTrigger(task.id)
                             }}
                             disabled={isTriggering || !task.enabled}
-                            className="action-secondary text-xs inline-flex items-center gap-1.5 py-1 px-3 min-h-[32px]"
+                            className="action-secondary text-xs inline-flex items-center gap-1.5 px-3 min-h-11 sm:min-h-9"
                           >
                             <Play className="h-3 w-3" />
                             <span>{isTriggering ? t('Running...') : t('Run now')}</span>
@@ -509,7 +514,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
       {/* Create / Edit Modal Dialog */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-xl space-y-4">
+          <div className="w-full max-w-lg max-h-[90dvh] overflow-y-auto rounded-xl border border-border bg-card p-5 sm:p-6 shadow-xl space-y-4">
             <div className="flex items-center justify-between border-b border-border/50 pb-3">
               <h2 className="text-lg font-bold text-foreground">
                 {editingTask ? t('Edit Scheduled Routine') : t('New Scheduled Routine')}
@@ -600,27 +605,21 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
                       step={15}
                       value={intervalMins}
                       onChange={(e) => setIntervalMins(Number(e.target.value))}
-                      className="field-control w-full rounded-md border-border text-sm"
+                      className="field-control w-full rounded-md border-border text-sm font-mono"
                     />
                   </div>
                 ) : (
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      {t('Time (WIB)')}
+                      {t('Time')}
                     </label>
-                    <select
+                    <input
+                      type="time"
+                      required
                       value={timeOfDay}
                       onChange={(e) => setTimeOfDay(e.target.value)}
-                      className="field-control w-full rounded-md border-border text-sm"
-                    >
-                      <option value="08:00">08:00 WIB (Pagi)</option>
-                      <option value="09:00">09:00 WIB</option>
-                      <option value="10:00">10:00 WIB</option>
-                      <option value="12:00">12:00 WIB (Siang)</option>
-                      <option value="14:00">14:00 WIB</option>
-                      <option value="17:00">17:00 WIB (Sore)</option>
-                      <option value="20:00">20:00 WIB (Malam)</option>
-                    </select>
+                      className="field-control w-full rounded-md border-border text-sm font-mono"
+                    />
                   </div>
                 )}
               </div>
@@ -650,14 +649,14 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="action-secondary"
+                  className="action-secondary min-h-11 sm:min-h-9"
                 >
                   {t('Cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="action-primary"
+                  className="action-primary min-h-11 sm:min-h-9"
                 >
                   {submitting
                     ? t('Saving...')
