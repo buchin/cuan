@@ -64,7 +64,8 @@ try {
                 'workflow/desktop-navigation-hover.png',
                 'workflow/mobile-navigation-active-inbox.png',
                 'workflow/mobile-navigation-active-studio.png',
-                'workflow/mobile-navigation-hover.png')
+                'workflow/mobile-navigation-hover.png',
+                'workflow/mobile-390-bottom-nav-symmetrical.png')
   for (const capture of captures) {
     const stat = await fs.stat(path.join(output, capture))
     if (!stat.isFile() || stat.size === 0) throw new Error(`Missing visual evidence: ${capture}`)

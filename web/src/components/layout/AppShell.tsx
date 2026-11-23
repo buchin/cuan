@@ -489,26 +489,7 @@ export function AppShell({
             aria-label={t('Bottom navigation')}
             className="bottom-navigation fixed bottom-0 left-0 right-0 z-30 flex items-center border-t border-border bg-sidebar md:hidden"
           >
-            <button
-              type="button"
-              data-nav-tone="studio"
-              data-testid="bottom-nav-studio"
-              aria-label={t('New work')}
-              aria-current={currentTab === 'studio' ? 'page' : undefined}
-              onClick={() => navigate('studio')}
-              className={cn(
-                'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs transition-colors',
-                currentTab === 'studio'
-                  ? 'font-semibold text-primary'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              <span className="flex h-7 w-7 items-center justify-center">
-                <Plus aria-hidden="true" className="h-5 w-5 text-inherit" />
-              </span>
-              <span>{t('New work')}</span>
-            </button>
-            {/* Inbox */}
+            {/* Pillar 1: Inbox */}
             <button
               key="chat"
               data-nav-tone="inbox"
@@ -565,7 +546,31 @@ export function AppShell({
               <span>{t('Tasks')}</span>
             </button>
 
-            {/* Pillar 3: Projects */}
+            {/* Pillar 3: New work (+) */}
+            <button
+              type="button"
+              data-nav-tone="studio"
+              data-testid="bottom-nav-studio"
+              aria-label={t('New work')}
+              aria-current={currentTab === 'studio' ? 'page' : undefined}
+              onClick={() => {
+                setMobileMenuOpen(false)
+                navigate('studio')
+              }}
+              className={cn(
+                'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs transition-colors',
+                currentTab === 'studio'
+                  ? 'font-semibold text-primary'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <span className="flex h-7 w-7 items-center justify-center">
+                <Plus aria-hidden="true" className="h-5 w-5 text-inherit" />
+              </span>
+              <span>{t('New work')}</span>
+            </button>
+
+            {/* Pillar 4: Projects */}
             <button
               key="projects"
               data-nav-tone="projects"

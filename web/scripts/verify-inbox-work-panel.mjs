@@ -264,6 +264,30 @@ try{
       await page.locator('[data-testid="conversation-item"]:visible').first().click()
       await page.waitForTimeout(300)
     }
+    const bottomNav = page.locator('.bottom-navigation')
+    await bottomNav.waitFor({ state: 'visible' })
+    const navItems = await page.$$eval('.bottom-navigation > button, .bottom-navigation > div', els =>
+      els.map(el => ({
+        testId: el.getAttribute('data-testid'),
+        x: el.getBoundingClientRect().x,
+        width: el.getBoundingClientRect().width,
+        height: el.getBoundingClientRect().height,
+      }))
+    )
+    assert.equal(navItems.length, 5, 'Bottom navigation must have exactly 5 slots')
+    assert.equal(navItems[0].testId, 'bottom-nav-inbox', 'Slot 1 must be Inbox')
+    assert.equal(navItems[1].testId, 'bottom-nav-tasks', 'Slot 2 must be Tasks')
+    assert.equal(navItems[2].testId, 'bottom-nav-studio', 'Slot 3 must be New work (+)')
+    assert.equal(navItems[3].testId, 'bottom-nav-projects', 'Slot 4 must be Projects')
+    assert.equal(navItems[4].testId, 'bottom-nav-user', 'Slot 5 must be Akun')
+    assert.ok(navItems[0].x < navItems[1].x, 'Inbox must be before Tasks')
+    assert.ok(navItems[1].x < navItems[2].x, 'Tasks must be before New work (+)')
+    assert.ok(navItems[2].x < navItems[3].x, 'New work (+) must be before Projects')
+    assert.ok(navItems[3].x < navItems[4].x, 'Projects must be before Akun')
+    for (const item of navItems) {
+      assert.ok(item.height >= 56, `Touch target height must be >= 56px (min-h-14), got ${item.height}`)
+    }
+    await page.screenshot({ path: path.join(output, 'mobile-390-bottom-nav-symmetrical.png') })
   }
   if(width>=1200){
     assert.ok(await page.locator('[data-avatar="true"]:has-text("FP")').count()>=1,'Desktop sidebar must display FP monogram')
