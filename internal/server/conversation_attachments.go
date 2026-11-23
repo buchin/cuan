@@ -601,6 +601,10 @@ func attachmentPreview(content string) string {
 	if text == "" && len(ids) > 0 {
 		return "Shared files"
 	}
+	runes := []rune(text)
+	if len(runes) > 180 {
+		return string(runes[:180]) + "..."
+	}
 	return text
 }
 

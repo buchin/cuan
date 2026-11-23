@@ -108,15 +108,45 @@ const EscalateTaskDialog = lazy(() =>
   })),
 )
 
-interface CachedConversation {
+export interface CachedConversation {
   messages: any[]
   requests: any[]
   tasks: Task[]
-  hasMore: boolean
+  hasMore?: boolean
   cachedAt: number
 }
 // SWR conversation cache: eliminates blank screen and loading delays when switching conversations
 const conversationCache = new Map<string, CachedConversation>()
+
+function getCachedConversation(convId: string): CachedConversation | undefined {
+  if (!convId) return undefined
+  const memory = conversationCache.get(convId)
+  if (memory && memory.messages?.length > 0) return memory
+  try {
+    const raw = sessionStorage.getItem('cuan_chat_cache:' + convId)
+    if (raw) {
+      const parsed = JSON.parse(raw) as CachedConversation
+      if (parsed && Array.isArray(parsed.messages) && parsed.messages.length > 0) {
+        conversationCache.set(convId, parsed)
+        return parsed
+      }
+    }
+  } catch {}
+  return undefined
+}
+
+function setCachedConversation(convId: string, data: CachedConversation) {
+  if (!convId) return
+  conversationCache.set(convId, data)
+  try {
+    const trimmed: CachedConversation = {
+      ...data,
+      messages: (data.messages || []).slice(-30),
+      requests: (data.requests || []).slice(-5),
+    }
+    sessionStorage.setItem('cuan_chat_cache:' + convId, JSON.stringify(trimmed))
+  } catch {}
+}
 
 interface InboxViewProps {
   onNewMessage?: () => void
@@ -151,13 +181,17 @@ function isSameConversation(a?: string | null, b?: string | null, contact?: Chat
   if (!a || !b) return false
   if (a === b) return true
   if (!contact) return false
+  const isDirect = Boolean(
+    contact.type === 'agent' &&
+    (contact.id.startsWith('contact_') || contact.id === contact.agent_id || contact.id === 'cuan' || contact.conversation_id === 'cuan')
+  )
   const ids = new Set(
     [
       contact.conversation_id,
       contact.id,
-      contact.agent_id,
-      contact.agent_id ? 'contact_' + contact.agent_id : '',
-      contact.name?.toLowerCase(),
+      isDirect ? contact.agent_id : '',
+      isDirect && contact.agent_id ? 'contact_' + contact.agent_id : '',
+      isDirect ? contact.name?.toLowerCase() : '',
     ].filter(Boolean) as string[],
   )
   return ids.has(a) && ids.has(b)
@@ -593,8 +627,8 @@ export function InboxView({
         setLoading(false)
         setMessages((prev) => {
           const merged = mergeConversationMessages(prev, data.messages || [])
-          const existing = conversationCache.get(convId)
-          conversationCache.set(convId, {
+          const existing = getCachedConversation(convId)
+          setCachedConversation(convId, {
             messages: merged,
             requests: data.requests || existing?.requests || [],
             tasks: data.tasks || existing?.tasks || [],
@@ -809,8 +843,12 @@ export function InboxView({
     }
   }, [activeContact?.id, autoResizeTextarea])
 
+  const isDirectAgentChat = Boolean(
+    activeContact?.type === 'agent' &&
+    (activeContact.id.startsWith('contact_') || activeContact.id === activeContact.agent_id || activeContact.id === 'cuan' || activeContact.conversation_id === 'cuan')
+  )
   const convKey = activeContact
-    ? activeContact.type === 'agent'
+    ? isDirectAgentChat
       ? activeContact.agent_id || activeContact.id.replace(/^contact_/, '')
       : activeContact.conversation_id || activeContact.id
     : ''
@@ -837,7 +875,7 @@ export function InboxView({
         setRequests([])
         setLinkedTasks([])
         setLoading(true)
-        const cached = conversationCache.get(convId)
+        const cached = getCachedConversation(convId)
         if (cached && cached.messages.length > 0) {
           setMessages(cached.messages)
           setRequests(cached.requests || [])
@@ -872,7 +910,7 @@ export function InboxView({
           ),
         )
       }
-      const hasCached = Boolean(conversationCache.get(convId)?.messages?.length)
+      const hasCached = Boolean(getCachedConversation(convId)?.messages?.length)
       loadConversation(convId, isDifferentConv && !hasCached)
     }
   }, [convKey, loadConversation])
@@ -896,7 +934,7 @@ export function InboxView({
           setLoading(false)
           setMessages((prev) => {
             const merged = mergeConversationMessages(prev, data.messages || [])
-            conversationCache.set(convId, {
+            setCachedConversation(convId, {
               messages: merged,
               requests: data.requests || [],
               tasks: data.tasks || [],

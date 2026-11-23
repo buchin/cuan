@@ -183,7 +183,9 @@ export function ProjectsWorkspace({
       let targetTask = tasks.find(
         (item) =>
           (item.project_id === projId || item.project_ids?.includes(projId)) &&
-          item.title.startsWith('Terminal ·'),
+          item.title.startsWith('Terminal ·') &&
+          item.status !== 'done' &&
+          (item.status as string) !== 'cancelled',
       )
 
       // 2. Query API if not cached in memory (without restrictive status filter so any previous terminal task is reused)
@@ -195,14 +197,16 @@ export function ProjectsWorkspace({
             page_size: 20,
           })
           targetTask = res.tasks.find((item) =>
-            item.title.startsWith('Terminal ·'),
+            item.title.startsWith('Terminal ·') &&
+            item.status !== 'done' &&
+            (item.status as string) !== 'cancelled',
           )
         } catch {}
       }
 
-      // 3. Create dedicated terminal task if none exists yet
-      let assignedAgentId = 'default'
-      if (!targetTask) {
+      // 3. Resolve active agent and create dedicated terminal task if none exists yet
+      let assignedAgentId = targetTask?.assignee_id || (targetTask as any)?.assigned_agent || ''
+      if (!assignedAgentId) {
         try {
           const agentList = await agentsApi.list()
           const available = agentList.filter(
@@ -213,7 +217,9 @@ export function ProjectsWorkspace({
             available[0]
           if (selected) assignedAgentId = selected.id
         } catch {}
+      }
 
+      if (!targetTask) {
         targetTask = await tasksApi.create({
           title: `Terminal · ${projName}`,
           project_ids: [projId],

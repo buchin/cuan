@@ -142,17 +142,18 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
     now,
   )
   const id = contact.conversation_id || contact.id
-  const unread = archive.unreadCount(id, contact.unread_count, contact.last_message_at || contact.updated_at)
+  const unread = contact.only_system_notices ? 0 : archive.unreadCount(id, contact.unread_count, contact.last_message_at || contact.updated_at)
   const activeTasks = typeof contact.active_tasks === 'number' ? contact.active_tasks : Number(contact.active_tasks) || 0
   const reviewTasks = Number(contact.review_tasks) || 0
   const failedTasks = Number(contact.failed_tasks) || 0
   const doneTasks = typeof contact.done_tasks === 'number' ? contact.done_tasks : Number(contact.done_tasks) || 0
+  const queuedTasks = typeof contact.queued_tasks === 'number' ? contact.queued_tasks : Number(contact.queued_tasks) || 0
   const progress = {
     total: contact.task_count === undefined ? undefined : contact.task_count - (contact.canceled_tasks || 0),
     done: doneTasks,
     canceled: contact.canceled_tasks,
     active: activeTasks,
-    queued: typeof contact.queued_tasks === 'number' ? contact.queued_tasks : Number(contact.queued_tasks) || 0,
+    queued: queuedTasks,
     review: reviewTasks,
     blocked: failedTasks,
   }
@@ -186,7 +187,9 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
               ? t('Action required / paused')
               : hasReview
                 ? t('Review in progress')
-                : t('{{done}} of {{total}} tasks completed')
+                : queuedTasks > 0
+                  ? t('Task queued in background')
+                  : t('{{done}} of {{total}} tasks completed')
                     .replace('{{done}}', String(doneTasks))
                     .replace('{{total}}', String(totalTasks)))
         : t('Unresolved (click to resolve)')
@@ -211,6 +214,27 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
   const openContact = () => {
     onSelectContact(contact)
     void archive.markRead(id, true, contact.last_message_at).catch(() => {})
+  }
+
+  const prefetchConversation = () => {
+    if (!id) return
+    try {
+      if (sessionStorage.getItem('cuan_chat_cache:' + id)) return
+    } catch {}
+    chatApi.getConversation(id, { limit: 50 }).then((data) => {
+      if (data && data.messages) {
+        try {
+          const trimmed = {
+            messages: (data.messages || []).slice(-30),
+            requests: (data.requests || []).slice(-5),
+            tasks: data.tasks || [],
+            hasMore: Boolean(data.has_more),
+            cachedAt: Date.now(),
+          }
+          sessionStorage.setItem('cuan_chat_cache:' + id, JSON.stringify(trimmed))
+        } catch {}
+      }
+    }).catch(() => {})
   }
 
   const handleResolveAction = async () => {
@@ -270,6 +294,7 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
       <button
         type="button"
         onClick={openContact}
+        onMouseEnter={prefetchConversation}
         aria-pressed={isSelected}
         data-testid="conversation-item"
         className={cn(
@@ -334,7 +359,9 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
                     ? TASK_STATUS_THEMES.attention.textColor
                     : hasReview
                       ? TASK_STATUS_THEMES.review.textColor
-                      : 'text-muted-foreground/60 hover:text-foreground',
+                      : queuedTasks > 0
+                        ? 'text-amber-500/80 dark:text-amber-400/80'
+                        : 'text-muted-foreground/60 hover:text-foreground',
             )}
           >
             {isComplete ? (
@@ -352,7 +379,8 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="1.5"
-                  opacity={isWorking || hasFailed || hasReview ? "0.9" : "0.65"}
+                  strokeDasharray={queuedTasks > 0 && !isWorking && doneTasks === 0 ? "2.5 1.5" : undefined}
+                  opacity={isWorking || hasFailed || hasReview || queuedTasks > 0 ? "0.9" : "0.65"}
                 />
                 {fraction > 0 && (
                   <path
@@ -526,7 +554,7 @@ export function InboxSubPanel({
   }
 
   const filteredContacts = contacts.filter((c) => {
-    if (showArchived ? !c.resolved : unresolvedOnly && c.resolved) return false
+    if (showArchived ? !c.resolved : unresolvedOnly && (c.resolved || c.only_system_notices)) return false
     if (activeTab === 'all') {
       if (c.type === 'customer' && c.has_messages === false) return false
     }

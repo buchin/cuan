@@ -184,15 +184,44 @@ export function TaskStartingPage({ taskId }: { taskId: string }) {
             <button
               className="action-primary inline-flex items-center gap-1.5"
               disabled={!selectedAgent || busy}
-              onClick={() => {
+              onClick={async () => {
+                setBusy(true)
+                setError('')
                 const req: RunTaskRequest = {
                   request_id: crypto.randomUUID(),
                   agent_id: selectedAgent,
                 }
-                setRequest(req)
                 try {
+                  if (error.includes('Reopen the completed task')) {
+                    await tasksApi.updateStatus(taskId, 'todo')
+                  }
                   localStorage.setItem(key, JSON.stringify(req))
-                } catch {}
+                  const result = await tasksApi.runAgent(taskId, req)
+                  if (!result.attempt) throw new Error('The session was not confirmed.')
+                  try {
+                    localStorage.setItem(
+                      resultKey,
+                      JSON.stringify({
+                        request_id: req.request_id,
+                        attempt_id: result.attempt.id,
+                      }),
+                    )
+                    localStorage.removeItem(key)
+                  } catch {}
+                  openSession(result.attempt.id)
+                } catch (e) {
+                  if (e instanceof ApiError && e.status >= 400 && e.status < 500) {
+                    try {
+                      localStorage.removeItem(key)
+                    } catch {}
+                    setRequest(null)
+                    setError('Could not start the agent: ' + e.message)
+                  } else {
+                    setError('Session start was not confirmed. Check the same request to continue.')
+                  }
+                } finally {
+                  setBusy(false)
+                }
               }}
             >
               <Play className="h-4 w-4" />

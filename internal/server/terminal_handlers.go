@@ -830,14 +830,24 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		return
 	}
 	agentID := strings.TrimSpace(payload.AgentID)
-	if agentID == "" && tDetail != nil {
-		if tDetail.AssignedAgent != "" {
+	if (agentID == "" || agentID == "default") && tDetail != nil {
+		if tDetail.AssignedAgent != "" && tDetail.AssignedAgent != "default" {
 			agentID = tDetail.AssignedAgent
-		} else if tDetail.LatestAttempt != nil && tDetail.LatestAttempt.AgentName != "" {
+		} else if tDetail.LatestAttempt != nil && tDetail.LatestAttempt.AgentName != "" && tDetail.LatestAttempt.AgentName != "default" {
 			agentID = tDetail.LatestAttempt.AgentName
 		}
 	}
-	if agentID == "" {
+	if (agentID == "" || agentID == "default") && s.agentRepo != nil {
+		if ags, e := s.agentRepo.ListAgents(r.Context(), db.AgentFilter{}); e == nil {
+			for _, a := range ags {
+				if a.Enabled && a.Status != "archived" && a.Status != "inactive" {
+					agentID = a.ID
+					break
+				}
+			}
+		}
+	}
+	if agentID == "" || agentID == "default" {
 		respondJSONError(w, http.StatusBadRequest, "Select a registered agent first")
 		return
 	}
@@ -858,6 +868,16 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 					registeredAgent = &agCopy
 					err = nil
 					break
+				}
+			}
+			if registeredAgent == nil {
+				for _, a := range ags {
+					if a.Enabled && a.Status != "archived" && a.Status != "inactive" {
+						agCopy := a
+						registeredAgent = &agCopy
+						err = nil
+						break
+					}
 				}
 			}
 		}
@@ -1491,6 +1511,9 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			runCfg.Env = agent.AntigravityProfileEnvironment(profileHome)
 		}
 		runCfg.Env = append(runCfg.Env, reportEnv...)
+		if isDedicatedTerminalTask {
+			runCfg.Env = append(runCfg.Env, "CUAN_TASK_TIMEOUT=0")
+		}
 		if projID != "" && s.projectSvc != nil {
 			if p, pErr := s.projectSvc.Get(r.Context(), projID); pErr == nil && p != nil {
 				settings := projectpkg.SettingsFromMetadata(p.Metadata)

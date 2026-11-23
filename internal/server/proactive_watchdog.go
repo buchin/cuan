@@ -616,12 +616,19 @@ func (s *Server) autoResolveCompletedConversations(ctx context.Context) {
 		if latestMsg.AuthorType == "agent" || latestMsg.AuthorType == "system" {
 			var readAt *time.Time
 
+			if isSystemLifecycleNotice(latestMsg) {
+				copied := latestMsg.CreatedAt
+				readAt = &copied
+			}
+
 			// 1. Check message receipts for confirmed read
-			if receiptRepo, ok := s.projectStudioRepo.(db.ChatReceiptRepository); ok {
-				if receipts, err := receiptRepo.MessageReceipts(ctx, room.ID); err == nil {
-					if r, exists := receipts[latestMsg.ID]; exists && r.ReadConfirmedAt != nil {
-						copied := *r.ReadConfirmedAt
-						readAt = &copied
+			if readAt == nil {
+				if receiptRepo, ok := s.projectStudioRepo.(db.ChatReceiptRepository); ok {
+					if receipts, err := receiptRepo.MessageReceipts(ctx, room.ID); err == nil {
+						if r, exists := receipts[latestMsg.ID]; exists && r.ReadConfirmedAt != nil {
+							copied := *r.ReadConfirmedAt
+							readAt = &copied
+						}
 					}
 				}
 			}

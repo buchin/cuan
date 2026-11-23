@@ -154,18 +154,13 @@ Environment variables:
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// SIGUSR1 triggers graceful drain without exiting immediately;
-	// if runner has 0 active attempts, exit cleanly for immediate restart.
+	// SIGUSR1 triggers graceful drain without exiting immediately
 	drainSig := make(chan os.Signal, 1)
 	signal.Notify(drainSig, syscall.SIGUSR1)
 	go func() {
 		for range drainSig {
 			log.Println("Received SIGUSR1 signal: activating graceful drain on worker...")
 			r.RequestDrain("SIGUSR1 signal received")
-			if r.ActiveAttemptsCount() == 0 {
-				log.Println("Runner has no active workers in-flight; exiting immediately for clean restart...")
-				os.Exit(0)
-			}
 		}
 	}()
 

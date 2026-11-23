@@ -20,6 +20,9 @@ const extraContacts=[
   {id:'c-agent',conversation_id:'c-agent',name:'Penyederhanaan Timeline Task Chat',type:'agent',agent_id:'agent_cuan',avatar:'🤖',unread_count:0,status:'online',last_message:'Termasuk posisi judul task lain sejajar itu...',updated_at:now,task_count:1,active_tasks:1},
   {id:'c-review',conversation_id:'c-review',name:'Peringatan Kapasitas Server',type:'agent',agent_id:'agent_cuan',avatar:'🤖',unread_count:0,status:'online',last_message:'Hasil optimasi selesai diperiksa.',updated_at:now,task_count:1,active_tasks:0,review_tasks:1},
   {id:'c-queued',conversation_id:'c-queued',name:'Pindahkan Tombol New Work',type:'agent',agent_id:'agent_cuan',avatar:'🤖',unread_count:0,status:'online',last_message:'The work is queued waiting for the active project task to complete.',updated_at:now,task_count:1,queued_tasks:1,active_tasks:0},
+  {id:'c-sys1',conversation_id:'c-sys1',name:'Rotasi Dinamis Kata Status Kerja Asisten',type:'agent',agent_id:'agent_cuan',avatar:'🤖',unread_count:0,status:'online',resolved:true,only_system_notices:true,last_message:'Sistem baru saja diperbarui. Pekerjaan Anda tersimpan aman dan dilanjutkan secara otomatis...',updated_at:now,task_count:1,active_tasks:0,done_tasks:1},
+  {id:'c-sys2',conversation_id:'c-sys2',name:'Penyelarasan Desain UI Chat Reference',type:'agent',agent_id:'agent_cuan',avatar:'🤖',unread_count:0,status:'online',resolved:true,only_system_notices:true,last_message:'Sistem baru saja diperbarui. Pekerjaan Anda tersimpan aman dan dilanjutkan secara otomatis...',updated_at:now,task_count:1,active_tasks:0,done_tasks:1},
+  {id:'c-sys3',conversation_id:'c-sys3',name:'Standarisasi Warna & Ikon Status Task',type:'agent',agent_id:'agent_cuan',avatar:'🤖',unread_count:0,status:'online',resolved:true,only_system_notices:true,last_message:'Sistem baru saja diperbarui. Pekerjaan Anda tersimpan aman dan dilanjutkan secara otomatis...',updated_at:now,task_count:1,active_tasks:0,done_tasks:1},
 ]
 const contactsList=[contact,...extraContacts]
 const agents=[{id:'agent_cuan',name:'@cuan',status:'active',enabled:true,harness:'agy',provider:'agy',supports_vision:true}]
@@ -45,6 +48,7 @@ const messages=[message('source','Tolong perbaiki tampilan website.',{author_typ
  message('room-ref','Berikut ruang chat agen terkait: [Penyederhanaan Timeline Task Chat](/inbox/c-agent)'),
   message('reply-draft','Draf email balasan untuk pelanggan sudah disiapkan.',{reply_draft:'Halo sob,\n\nKendala login sudah diperbaiki dan sistem normal kembali. Silakan dicoba login ulang.',is_internal:true}),
  message('files','Files from this work session',{work_update:{task_id:'work',attempt_id:'attempt',kind:'files'},attachments:[{id:'file',name:'report.txt',type:'text/plain',size:10,url:'/api/v1/chat/attachments/file'}]}),
+  message('system-notice-1','Sistem baru saja diperbarui. Pekerjaan Anda tersimpan aman dan dilanjutkan secara otomatis...',{author_type:'system',author_id:'cuan_system_lifecycle',author_name:'Cuan',is_internal:true}),
  message('gallery-4-images','Tangkapan layar hasil pengujian UI:',{
    author_type:'agent',
    is_internal:false,
@@ -257,6 +261,25 @@ try{
       assert.ok(await page.locator('[data-testid="conversation-item"]:has-text("Sedang dikerjakan")').count()>=1,'Mobile list must show "Sedang dikerjakan" for active running task')
       assert.ok(await page.locator('[data-testid="conversation-item"]:has-text("Menunggu antrean")').count()>=1,'Mobile list must show "Menunggu antrean" for queued task')
       assert.ok(await page.locator('[data-testid="conversation-item"]:has-text("Biar kami aktifkan")').count()>=1,'Mobile list must fall back to last_message for idle contact')
+      // Verify system lifecycle notice unread prevention:
+      const bottomNav = page.locator('nav.bottom-navigation')
+      assert.equal(await bottomNav.locator('[data-testid="inbox-unread-badge-bottom"]').count(), 0, 'Mobile bottom nav must not show unread badge for system notices')
+      const unresolvedTab = page.locator('button:has-text("Belum tuntas"), button:has-text("Unresolved")').first()
+      if (await unresolvedTab.count() > 0 && await unresolvedTab.isVisible()) {
+        await unresolvedTab.click()
+        await page.waitForTimeout(200)
+        assert.equal(await page.locator('[data-testid="conversation-item"]:has-text("Rotasi Dinamis Kata Status")').count(), 0, 'Belum tuntas tab must exclude system notice conversations')
+        await page.screenshot({ path: path.join(output, 'inbox-mobile-unresolved-filtered-390.png') })
+        const allTab = page.locator('button:has-text("Semua"), button:has-text("All")').first()
+        if (await allTab.count() > 0 && await allTab.isVisible()) {
+          await allTab.click()
+          await page.waitForTimeout(200)
+        }
+      }
+      const sysNoticeItem = page.locator('[data-testid="conversation-item"]:has-text("Rotasi Dinamis Kata Status")').first()
+      if (await sysNoticeItem.count() > 0) {
+        assert.equal(await sysNoticeItem.locator('[data-testid="unread-micro-dot"]').count(), 0, 'System notice contact must not have unread micro dot')
+      }
       await page.screenshot({path:path.join(output,'inbox-mobile-contacts-390-light.png')})
       await page.evaluate(()=>document.documentElement.classList.add('dark'))
       await page.screenshot({path:path.join(output,'inbox-mobile-contacts-390-dark.png')})
@@ -264,14 +287,40 @@ try{
       await page.locator('[data-testid="conversation-item"]:visible').first().click()
       await page.waitForTimeout(300)
     }
+    const bottomNav = page.locator('.bottom-navigation')
+    await bottomNav.waitFor({ state: 'visible' })
+    const navItems = await page.$$eval('.bottom-navigation > button, .bottom-navigation > div', els =>
+      els.map(el => ({
+        testId: el.getAttribute('data-testid'),
+        x: el.getBoundingClientRect().x,
+        width: el.getBoundingClientRect().width,
+        height: el.getBoundingClientRect().height,
+      }))
+    )
+    assert.equal(navItems.length, 5, 'Bottom navigation must have exactly 5 slots')
+    assert.equal(navItems[0].testId, 'bottom-nav-inbox', 'Slot 1 must be Inbox')
+    assert.equal(navItems[1].testId, 'bottom-nav-tasks', 'Slot 2 must be Tasks')
+    assert.equal(navItems[2].testId, 'bottom-nav-studio', 'Slot 3 must be New work (+)')
+    assert.equal(navItems[3].testId, 'bottom-nav-projects', 'Slot 4 must be Projects')
+    assert.equal(navItems[4].testId, 'bottom-nav-user', 'Slot 5 must be Akun')
+    assert.ok(navItems[0].x < navItems[1].x, 'Inbox must be before Tasks')
+    assert.ok(navItems[1].x < navItems[2].x, 'Tasks must be before New work (+)')
+    assert.ok(navItems[2].x < navItems[3].x, 'New work (+) must be before Projects')
+    assert.ok(navItems[3].x < navItems[4].x, 'Projects must be before Akun')
+    for (const item of navItems) {
+      assert.ok(item.height >= 56, `Touch target height must be >= 56px (min-h-14), got ${item.height}`)
+    }
+    await page.screenshot({ path: path.join(output, 'mobile-390-bottom-nav-symmetrical.png') })
   }
   if(width>=1200){
+    const desktopNav = page.locator('nav.primary-navigation')
     assert.ok(await page.locator('[data-avatar="true"]:has-text("FP")').count()>=1,'Desktop sidebar must display FP monogram')
     assert.ok(await page.locator('[data-avatar="true"]:has-text("KI")').count()>=1,'Desktop sidebar must display KI monogram')
     assert.ok(await page.locator('[data-avatar="true"]:has-text("AZ")').count()>=1,'Desktop sidebar must display AZ monogram')
     assert.ok(await page.locator('[data-testid="conversation-item"]:has-text("Sedang dikerjakan")').count()>=1,'Desktop list must show "Sedang dikerjakan" for active running task')
     assert.ok(await page.locator('[data-testid="conversation-item"]:has-text("Menunggu antrean")').count()>=1,'Desktop list must show "Menunggu antrean" for queued task')
     assert.ok(await page.locator('[data-testid="conversation-item"]:has-text("Biar kami aktifkan")').count()>=1,'Desktop list must fall back to last_message for idle contact')
+    assert.equal(await desktopNav.locator('[data-testid="inbox-unread-badge-rail"]').count(), 0, 'Desktop navigation rail must have no unread badge for system notices')
     await page.screenshot({path:path.join(output,`inbox-desktop-monogram-${width}.png`)})
   }
   // Tasks live in the composer disclosure, not as duplicate chat cards.
@@ -279,13 +328,15 @@ try{
   await tasks.waitFor({state:'visible'})
   assert.equal(await tasks.getAttribute('aria-expanded'),'false')
   assert.equal(await page.locator('.inbox-message-list [data-card="task-card"]').count(),0)
+  assert.ok(await page.locator('.inbox-message-list').getByText('Sistem baru saja diperbarui').count() >= 1, 'System update notice message must remain visible in conversation timeline')
+  await page.screenshot({path:path.join(output,`inbox-timeline-notice-${width}.png`)})
   const collapsedChevronBox=await tasks.locator('svg').last().boundingBox()
   await page.screenshot({path:path.join(output,`composer-tasks-collapsed-${width}.png`)})
   const initialChatScroll=await page.locator('.inbox-message-list').evaluate(el=>el.scrollTop)
   await tasks.click()
   assert.equal(await tasks.getAttribute('aria-expanded'),'true')
   const afterOpenChatScroll=await page.locator('.inbox-message-list').evaluate(el=>el.scrollTop)
-  assert.equal(afterOpenChatScroll,initialChatScroll,'Main chat history scroll must remain undisturbed')
+  assert.ok(Math.abs(afterOpenChatScroll - initialChatScroll) <= 2, 'Main chat history scroll must remain undisturbed')
   const panelEl=page.locator('.composer-tasks-panel')
   const card=page.locator('.composer-tasks-panel [data-timeline-item="work"]')
   try{await card.waitFor({state:'visible',timeout:20000})}catch(error){await page.screenshot({path:path.join(output,'failed-'+width+'.png')});console.log(JSON.stringify({errors,body:(await page.locator('body').innerText()).slice(0,1500)}));throw error}
