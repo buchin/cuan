@@ -342,7 +342,7 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
             ) : hasTasks ? (
               <svg
                 viewBox="0 0 16 16"
-                className={cn("h-4 w-4", isWorking && "task-pulse-subtle")}
+                className="h-4 w-4"
                 data-testid="task-pie-progress"
               >
                 <circle
@@ -380,6 +380,15 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
               <span className={cn("text-sm truncate", unread > 0 ? "font-bold text-foreground" : "font-medium text-foreground/90")}>
                 {contact.name}
               </span>
+              {isWorking && (
+                <StatusDot
+                  status="working"
+                  size="md"
+                  title={t('Working on tasks')}
+                  aria-label={t('Working on tasks')}
+                  className="shrink-0"
+                />
+              )}
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <span className="text-xs tabular-nums text-muted-foreground">
