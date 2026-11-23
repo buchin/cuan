@@ -342,7 +342,7 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
             ) : hasTasks ? (
               <svg
                 viewBox="0 0 16 16"
-                className="h-4 w-4"
+                className={cn("h-4 w-4", isWorking && "task-pulse-subtle")}
                 data-testid="task-pie-progress"
               >
                 <circle
