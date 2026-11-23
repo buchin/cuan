@@ -19,6 +19,8 @@ func EffectiveStatus(status, attempt, launch string) string {
 		return "canceled"
 	case attempt == "failed" || attempt == "interrupted" || status == "failed":
 		return "blocked"
+	case status == "queued" || status == "pending":
+		return "queued"
 	case launch == "stopped" && attempt != "succeeded":
 		return "blocked"
 	default:
@@ -35,5 +37,6 @@ const EffectiveStatusSQL = `CASE
  WHEN a.status = 'queued' THEN 'queued'
  WHEN a.status IN ('canceled','cancelled') OR l.state = 'cancelled' OR lower(btrim(t.status)) IN ('canceled','cancelled') THEN 'canceled'
  WHEN a.status IN ('failed','interrupted') OR lower(btrim(t.status)) = 'failed' THEN 'blocked'
+ WHEN lower(btrim(t.status)) IN ('queued','pending') THEN 'queued'
  WHEN l.state = 'stopped' AND COALESCE(a.status, '') != 'succeeded' THEN 'blocked'
  ELSE lower(btrim(t.status)) END`

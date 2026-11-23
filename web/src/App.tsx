@@ -12,6 +12,7 @@ import { projectsApi } from './api/projects'
 import { tasksApi } from './api/tasks'
 import { chatApi, ChatContact } from './api/chat'
 import { InboxSubPanel, ContactFilterTab } from './features/inbox/InboxSubPanel'
+import { getRoomActiveSubstage } from './features/inbox/task-substage'
 import { Project, Task, CreateTaskRequest, ProjectType } from './api/types'
 import { useMediaQuery } from './hooks/useMediaQuery'
 import { useArchivedItems } from './hooks/useArchivedItems'
@@ -357,7 +358,30 @@ export function App() {
   const refreshContacts = useCallback(async () => {
     try {
       const list = await chatApi.listContacts()
-      setContacts(previous => areContactsEqual(previous, list) ? previous : list)
+      setContacts(previous => {
+        const prevMap = new Map<string, ChatContact>()
+        for (const p of previous) {
+          if (p.id) prevMap.set(p.id, p)
+          if (p.conversation_id) prevMap.set(p.conversation_id, p)
+        }
+        const merged = list.map(c => {
+          const id = c.conversation_id || c.id
+          const prev = (c.id ? prevMap.get(c.id) : undefined) || (c.conversation_id ? prevMap.get(c.conversation_id) : undefined)
+          const cachedSubstage = id ? getRoomActiveSubstage(id) : undefined
+          const substage = c.active_substage || prev?.active_substage || cachedSubstage
+          const cQueued = typeof c.queued_tasks === 'number' ? c.queued_tasks : Number(c.queued_tasks) || 0
+          const prevQueued = typeof prev?.queued_tasks === 'number' ? prev.queued_tasks : Number(prev?.queued_tasks) || 0
+          const queued = cQueued > 0
+            ? cQueued
+            : (prevQueued > 0 && (c.active_tasks || 0) === 0 && (c.review_tasks || 0) === 0 && (c.task_count || 0) > (c.done_tasks || 0) + (c.canceled_tasks || 0) ? prevQueued : cQueued)
+          return {
+            ...c,
+            queued_tasks: queued,
+            active_substage: substage,
+          }
+        })
+        return areContactsEqual(previous, merged) ? previous : merged
+      })
       setContactsError('')
     } catch { setContactsError('Could not load contacts. Check your connection and try again.') }
     finally { setContactsLoading(false) }
