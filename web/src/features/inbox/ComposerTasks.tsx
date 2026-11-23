@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { CheckCircle2, Clock3, CheckCheck, AlertCircle, ChevronDown, Terminal } from 'lucide-react'
+import { CheckCircle2, Clock3, CheckCheck, AlertCircle, ChevronDown, Terminal, ArrowLeft } from 'lucide-react'
 import type { Task } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
 import { StatusDot } from '../../components/ui/StatusDot'
@@ -149,7 +149,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
       </button>}
     </div>
     {tasks.length > 0 && <div className="calm-stream-constraint max-w-[75ch] mx-auto w-full">
-      <div ref={panelRef} hidden={!open} id={id} className="composer-tasks-panel overscroll-contain overflow-y-auto scroll-pb-2 max-h-[40vh] pt-0 pb-1">
+      <div ref={panelRef} hidden={!open} id={id} className="composer-tasks-panel overscroll-contain overflow-y-auto scroll-pb-2 h-[calc(100dvh-120px)] sm:h-auto sm:max-h-[calc(100dvh-160px)] pt-0 pb-1">
         <AccordionTimeline label={t('Conversation tasks')} showTriggerCaret={false} defaultExpandedIds={defaultExpandedIds} className="px-0 pb-2.5 pt-0" items={ordered.map((task, index) => {
           const work = workStatus(task)
           const status = workDisplayStatus(task)
@@ -227,6 +227,21 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
             </>
           }
         })} />
+        <div className="pt-4 pb-8 flex items-center justify-center border-t border-border/20 mt-4">
+          <button
+            type="button"
+            data-testid="composer-tasks-back"
+            aria-label={t('Back to conversation')}
+            onClick={() => {
+              setOpen(false)
+              trigger.current?.focus()
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border/50 bg-muted/40 hover:bg-muted text-xs font-medium text-foreground transition-colors min-h-11 sm:min-h-9 shadow-xs cursor-pointer select-none"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            <span>{t('Back to conversation')}</span>
+          </button>
+        </div>
       </div>
     </div>}
   </section>
@@ -247,5 +262,5 @@ function TaskTerminalAction({ task, onTerminal }: { task: Task; onTerminal: (tas
     return () => { live = false; clearInterval(timer) }
   }, [task.id, attempt])
   if (!attempt || available !== attempt) return null
-  return <button type="button" className="inline-flex items-center gap-1.5" onClick={() => onTerminal(task)}><Terminal className="h-3.5 w-3.5" />{t('Live terminal')}</button>
+  return <button type="button" className="inline-flex items-center gap-1.5" onClick={() => onTerminal(task)}><Terminal className="h-3.5 w-3.5" />{t('Terminal')}</button>
 }
