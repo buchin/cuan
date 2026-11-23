@@ -102,10 +102,20 @@ func (s *Service) ApplyTaskBranch(ctx context.Context, projectID, branchName, ti
 		}
 		res, err := s.gitClient.MergeBranch(ctx, git.MergeBranchRequest{Owner: owner, Repo: repo, BaseBranch: defaultBranch, SourceCommit: sourceCommit, Message: mergeMsg, Token: token})
 		if err == nil && res != nil {
+			if p.LocalPath != "" {
+				_ = s.gitClient.CloneOrFetch(ctx, owner, repo, token, p.LocalPath)
+			}
 			return res, nil
 		}
 		if p.LocalPath != "" {
-			return s.gitClient.MergeLocalBranch(ctx, p.LocalPath, defaultBranch, branchName, sourceCommit, mergeMsg)
+			localRes, localErr := s.gitClient.MergeLocalBranch(ctx, p.LocalPath, defaultBranch, branchName, sourceCommit, mergeMsg)
+			if localErr != nil {
+				return nil, localErr
+			}
+			if p.RepoURL != "" && strings.TrimSpace(token) != "" {
+				_ = s.gitClient.PushCommitToBranch(ctx, p.LocalPath, p.RepoURL, defaultBranch, localRes.SHA, token)
+			}
+			return localRes, nil
 		}
 		return nil, err
 	}
