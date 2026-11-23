@@ -58,7 +58,6 @@ export function ProjectsView({
         (item) =>
           (item.project_id === projId || item.project_ids?.includes(projId)) &&
           item.title.startsWith('Terminal ·') &&
-          item.status !== 'done' &&
           (item.status as string) !== 'cancelled',
       )
 
@@ -72,7 +71,6 @@ export function ProjectsView({
           })
           targetTask = res.tasks.find((item) =>
             item.title.startsWith('Terminal ·') &&
-            item.status !== 'done' &&
             (item.status as string) !== 'cancelled',
           )
         } catch {}

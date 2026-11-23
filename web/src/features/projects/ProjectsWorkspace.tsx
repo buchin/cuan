@@ -184,7 +184,6 @@ export function ProjectsWorkspace({
         (item) =>
           (item.project_id === projId || item.project_ids?.includes(projId)) &&
           item.title.startsWith('Terminal ·') &&
-          item.status !== 'done' &&
           (item.status as string) !== 'cancelled',
       )
 
@@ -198,7 +197,6 @@ export function ProjectsWorkspace({
           })
           targetTask = res.tasks.find((item) =>
             item.title.startsWith('Terminal ·') &&
-            item.status !== 'done' &&
             (item.status as string) !== 'cancelled',
           )
         } catch {}
@@ -240,13 +238,7 @@ export function ProjectsWorkspace({
         )
       } catch {}
 
-      const isFinished = (targetTask.status as string) === 'cancelled' ||
-        targetTask.status === 'done' ||
-        targetTask.latest_attempt?.status === 'canceled' ||
-        targetTask.latest_attempt?.status === 'succeeded' ||
-        targetTask.latest_attempt?.status === 'failed'
-
-      const targetSessionId = !isFinished && targetTask.latest_attempt?.id ? targetTask.latest_attempt.id : 'start'
+      const targetSessionId = targetTask.latest_attempt?.id || 'latest'
 
       if (popout) {
         const popoutUrl = `/tasks/${encodeURIComponent(targetTask.id)}/sessions/${encodeURIComponent(targetSessionId)}?terminal=open&popout=true`

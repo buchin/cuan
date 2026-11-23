@@ -56,13 +56,14 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         }
         setValue(next)
         if (typeof window !== 'undefined' && localStorage.getItem('cuan_token')) {
+          const nextLocale = next === 'auto' ? resolveLanguage(next, languages) : next
           fetch('/api/v1/profile', {
             method: 'PATCH',
             headers: {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${localStorage.getItem('cuan_token')}`,
             },
-            body: JSON.stringify({ locale: next }),
+            body: JSON.stringify({ locale: nextLocale }),
           }).catch(() => {})
         }
       },
@@ -78,18 +79,17 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   )
   useEffect(() => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('cuan_token') : ''
-    const current = typeof window !== 'undefined' ? localStorage.getItem('cuan-language') : ''
-    if (token && current) {
+    if (token) {
       fetch('/api/v1/profile', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ locale: current }),
+        body: JSON.stringify({ locale: language }),
       }).catch(() => {})
     }
-  }, [])
+  }, [language])
   useEffect(() => {
     document.documentElement.lang = language
   }, [language])

@@ -16,7 +16,7 @@ func (r *SQLProjectStudioRepository) SetRoomResolved(ctx context.Context, id str
 	if !IsValidUUID(id) {
 		return ErrInvalidUUID
 	}
-	result, err := r.db.ExecContext(ctx, `UPDATE project_rooms SET resolved_at=$2 WHERE id=$1 AND ($2::timestamptz IS NULL OR NOT EXISTS (SELECT 1 FROM project_messages WHERE room_id=$1 AND created_at>$2 AND author_id NOT IN ('cuan_system_lifecycle', 'cuan_work_review')))`, id, at)
+	result, err := r.db.ExecContext(ctx, `UPDATE project_rooms SET resolved_at=$2 WHERE id=$1 AND ($2::timestamptz IS NULL OR NOT EXISTS (SELECT 1 FROM project_messages WHERE room_id=$1 AND created_at>$2 AND author_id NOT IN ('cuan_system_lifecycle', 'cuan_work_review') AND sender_type NOT IN ('system', 'cuan_system_lifecycle', 'cuan_work_review') AND content NOT LIKE 'This update is no longer current%' AND content NOT LIKE 'Review the result for%'))`, id, at)
 	if err != nil {
 		return fmt.Errorf("save conversation resolution: %w", err)
 	}

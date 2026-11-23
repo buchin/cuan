@@ -1095,8 +1095,14 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 				return
 			}
 			if detail.Status == task.TaskStatusDone {
-				respondJSONError(w, 409, "Reopen the completed task before starting a new session")
-				return
+				if strings.HasPrefix(detail.Title, "Terminal ·") {
+					doingStatus := task.TaskStatusDoing
+					_, _ = s.taskSvc.UpdateTask(r.Context(), detail.ID, "runner", task.UpdateTaskRequest{Status: &doingStatus})
+					detail.Status = task.TaskStatusDoing
+				} else {
+					respondJSONError(w, 409, "Reopen the completed task before starting a new session")
+					return
+				}
 			}
 			sourceRoom = detail.SourceRoomID
 			if detail.SourceRoomID != "" {

@@ -597,12 +597,6 @@ func (s *Server) autoResolveCompletedConversations(ctx context.Context) {
 			continue
 		}
 
-		// Fast path: if the latest message is newer than the 24-hour cutoff,
-		// the conversation has recent activity and cannot be auto-resolved.
-		if latestMsg.CreatedAt.After(cutoff) {
-			continue
-		}
-
 		// Ensure there are no active, running, queued, or blocked tasks/launches/requests
 		blocker, err := s.conversationResolutionBlocker(ctx, room.ID)
 		if err != nil || blocker != "" {
@@ -617,11 +611,13 @@ func (s *Server) autoResolveCompletedConversations(ctx context.Context) {
 			hasTasks = len(legacy) > 0
 		}
 
+		roomCutoff := cutoff // default 24h for customer chats without tasks
 		if hasTasks {
-			// All tasks must have completed > 24 hours ago
+			// For completed tasks: 15-minute grace period after completion/read
+			roomCutoff = time.Now().UTC().Add(-15 * time.Minute)
 			allTasksOld := true
 			for _, t := range tasks {
-				if t.UpdatedAt.After(cutoff) {
+				if t.UpdatedAt.After(roomCutoff) {
 					allTasksOld = false
 					break
 				}
@@ -630,6 +626,10 @@ func (s *Server) autoResolveCompletedConversations(ctx context.Context) {
 				continue
 			}
 		} else {
+			// Fast path for non-task chats: check 24h cutoff
+			if latestMsg.CreatedAt.After(roomCutoff) {
+				continue
+			}
 			// Normal chat without tasks:
 			// Unanswered customer messages must NEVER be auto-resolved
 			if latestMsg.AuthorType != "agent" && latestMsg.AuthorType != "system" {
@@ -638,7 +638,7 @@ func (s *Server) autoResolveCompletedConversations(ctx context.Context) {
 		}
 
 		// Enforce read-aware grace period: if the latest message was sent by an agent/system,
-		// the 24-hour countdown must only begin AFTER the operator has actually read it.
+		// the grace countdown must only begin AFTER the operator has actually read it.
 		// If unread, it must remain in the Inbox so the operator never misses the completed result.
 		if latestMsg.AuthorType == "agent" || latestMsg.AuthorType == "system" {
 			var readAt *time.Time
@@ -676,18 +676,20 @@ func (s *Server) autoResolveCompletedConversations(ctx context.Context) {
 				}
 			}
 
-			// If the completion message has never been read, keep it in Inbox!
+			// If the completion message has never been explicitly marked with a read receipt:
 			if readAt == nil {
 				// If customer live chat and answered by system/agent > 24h ago with no visitor replies:
 				if !hasTasks && latestMsg.CreatedAt.Before(cutoff) {
+					readAt = &latestMsg.CreatedAt
+				} else if hasTasks && latestMsg.CreatedAt.Before(roomCutoff) {
 					readAt = &latestMsg.CreatedAt
 				} else {
 					continue
 				}
 			}
 
-			// 24-hour grace period must elapse AFTER the message was read
-			if readAt.After(cutoff) {
+			// Grace period must elapse AFTER the message was read
+			if readAt.After(roomCutoff) {
 				continue
 			}
 		}

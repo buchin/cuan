@@ -260,3 +260,23 @@ test('11. Terminal back button cleans openTerminal state to prevent infinite bac
     'ProjectsWorkspace must not set openTerminal in task session state',
   )
 })
+
+test('12. TaskStartingPage proactively reopens done tasks before running agent', () => {
+  const startingPagePath = path.join(
+    rootDir,
+    'src/features/tasks/TaskStartingPage.tsx',
+  )
+  const startingContent = fs.readFileSync(startingPagePath, 'utf8')
+
+  assert.match(
+    startingContent,
+    /taskStatus === 'done'/,
+    'TaskStartingPage checks taskStatus before running agent',
+  )
+  assert.match(
+    startingContent,
+    /await tasksApi\.updateStatus\(taskId, 'todo'\)/,
+    'TaskStartingPage reopens task to todo when status is done',
+  )
+})
+

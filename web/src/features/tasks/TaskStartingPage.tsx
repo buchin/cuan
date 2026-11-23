@@ -26,6 +26,7 @@ export function TaskStartingPage({ taskId }: { taskId: string }) {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(''),
     [title, setTitle] = useState(''),
+    [taskStatus, setTaskStatus] = useState(''),
     [agents, setAgents] = useState<Agent[]>([]),
     [selectedAgent, setSelectedAgent] = useState<string>('')
   const mounted = useRef(false),
@@ -49,6 +50,7 @@ export function TaskStartingPage({ taskId }: { taskId: string }) {
       .then((t) => {
         if (mounted.current) {
           setTitle(t.title)
+          setTaskStatus(t.status)
           if (t.assignee_id) setSelectedAgent(t.assignee_id)
         }
       })
@@ -72,6 +74,12 @@ export function TaskStartingPage({ taskId }: { taskId: string }) {
     setBusy(true)
     setError('')
     try {
+      if (taskStatus === 'done') {
+        try {
+          await tasksApi.updateStatus(taskId, 'todo')
+          setTaskStatus('doing')
+        } catch {}
+      }
       const result = await tasksApi.runAgent(taskId, request)
       if (!result.attempt) throw new Error('The session was not confirmed.')
       try {
@@ -192,8 +200,9 @@ export function TaskStartingPage({ taskId }: { taskId: string }) {
                   agent_id: selectedAgent,
                 }
                 try {
-                  if (error.includes('Reopen the completed task')) {
+                  if (error.includes('Reopen the completed task') || taskStatus === 'done') {
                     await tasksApi.updateStatus(taskId, 'todo')
+                    setTaskStatus('doing')
                   }
                   localStorage.setItem(key, JSON.stringify(req))
                   const result = await tasksApi.runAgent(taskId, req)
