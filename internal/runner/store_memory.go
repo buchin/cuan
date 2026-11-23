@@ -224,7 +224,7 @@ func (m *MemoryStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID strin
 					isOtherActive := false
 					if otherTask.Status == task.TaskStatusDoing || otherTask.Status == "working" {
 						isOtherActive = true
-					} else if !isTerminalTaskStatus(otherTask.Status) && otherTask.Status != task.TaskStatusBacklog && otherTask.Status != "todo" && time.Since(otherTask.UpdatedAt) < 15*time.Minute {
+					} else if !isTerminalTaskStatus(otherTask.Status) && otherTask.Status != task.TaskStatusBacklog && otherTask.Status != "todo" && otherTask.Status != task.TaskStatusQueued && time.Since(otherTask.UpdatedAt) < 15*time.Minute {
 						// Full task affinity: in-progress tasks retain lock across review and staging until terminal status
 						isOtherActive = true
 					} else {
