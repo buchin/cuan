@@ -511,15 +511,27 @@ func ListInboxConversations(ctx context.Context, projectID string, limit int) (a
 		}, nil
 	}
 
-	query := "SELECT id, project_id, title, topic, created_at, updated_at FROM project_rooms WHERE 1=1"
+	query := `
+		SELECT r.id, r.project_id, r.title, r.topic, r.created_at, r.updated_at,
+		       COALESCE(tc.total, 0), COALESCE(tc.active, 0)
+		FROM project_rooms r
+		LEFT JOIN (
+			SELECT source_room_id,
+			       COUNT(*) AS total,
+			       COUNT(CASE WHEN status NOT IN ('done', 'canceled', 'cancelled') THEN 1 END) AS active
+			FROM tasks
+			WHERE source_room_id IS NOT NULL
+			GROUP BY source_room_id
+		) tc ON tc.source_room_id = r.id
+		WHERE 1=1`
 	args := []any{}
 	argIdx := 1
 	if projectID != "" {
-		query += fmt.Sprintf(" AND (project_id = $%d OR project_id IN (SELECT id FROM projects WHERE LOWER(name) = LOWER($%d)))", argIdx, argIdx)
+		query += fmt.Sprintf(" AND (r.project_id = $%d OR r.project_id IN (SELECT id FROM projects WHERE LOWER(name) = LOWER($%d)))", argIdx, argIdx)
 		args = append(args, projectID)
 		argIdx++
 	}
-	query += fmt.Sprintf(" ORDER BY updated_at DESC LIMIT $%d", argIdx)
+	query += fmt.Sprintf(" ORDER BY r.updated_at DESC LIMIT $%d", argIdx)
 	args = append(args, limit)
 
 	rows, err := db.QueryContext(ctx, query, args...)
@@ -532,16 +544,11 @@ func ListInboxConversations(ctx context.Context, projectID string, limit int) (a
 	for rows.Next() {
 		var c InboxConversation
 		var createdAt, updatedAt time.Time
-		if err := rows.Scan(&c.ID, &c.ProjectID, &c.Title, &c.Topic, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.ProjectID, &c.Title, &c.Topic, &createdAt, &updatedAt, &c.TaskCount, &c.ActiveTasks); err != nil {
 			return nil, err
 		}
 		c.CreatedAt = createdAt.Format(time.RFC3339)
 		c.UpdatedAt = updatedAt.Format(time.RFC3339)
-
-		var tc, at int
-		_ = db.QueryRowContext(ctx, "SELECT COUNT(*), COUNT(CASE WHEN status != 'done' THEN 1 END) FROM tasks WHERE room_id = $1", c.ID).Scan(&tc, &at)
-		c.TaskCount = tc
-		c.ActiveTasks = at
 
 		convs = append(convs, c)
 	}
