@@ -9,16 +9,16 @@ import {
   Rocket,
   Globe,
   ChevronRight,
-  ChevronDown,
   Copy,
   Check,
   RefreshCw,
   AlertCircle,
-  Terminal,
   Ban
 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { SlideDrawer } from '../../components/layout/SlideDrawer'
+import { AccordionTimeline, AccordionTimelineItem } from '../../components/ui/AccordionTimeline'
+import { StatusDot } from '../../components/ui/StatusDot'
 import {
   projectsApi,
   ProjectDeploymentsResponse
@@ -39,7 +39,6 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
   const [cancelingId, setCancelingId] = useState<string | null>(null)
   const [selectedDepId, setSelectedDepId] = useState<string | null>(null)
   const [copiedSha, setCopiedSha] = useState(false)
-  const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({})
 
   const selectedDeployment = useMemo(() => {
     if (!selectedDepId || !data) return null
@@ -126,13 +125,6 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
     setTimeout(() => setCopiedSha(false), 2000)
   }
 
-  const toggleLog = (stepId: string) => {
-    setExpandedLogs((prev) => ({
-      ...prev,
-      [stepId]: !prev[stepId]
-    }))
-  }
-
   const renderStatusIcon = (status: string, size = 'md') => {
     const dim = size === 'sm' ? 'h-4 w-4' : 'h-5 w-5'
     switch (status) {
@@ -163,6 +155,47 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
         )
     }
   }
+
+  const timelineItems: AccordionTimelineItem[] = useMemo(() => {
+    if (!selectedDeployment?.steps) return []
+    return selectedDeployment.steps.map((step) => {
+      let indicator: React.ReactNode = <StatusDot size="md" status="neutral" aria-hidden />
+      if (step.status === 'success') {
+        indicator = <CheckCircle2 className="h-4 w-4 text-[color:var(--status-success)]" aria-hidden />
+      } else if (step.status === 'building') {
+        indicator = <StatusDot size="md" status="working" pulse aria-hidden />
+      } else if (step.status === 'failed') {
+        indicator = <StatusDot size="md" status="danger" aria-hidden />
+      } else if (step.status === 'pending') {
+        indicator = <StatusDot size="md" status="idle" aria-hidden />
+      }
+
+      const hasContent = !!step.summary || !!step.log
+
+      return {
+        id: step.id,
+        title: <span className="font-medium text-foreground text-sm">{step.name}</span>,
+        meta: step.duration && (
+          <span className="font-mono text-[11px] text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded">
+            {step.duration}
+          </span>
+        ),
+        indicator,
+        content: hasContent ? (
+          <div className="space-y-2 pt-1 text-xs">
+            {step.summary && (
+              <p className="text-muted-foreground">{step.summary}</p>
+            )}
+            {step.log && (
+              <pre className="mt-1.5 rounded-lg bg-neutral-950 p-3 font-mono text-[11px] leading-relaxed text-neutral-300 overflow-x-auto whitespace-pre-wrap select-text border border-neutral-800 shadow-inner">
+                {step.log}
+              </pre>
+            )}
+          </div>
+        ) : undefined,
+      }
+    })
+  }, [selectedDeployment?.steps])
 
   return (
     <div className="flex h-full flex-col bg-background text-foreground">
@@ -380,106 +413,24 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
               </div>
             </div>
 
-            {/* Vertical Timeline with Continuous Vertical Connecting Line */}
+            {/* Standard Unified AccordionTimeline */}
             <div className="space-y-3">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
                 {t('Deployment Timeline')}
               </h3>
 
-              {/* The Timeline Container with Continuous Vertical Line */}
-              <div className="relative pl-6">
-                {/* Continuous Vertical Line Connector */}
-                <div
-                  data-timeline-connector="true"
-                  className="absolute left-[15px] top-3 bottom-3 w-0.5 bg-border/60 -translate-x-1/2"
-                  aria-hidden="true"
+              {timelineItems.length > 0 ? (
+                <AccordionTimeline
+                  label={t('Deployment Timeline')}
+                  items={timelineItems}
+                  followLatest
+                  showTriggerCaret
                 />
-
-                {selectedDeployment.steps && selectedDeployment.steps.length > 0 ? (
-                  selectedDeployment.steps.map((step) => {
-                    const isExpanded = !!expandedLogs[step.id] || step.status === 'failed' || step.status === 'building'
-
-                    let stepIcon = (
-                      <div className="h-2 w-2 rounded-full bg-muted-foreground/40" />
-                    )
-                    if (step.status === 'success') {
-                      stepIcon = <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400 stroke-[3]" />
-                    } else if (step.status === 'building') {
-                      stepIcon = <Loader2 className="h-3 w-3 text-sky-600 dark:text-sky-400 animate-spin" />
-                    } else if (step.status === 'failed') {
-                      stepIcon = <XCircle className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
-                    }
-
-                    return (
-                      <div key={step.id} className="relative flex items-start gap-3.5 pb-6 last:pb-0">
-                        {/* Step Circle Node on the vertical line */}
-                        <div
-                          className={`relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-card border-2 shadow-2xs ${
-                            step.status === 'success'
-                              ? 'border-emerald-500/60 bg-emerald-500/10'
-                              : step.status === 'building'
-                              ? 'border-sky-500/60 bg-sky-500/10'
-                              : step.status === 'failed'
-                              ? 'border-rose-500/60 bg-rose-500/10'
-                              : 'border-border/60 bg-muted/60'
-                          }`}
-                        >
-                          {stepIcon}
-                        </div>
-
-                        {/* Step Details & Logs */}
-                        <div className="min-w-0 flex-1 pt-0.5">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span className="text-sm font-medium text-foreground">
-                              {step.name}
-                            </span>
-                            {step.duration && (
-                              <span className="font-mono text-[11px] text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded">
-                                {step.duration}
-                              </span>
-                            )}
-                          </div>
-
-                          {step.summary && (
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {step.summary}
-                            </p>
-                          )}
-
-                          {/* Expandable Step Logs */}
-                          {step.log && (
-                            <div className="mt-2">
-                              <button
-                                type="button"
-                                onClick={() => toggleLog(step.id)}
-                                className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                              >
-                                <Terminal className="h-3 w-3" />
-                                <span>{isExpanded ? t('Sembunyikan log') : t('Lihat log stdout/stderr')}</span>
-                                {isExpanded ? (
-                                  <ChevronDown className="h-3 w-3" />
-                                ) : (
-                                  <ChevronRight className="h-3 w-3" />
-                                )}
-                              </button>
-
-                              {isExpanded && (
-                                <pre className="mt-2 rounded-lg bg-neutral-950 p-3 font-mono text-[11px] leading-relaxed text-neutral-300 overflow-x-auto whitespace-pre-wrap select-text border border-neutral-800 shadow-inner">
-                                  {step.log}
-                                </pre>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })
-                ) : (
-                  <p className="text-xs text-muted-foreground py-2">
-                    {t('Tidak ada detail langkah yang tercatat.')}
-                  </p>
-                )}
-              </div>
+              ) : (
+                <p className="text-xs text-muted-foreground py-2 px-1">
+                  {t('Tidak ada detail langkah yang tercatat.')}
+                </p>
+              )}
             </div>
           </div>
         )}

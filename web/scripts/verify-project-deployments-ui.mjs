@@ -287,10 +287,10 @@ try {
   await pageDesktop.waitForSelector('[data-slide-drawer], dialog[open]', { timeout: 8000 })
   await pageDesktop.waitForTimeout(600)
 
-  // Verify continuous vertical connecting line exists
-  const connector = pageDesktop.locator('[data-timeline-connector="true"]')
-  await connector.waitFor({ state: 'attached', timeout: 6000 })
-  assert.ok(await connector.count() > 0, 'continuous vertical connecting line should be present')
+  // Verify continuous vertical connecting line exists in standard AccordionTimeline
+  const connector = pageDesktop.locator('[data-timeline-connector]')
+  await connector.first().waitFor({ state: 'attached', timeout: 6000 })
+  assert.ok(await connector.count() > 0, 'continuous vertical connecting line should be present in AccordionTimeline')
 
   // Capture SlideDrawer with continuous vertical timeline
   const drawerShotPath = path.join(output, 'project-deployments-drawer-timeline.png')
