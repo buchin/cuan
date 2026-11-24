@@ -449,7 +449,7 @@ export function ProjectsWorkspace({
                 </details>
               </div>
             </div>}
-            {!taskId && <nav aria-label={t('Project navigation')} className="flex shrink-0 gap-5 border-b bg-transparent px-4 sm:px-5">
+            {!taskId && <nav aria-label={t('Project navigation')} className="flex shrink-0 gap-5 border-b bg-transparent px-4 sm:px-5 overflow-x-auto no-scrollbar scrollbar-none">
               {[
                 {label: 'Settings', path: 'settings', active: !!settingsContent && !repositoryView && !environmentView && !deploymentsView},
                 {label: 'Environment', path: 'environment', active: !!settingsContent && environmentView},
@@ -460,7 +460,7 @@ export function ProjectsWorkspace({
                 key={item.path}
                 to={`/projects/${encodeURIComponent(project.id)}/${item.path}`}
                 aria-current={item.active ? 'page' : undefined}
-                className={`inline-flex min-h-11 items-center border-b-2 text-sm bg-transparent transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${item.active ? 'border-primary font-medium text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                className={`inline-flex min-h-11 shrink-0 whitespace-nowrap items-center border-b-2 text-sm bg-transparent transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${item.active ? 'border-primary font-medium text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
               >{t(item.label)}</Link>)}
             </nav>}
             {saveError && (
