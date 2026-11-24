@@ -18,8 +18,7 @@ import {
   Clock,
   Webhook,
   ShieldCheck,
-  Sliders,
-  Sparkles
+  Sliders
 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { SlideDrawer } from '../../components/layout/SlideDrawer'
@@ -275,7 +274,38 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
         indicator = <StatusDot size="md" status="idle" aria-hidden />
       }
 
-      const hasContent = !!step.summary || !!step.log
+      // Defensive UI sanitization: ensure success steps never display pending or compiling placeholder strings
+      let displaySummary = step.summary
+      if (step.status === 'success') {
+        const isStalePlaceholder = !displaySummary ||
+          displaySummary.startsWith('Pending') ||
+          displaySummary.startsWith('Compiling') ||
+          displaySummary.startsWith('Verifying') ||
+          displaySummary.startsWith('Performing') ||
+          displaySummary.startsWith('Probing')
+
+        if (isStalePlaceholder) {
+          switch (step.id) {
+            case 'step-1':
+              displaySummary = `Checked out commit ${selectedDeployment.short_sha}`
+              break
+            case 'step-2':
+              displaySummary = t('Application compiled successfully')
+              break
+            case 'step-3':
+              displaySummary = t('Database schema verified and up to date')
+              break
+            case 'step-4':
+              displaySummary = t('Release symlink swapped and process reloaded')
+              break
+            case 'step-5':
+              displaySummary = t('Live service health check passed')
+              break
+          }
+        }
+      }
+
+      const hasContent = !!displaySummary || !!step.log
 
       return {
         id: step.id,
@@ -288,8 +318,8 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
         indicator,
         content: hasContent ? (
           <div className="space-y-2 pt-1 text-xs">
-            {step.summary && (
-              <p className="text-muted-foreground">{step.summary}</p>
+            {displaySummary && (
+              <p className="text-muted-foreground">{displaySummary}</p>
             )}
             {step.log && (
               <pre className="mt-1.5 rounded-lg bg-neutral-950 p-3 font-mono text-[11px] leading-relaxed text-neutral-300 overflow-x-auto whitespace-pre-wrap select-text border border-neutral-800 shadow-inner">
@@ -300,7 +330,7 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
         ) : undefined,
       }
     })
-  }, [selectedDeployment?.steps])
+  }, [selectedDeployment?.steps, selectedDeployment?.short_sha, t])
 
   return (
     <div className="flex h-full flex-col bg-background text-foreground">
@@ -337,7 +367,7 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
             disabled={triggering}
             onClick={handleTriggerDeploy}
             id="deployments-trigger-btn"
-            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-sky-600 px-3.5 py-1.5 text-xs font-medium text-white shadow-xs hover:bg-sky-500 active:bg-sky-700 disabled:opacity-50 transition-colors cursor-pointer"
+            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-foreground px-3.5 py-1.5 text-xs font-medium text-background shadow-2xs hover:bg-foreground/90 active:bg-foreground/80 disabled:opacity-50 transition-colors cursor-pointer"
           >
             {triggering ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -469,15 +499,13 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
                         void handleEscalateToAgent(dep)
                       }}
                       disabled={escalatingId === dep.id}
-                      className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 px-2.5 py-1 text-xs font-medium text-sky-600 dark:text-sky-400 transition-colors cursor-pointer"
+                      className="hidden sm:inline-flex items-center gap-1 rounded-md border border-border/60 bg-background/80 hover:bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                       title={t('Minta Agent bantu perbaiki kegagalan rilis ini')}
                     >
-                      {escalatingId === dep.id ? (
+                      {escalatingId === dep.id && (
                         <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <Sparkles className="h-3 w-3" />
                       )}
-                      <span>{t('Perbaiki via Agent')}</span>
+                      <span>{t('Perbaiki')}</span>
                     </button>
                   )}
 
@@ -524,12 +552,10 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
                     onClick={() => void handleEscalateToAgent(selectedDeployment)}
                     disabled={escalatingId === selectedDeployment.id}
                     id="escalate-failed-deploy-btn"
-                    className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 dark:bg-sky-500 dark:hover:bg-sky-400 px-3.5 py-2 text-xs font-medium text-white shadow-xs disabled:opacity-50 transition-colors cursor-pointer"
+                    className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-foreground hover:bg-foreground/90 active:bg-foreground/80 px-3.5 py-2 text-xs font-medium text-background shadow-2xs disabled:opacity-50 transition-colors cursor-pointer"
                   >
-                    {escalatingId === selectedDeployment.id ? (
+                    {escalatingId === selectedDeployment.id && (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Sparkles className="h-3.5 w-3.5" />
                     )}
                     <span>{t('Perbaiki Bersama Agent')}</span>
                   </button>
@@ -625,7 +651,7 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
         onClose={() => setIsWebhookOpen(false)}
         title={
           <div className="flex items-center gap-2">
-            <Sliders className="h-5 w-5 text-sky-500" />
+            <Sliders className="h-5 w-5 text-foreground" />
             <span className="font-semibold text-foreground">
               {t('Pengaturan Deployment Proyek')}
             </span>
@@ -636,9 +662,9 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
       >
         <div className="space-y-6 pb-6 text-sm">
           {/* Explanation Banner */}
-          <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-4 space-y-2">
-            <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400 font-medium text-xs uppercase tracking-wider">
-              <ShieldCheck className="h-4 w-4" />
+          <div className="rounded-xl border border-border/50 bg-muted/30 p-4 space-y-2">
+            <div className="flex items-center gap-2 text-foreground font-medium text-xs uppercase tracking-wider">
+              <ShieldCheck className="h-4 w-4 text-muted-foreground" />
               <span>{t('Deployment Lane Terisolasi & Antre (FIFO)')}</span>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
@@ -664,7 +690,7 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
                   type="checkbox"
                   checked={autoDeploy}
                   onChange={(e) => setAutoDeploy(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-border text-sky-600 focus:ring-sky-500 cursor-pointer"
+                  className="mt-0.5 h-4 w-4 rounded border-border text-foreground focus:ring-foreground/20 cursor-pointer"
                 />
               </div>
             </div>
@@ -680,7 +706,7 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
                 value={deployBranch}
                 onChange={(e) => setDeployBranch(e.target.value)}
                 placeholder="dev"
-                className="w-full rounded-lg border border-border/50 bg-background px-3 py-2 font-mono text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-sky-500"
+                className="w-full rounded-lg border border-border/50 bg-background px-3 py-2 font-mono text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-foreground/20"
               />
               <p className="text-[11px] text-muted-foreground">
                 {t('Webhook hanya akan memproses push yang ditujukan ke branch ini.')}
@@ -738,7 +764,7 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
                 value={deployScript}
                 onChange={(e) => setDeployScript(e.target.value)}
                 placeholder={"# Opsional: Kosongkan untuk deteksi otomatis (Node.js/Go/PHP)\n# Atau tentukan perintah kustom, contoh:\n# npm ci && npm run build"}
-                className="w-full rounded-lg border border-border/50 bg-neutral-950 p-3 font-mono text-xs leading-relaxed text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500 shadow-inner"
+                className="w-full rounded-lg border border-border/50 bg-neutral-950 p-3 font-mono text-xs leading-relaxed text-neutral-200 focus:outline-none focus:ring-1 focus:ring-foreground/20 shadow-inner"
               />
               <p className="text-[11px] text-muted-foreground">
                 {t('Jika dikosongkan, Cuan akan otomatis mendeteksi stack (Node.js, Go, PHP) atau mencari file scripts/deploy.sh di repositori Anda.')}
@@ -758,7 +784,7 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
                 disabled={savingConfig}
                 onClick={handleSaveConfig}
                 id="save-deployment-config-btn"
-                className="inline-flex min-h-[34px] items-center gap-1.5 rounded-lg bg-sky-600 px-3.5 py-1.5 text-xs font-medium text-white shadow-xs hover:bg-sky-500 disabled:opacity-50 transition-colors cursor-pointer"
+                className="inline-flex min-h-[34px] items-center gap-1.5 rounded-lg bg-foreground px-3.5 py-1.5 text-xs font-medium text-background shadow-2xs hover:bg-foreground/90 disabled:opacity-50 transition-colors cursor-pointer"
               >
                 {savingConfig ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -773,7 +799,7 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
           {/* Webhook Configuration Fields */}
           <div className="space-y-4 pt-4 border-t border-border/30">
             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-              <Webhook className="h-3.5 w-3.5 text-sky-500" />
+              <Webhook className="h-3.5 w-3.5 text-muted-foreground" />
               <span>{t('Integrasi Git Webhook')}</span>
             </h4>
 

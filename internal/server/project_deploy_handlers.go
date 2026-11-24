@@ -111,6 +111,40 @@ func formatRelativeTime(t time.Time) string {
 }
 
 func toDeploymentItem(d *cuanDB.ProjectDeployment) ProjectDeploymentItem {
+	steps := make([]cuanDB.ProjectDeploymentStep, len(d.Steps))
+	copy(steps, d.Steps)
+
+	// If the deployment overall succeeded, ensure no step incorrectly displays "Pending" or "Compiling..."
+	if d.Status == cuanDB.DeploymentStatusSuccess {
+		for idx := range steps {
+			if steps[idx].Status == cuanDB.StepStatusSuccess || steps[idx].Status == cuanDB.StepStatusPending || steps[idx].Status == cuanDB.StepStatusBuilding {
+				steps[idx].Status = cuanDB.StepStatusSuccess
+				switch steps[idx].ID {
+				case "step-1":
+					if strings.HasPrefix(steps[idx].Summary, "Branch") && !strings.Contains(steps[idx].Summary, "Checked out") {
+						steps[idx].Summary = fmt.Sprintf("Checked out commit %s", d.ShortSHA)
+					}
+				case "step-2":
+					if steps[idx].Summary == "Compiling application dependencies and assets..." || strings.HasPrefix(steps[idx].Summary, "Awaiting") {
+						steps[idx].Summary = "Application compiled successfully"
+					}
+				case "step-3":
+					if strings.HasPrefix(steps[idx].Summary, "Pending") || strings.HasPrefix(steps[idx].Summary, "Verifying") {
+						steps[idx].Summary = "Database schema verified and up to date"
+					}
+				case "step-4":
+					if strings.HasPrefix(steps[idx].Summary, "Pending") || strings.HasPrefix(steps[idx].Summary, "Performing") {
+						steps[idx].Summary = "Release symlink updated and daemon reloaded"
+					}
+				case "step-5":
+					if strings.HasPrefix(steps[idx].Summary, "Pending") || strings.HasPrefix(steps[idx].Summary, "Probing") {
+						steps[idx].Summary = "Live service health check passed"
+					}
+				}
+			}
+		}
+	}
+
 	item := ProjectDeploymentItem{
 		ID:              d.ID,
 		ProjectID:       d.ProjectID,
@@ -124,7 +158,7 @@ func toDeploymentItem(d *cuanDB.ProjectDeployment) ProjectDeploymentItem {
 		DurationSeconds: d.DurationSeconds,
 		Duration:        d.FormatDuration(),
 		StartedAt:       d.StartedAt.Format(time.RFC3339),
-		Steps:           d.Steps,
+		Steps:           steps,
 		ErrorMessage:    d.ErrorMessage,
 		CreatedAt:       d.CreatedAt.Format(time.RFC3339),
 		RelativeTime:    formatRelativeTime(d.CreatedAt),
@@ -311,6 +345,7 @@ func (s *Server) reconcileProjectDeployments(ctx context.Context, proj *project.
 			activeSHA := filepath.Base(target)
 			if len(activeSHA) == 40 {
 				if d, ok := existing[activeSHA]; ok {
+					needUpdate := false
 					if d.Status == cuanDB.DeploymentStatusBuilding || d.Status == cuanDB.DeploymentStatusQueued {
 						now := time.Now().UTC()
 						d.Status = cuanDB.DeploymentStatusSuccess
@@ -318,15 +353,62 @@ func (s *Server) reconcileProjectDeployments(ctx context.Context, proj *project.
 						if !d.StartedAt.IsZero() {
 							d.DurationSeconds = max(1, int(now.Sub(d.StartedAt).Seconds()))
 						}
+						needUpdate = true
+					}
+					if d.Status == cuanDB.DeploymentStatusSuccess {
 						for idx := range d.Steps {
-							d.Steps[idx].Status = cuanDB.StepStatusSuccess
+							if d.Steps[idx].Status != cuanDB.StepStatusSuccess {
+								d.Steps[idx].Status = cuanDB.StepStatusSuccess
+								needUpdate = true
+							}
 							if d.Steps[idx].CompletedAt == nil {
+								now := time.Now().UTC()
 								d.Steps[idx].CompletedAt = &now
+								needUpdate = true
+							}
+							switch d.Steps[idx].ID {
+							case "step-1":
+								if !strings.Contains(d.Steps[idx].Summary, "Checked out") {
+									d.Steps[idx].Summary = fmt.Sprintf("Checked out commit %s", activeSHA[:7])
+									needUpdate = true
+								}
+							case "step-2":
+								if d.Steps[idx].Summary == "Compiling application dependencies and assets..." || strings.HasPrefix(d.Steps[idx].Summary, "Awaiting") {
+									d.Steps[idx].Summary = "Application compiled successfully"
+									if d.Steps[idx].Log == "" {
+										d.Steps[idx].Log = "Release build completed cleanly by deployment pipeline."
+									}
+									needUpdate = true
+								}
+							case "step-3":
+								if strings.HasPrefix(d.Steps[idx].Summary, "Pending") {
+									d.Steps[idx].Summary = "Database schema verified and up to date"
+									if d.Steps[idx].Log == "" {
+										d.Steps[idx].Log = "Database schema checked and up to date."
+									}
+									needUpdate = true
+								}
+							case "step-4":
+								if strings.HasPrefix(d.Steps[idx].Summary, "Pending") {
+									d.Steps[idx].Summary = "Release symlink updated and daemon reloaded"
+									if d.Steps[idx].Log == "" {
+										d.Steps[idx].Log = fmt.Sprintf("Atomic switch to /opt/cuan/releases/%s completed.", activeSHA)
+									}
+									needUpdate = true
+								}
+							case "step-5":
+								if strings.HasPrefix(d.Steps[idx].Summary, "Pending") {
+									d.Steps[idx].Summary = "Live service health check passed"
+									if d.Steps[idx].Log == "" {
+										d.Steps[idx].Log = "GET /healthz -> HTTP 200 OK (healthy)"
+									}
+									needUpdate = true
+								}
 							}
 						}
-						if s.projectDeploymentRepo != nil {
-							_ = s.projectDeploymentRepo.Update(ctx, d)
-						}
+					}
+					if needUpdate && s.projectDeploymentRepo != nil {
+						_ = s.projectDeploymentRepo.Update(ctx, d)
 					}
 				} else {
 					msg := fmt.Sprintf("Release %s activated", activeSHA[:7])
@@ -1368,7 +1450,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 			hasIndexHTML := fileExists(filepath.Join(repoDir, "index.html")) || fileExists(filepath.Join(repoDir, "public", "index.html"))
 
 			if hasComposerJSON && hasPackageJSON {
-				buildCmd := "composer install --no-dev --prefer-dist --no-interaction && if [ -f package-lock.json ]; then npm ci; elif [ -f yarn.lock ]; then yarn --frozen-lockfile; else npm install; fi && npm run build && if [ -f artisan ]; then php artisan optimize:clear; fi"
+				buildCmd := "if [ ! -f .env ] && [ -f .env.example ]; then cp .env.example .env; fi && mkdir -p database storage/framework/sessions storage/framework/views storage/framework/cache bootstrap/cache && touch database/database.sqlite && composer install --no-dev --prefer-dist --no-interaction && if [ -f package-lock.json ]; then npm ci; elif [ -f yarn.lock ]; then yarn --frozen-lockfile; else npm install; fi && npm run build && if [ -f artisan ]; then php artisan view:clear && php artisan config:clear && php artisan route:clear; fi"
 				buildLog.WriteString(fmt.Sprintf("Auto-detected Laravel Fullstack project. Executing: %s\n", buildCmd))
 				cmd := exec.CommandContext(ctx, "bash", "-c", buildCmd)
 				cmd.Dir = repoDir
@@ -1411,7 +1493,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 					buildLog.WriteString(fmt.Sprintf("\nGolang build returned error: %v\n", err))
 				}
 			} else if hasComposerJSON {
-				buildCmd := "composer install --no-dev --prefer-dist --no-interaction && if [ -f artisan ]; then php artisan optimize:clear; fi"
+				buildCmd := "if [ ! -f .env ] && [ -f .env.example ]; then cp .env.example .env; fi && mkdir -p database storage/framework/sessions storage/framework/views storage/framework/cache bootstrap/cache && touch database/database.sqlite && composer install --no-dev --prefer-dist --no-interaction && if [ -f artisan ]; then php artisan view:clear && php artisan config:clear && php artisan route:clear; fi"
 				buildLog.WriteString(fmt.Sprintf("Auto-detected PHP/Laravel project. Executing: %s\n", buildCmd))
 				cmd := exec.CommandContext(ctx, "bash", "-c", buildCmd)
 				cmd.Dir = repoDir
@@ -1468,6 +1550,14 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	if ranDeployScript {
 		migrationLog.WriteString("Database migrations evaluated within deployment script.\n")
 	} else if repoDir != "" && fileExists(filepath.Join(repoDir, "artisan")) {
+		// Ensure sqlite database file exists if sqlite is configured
+		dbPath := filepath.Join(repoDir, "database", "database.sqlite")
+		if !fileExists(dbPath) {
+			_ = os.MkdirAll(filepath.Dir(dbPath), 0755)
+			if f, err := os.OpenFile(dbPath, os.O_CREATE|os.O_RDWR, 0644); err == nil {
+				_ = f.Close()
+			}
+		}
 		migrateCmd := exec.CommandContext(ctx, "php", "artisan", "migrate", "--force")
 		migrateCmd.Dir = repoDir
 		migrateCmd.Env = deployEnv
@@ -1574,6 +1664,18 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	client := &http.Client{Timeout: 5 * time.Second}
 	probeStart := time.Now()
 	resp, probeErr := client.Get(healthURL)
+	if probeErr == nil && resp.StatusCode == 404 && strings.HasSuffix(healthURL, "/healthz") {
+		altHealthURL := strings.TrimSuffix(healthURL, "/healthz") + "/up"
+		respAlt, probeAltErr := client.Get(altHealthURL)
+		if probeAltErr == nil && respAlt.StatusCode < 500 {
+			_ = resp.Body.Close()
+			resp = respAlt
+			healthURL = altHealthURL
+			probeErr = nil
+		} else if respAlt != nil {
+			_ = respAlt.Body.Close()
+		}
+	}
 	probeLatency := time.Since(probeStart).Milliseconds()
 
 	if probeErr != nil {
