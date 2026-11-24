@@ -34,6 +34,7 @@ func (s *Server) registerProjectRoutes(pr chi.Router) {
 	pr.Post("/projects/{id}/deployments", s.handleTriggerProjectDeployment)
 	pr.Get("/projects/{id}/deployments/{dep_id}", s.handleGetProjectDeploymentDetail)
 	pr.Post("/projects/{id}/deployments/{dep_id}/cancel", s.handleCancelProjectDeployment)
+	pr.Get("/projects/{id}/deployment-config", s.handleGetProjectDeploymentConfig)
 	pr.Put("/projects/{id}/deployment-config", s.handleUpdateProjectDeploymentConfig)
 	pr.Patch("/projects/{id}/modules", s.handleUpdateProjectModules)
 	pr.Put("/projects/{id}/modules", s.handleUpdateProjectModules)

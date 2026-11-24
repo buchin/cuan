@@ -127,6 +127,8 @@ export function getActionTitle(
     if (lower.includes('inspect_database_query')) return 'Inspect Database Query'
     if (lower.includes('inspect_database_schema')) return 'Inspect Database Schema'
     if (lower.includes('inspect_app_logs')) return 'Inspect App Logs'
+    if (lower.includes('get_project_deployment_config')) return 'Inspect Deployment Config'
+    if (lower.includes('update_project_deployment_config')) return 'Configure Deployment'
 
     const subTool = lower.split(/[:/]/)[1]?.trim()
     if (subTool) {

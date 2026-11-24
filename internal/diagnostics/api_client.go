@@ -919,6 +919,67 @@ func (c *CuanClient) UpdateProject(ctx context.Context, id, name, description, r
 	return res, nil
 }
 
+// GetProjectDeploymentConfig retrieves deployment configuration for a project.
+func (c *CuanClient) GetProjectDeploymentConfig(ctx context.Context, id string) (map[string]any, error) {
+	proj, err := c.GetProject(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("get current project: %w", err)
+	}
+	realID, _ := proj["id"].(string)
+	if realID == "" {
+		realID = id
+	}
+	endpoint := fmt.Sprintf("/api/v1/projects/%s/deployment-config", url.PathEscape(realID))
+	resp, err := c.doRequest(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("get project deployment config: %w", err)
+	}
+	defer resp.Body.Close()
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("get project deployment config failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+	var res map[string]any
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return nil, fmt.Errorf("unmarshal deployment config result: %w", err)
+	}
+	return res, nil
+}
+
+// UpdateProjectDeploymentConfig updates deployment configuration for a project.
+func (c *CuanClient) UpdateProjectDeploymentConfig(ctx context.Context, id string, autoDeploy *bool, branch, script string) (map[string]any, error) {
+	proj, err := c.GetProject(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("get current project: %w", err)
+	}
+	realID, _ := proj["id"].(string)
+	if realID == "" {
+		realID = id
+	}
+	payload := map[string]any{
+		"deploy_branch": branch,
+		"deploy_script": script,
+	}
+	if autoDeploy != nil {
+		payload["auto_deploy"] = *autoDeploy
+	}
+	endpoint := fmt.Sprintf("/api/v1/projects/%s/deployment-config", url.PathEscape(realID))
+	resp, err := c.doRequest(ctx, http.MethodPut, endpoint, payload)
+	if err != nil {
+		return nil, fmt.Errorf("update project deployment config: %w", err)
+	}
+	defer resp.Body.Close()
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("update project deployment config failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+	var res map[string]any
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return nil, fmt.Errorf("unmarshal update deployment config result: %w", err)
+	}
+	return res, nil
+}
+
 // CreateContact creates a new contact in Cuan.
 func (c *CuanClient) CreateContact(ctx context.Context, name, email, phone, role, company, notes string) (map[string]any, error) {
 	reqID := db.GenerateUUID()

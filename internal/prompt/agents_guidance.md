@@ -36,5 +36,5 @@ Deployment is fully decoupled from developer and verifier agent execution:
    - Sequential stages: 1. Source Checkout, 2. Compile & Build, 3. Database Migration, 4. Atomic Switch, 5. Health Verification.
 4. **Conversational Deployment Setup in Chat:** When onboarding or discussing a project that lacks auto-deploy configuration, agents proactively propose release setup in conversational Indonesian:
    - Ask if user wants to auto-deploy on Cuan or if they already use another hosting (e.g. Laravel Cloud, Vercel, or shared hosting/cPanel WordPress).
-   - If user accepts: generate the build script and configure `auto_deploy: true` via `PUT /api/v1/projects/{id}/deployment-config`.
+   - If user accepts: generate the build script and configure `auto_deploy: true` via `set_deployment` action or `update_project_deployment_config` tool.
    - If user declines / uses other hosting: respect external architecture, set `auto_deploy: false`, and offer relevant integrations (e.g., WordPress REST API for shared hosting, or focusing on task dev for Laravel Cloud).

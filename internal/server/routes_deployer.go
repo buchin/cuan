@@ -93,6 +93,7 @@ func (s *Server) registerDeployerV1Routes(r chi.Router) {
 	r.Get("/projects/{id}/deployments/{dep_id}", s.handleGetProjectDeploymentDetail)
 	r.Post("/projects/{id}/deployments/{dep_id}/cancel", s.handleCancelProjectDeployment)
 	r.Post("/projects/{id}/webhooks/deploy", s.handleProjectDeployWebhook)
+	r.Get("/projects/{id}/deployment-config", s.handleGetProjectDeploymentConfig)
 	r.Put("/projects/{id}/deployment-config", s.handleUpdateProjectDeploymentConfig)
 
 	// Studio Deployments route group in /api/v1

@@ -157,6 +157,7 @@ func TestProjectDeployWebhook_UnauthorizedAndSuccess(t *testing.T) {
 	r := chi.NewRouter()
 	r.Post("/api/v1/projects/{id}/webhooks/deploy", s.handleProjectDeployWebhook)
 	r.Get("/api/v1/projects/{id}/deployments", s.handleGetProjectDeployments)
+	r.Get("/api/v1/projects/{id}/deployment-config", s.handleGetProjectDeploymentConfig)
 	r.Put("/api/v1/projects/{id}/deployment-config", s.handleUpdateProjectDeploymentConfig)
 
 	proj, err := s.projectSvc.Get(context.Background(), projID)
@@ -261,6 +262,19 @@ func TestProjectDeployWebhook_UnauthorizedAndSuccess(t *testing.T) {
 	r.ServeHTTP(recCfg, reqCfg)
 	if recCfg.Code != http.StatusOK {
 		t.Fatalf("expected 200 OK updating deployment config, got %d: %s", recCfg.Code, recCfg.Body.String())
+	}
+
+	// 6b. Test reading deployment configuration
+	reqGetCfg := httptest.NewRequest("GET", "/api/v1/projects/"+projID+"/deployment-config", nil)
+	recGetCfg := httptest.NewRecorder()
+	r.ServeHTTP(recGetCfg, reqGetCfg)
+	if recGetCfg.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK getting deployment config, got %d: %s", recGetCfg.Code, recGetCfg.Body.String())
+	}
+	var getCfgResp map[string]interface{}
+	_ = json.NewDecoder(recGetCfg.Body).Decode(&getCfgResp)
+	if getCfgResp["auto_deploy"] != false || getCfgResp["deploy_branch"] != "main" {
+		t.Errorf("unexpected deployment config response: %+v", getCfgResp)
 	}
 
 	// 7. Verify Webhook push is ignored when auto_deploy is false

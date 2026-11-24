@@ -197,6 +197,46 @@ var nativeMCPTools = []mcpToolDefinition{
 		},
 	},
 	{
+		Name:        "get_project_deployment_config",
+		Description: "Get deployment configuration for a project: auto_deploy enabled status, deploy_branch, and custom deploy_script.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"project_id": map[string]any{
+					"type":        "string",
+					"description": "Project ID or project name",
+				},
+			},
+			"required": []string{"project_id"},
+		},
+	},
+	{
+		Name:        "update_project_deployment_config",
+		Description: "Configure deployment settings for a project: toggle auto_deploy (true/false), set target deploy_branch (e.g. 'main' or 'dev'), and set custom deployment build/release script.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"project_id": map[string]any{
+					"type":        "string",
+					"description": "Project ID or project name",
+				},
+				"auto_deploy": map[string]any{
+					"type":        "boolean",
+					"description": "Whether Cuan should automatically build and deploy releases when commits are pushed to deploy_branch",
+				},
+				"deploy_branch": map[string]any{
+					"type":        "string",
+					"description": "Target git branch for automated deployment (e.g. 'main' or 'dev')",
+				},
+				"deploy_script": map[string]any{
+					"type":        "string",
+					"description": "Build and release script command (e.g. './scripts/deploy.sh', 'npm run build', or custom script)",
+				},
+			},
+			"required": []string{"project_id"},
+		},
+	},
+	{
 		Name:        "list_tasks",
 		Description: "List tasks across all projects or filtered by project ID, with optional status filter (backlog, doing, review, done, blocked).",
 		InputSchema: map[string]any{
@@ -974,6 +1014,18 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 			repoURL, _ := callParams.Arguments["repo_url"].(string)
 			branch, _ := callParams.Arguments["branch"].(string)
 			toolResult, toolErr = UpdateProject(ctx, projectID, name, desc, repoURL, branch)
+		case "get_project_deployment_config":
+			projectID, _ := callParams.Arguments["project_id"].(string)
+			toolResult, toolErr = GetProjectDeploymentConfig(ctx, projectID)
+		case "update_project_deployment_config":
+			projectID, _ := callParams.Arguments["project_id"].(string)
+			var autoDeploy *bool
+			if val, ok := callParams.Arguments["auto_deploy"].(bool); ok {
+				autoDeploy = &val
+			}
+			branch, _ := callParams.Arguments["deploy_branch"].(string)
+			script, _ := callParams.Arguments["deploy_script"].(string)
+			toolResult, toolErr = UpdateProjectDeploymentConfig(ctx, projectID, autoDeploy, branch, script)
 		case "list_tasks":
 			projectID, _ := callParams.Arguments["project_id"].(string)
 			status, _ := callParams.Arguments["status"].(string)

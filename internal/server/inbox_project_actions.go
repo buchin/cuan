@@ -18,13 +18,16 @@ import (
 )
 
 type inboxProjectAction struct {
-	Action      string `json:"action"` // "create", "update", "archive", "unarchive", "set_env"
-	ProjectID   string `json:"project_id,omitempty"`
-	Name        string `json:"name,omitempty"`
-	RepoURL     string `json:"repo_url,omitempty"`
-	Description string `json:"description,omitempty"`
-	EnvKey      string `json:"env_key,omitempty"`
-	EnvValue    string `json:"env_value,omitempty"`
+	Action       string `json:"action"` // "create", "update", "archive", "unarchive", "set_env", "set_deployment"
+	ProjectID    string `json:"project_id,omitempty"`
+	Name         string `json:"name,omitempty"`
+	RepoURL      string `json:"repo_url,omitempty"`
+	Description  string `json:"description,omitempty"`
+	EnvKey       string `json:"env_key,omitempty"`
+	EnvValue     string `json:"env_value,omitempty"`
+	AutoDeploy   *bool  `json:"auto_deploy,omitempty"`
+	DeployBranch string `json:"deploy_branch,omitempty"`
+	DeployScript string `json:"deploy_script,omitempty"`
 }
 
 func parseInboxProject(content string) (string, *inboxProjectAction, error) {
@@ -55,7 +58,7 @@ func parseInboxProject(content string) (string, *inboxProjectAction, error) {
 	if a.Action == "create" && strings.TrimSpace(a.Name) == "" {
 		return "", nil, errors.New("Project name is required.")
 	}
-	if (a.Action == "update" || a.Action == "archive" || a.Action == "unarchive") && strings.TrimSpace(a.ProjectID) == "" {
+	if (a.Action == "update" || a.Action == "archive" || a.Action == "unarchive" || a.Action == "set_deployment") && strings.TrimSpace(a.ProjectID) == "" {
 		return "", nil, errors.New("Project ID is required.")
 	}
 	if a.Action == "set_env" {
@@ -149,15 +152,27 @@ func (s *Server) applyInboxProject(ctx context.Context, q db.InboxRequest, conte
 		if strings.TrimSpace(action.RepoURL) != "" {
 			repo = strings.TrimSpace(action.RepoURL)
 		}
+		deployBranch := settings.DeployBranch
+		if strings.TrimSpace(action.DeployBranch) != "" {
+			deployBranch = strings.TrimSpace(action.DeployBranch)
+		}
+		deployScript := settings.DeployScript
+		if action.DeployScript != "" {
+			deployScript = strings.TrimSpace(action.DeployScript)
+		}
+		autoDeploy := settings.AutoDeploy
+		if action.AutoDeploy != nil {
+			autoDeploy = action.AutoDeploy
+		}
 		req := project.UpdateSettingsRequest{
 			Name:              name,
 			Goal:              goal,
 			Instructions:      settings.Instructions,
 			RepoURL:           repo,
 			DefaultBranch:     curr.DefaultBranch,
-			DeployBranch:      settings.DeployBranch,
-			DeployScript:      settings.DeployScript,
-			AutoDeploy:        settings.AutoDeploy,
+			DeployBranch:      deployBranch,
+			DeployScript:      deployScript,
+			AutoDeploy:        autoDeploy,
 			Environment:       settings.Environment,
 			ExpectedUpdatedAt: curr.UpdatedAt,
 		}
@@ -166,6 +181,49 @@ func (s *Server) applyInboxProject(ctx context.Context, q db.InboxRequest, conte
 			return cleanText + fmt.Sprintf("\n\n⚠️ Gagal memperbarui project %s: %v", action.ProjectID, err)
 		}
 		return cleanText + fmt.Sprintf("\n\n✓ **Project Diperbarui:** `%s` (`%s`)", updated.Name, updated.ID)
+
+	case "set_deployment":
+		curr, err := s.projectSvc.Get(ctx, action.ProjectID)
+		if err != nil || curr == nil {
+			return cleanText + fmt.Sprintf("\n\n⚠️ Project tidak ditemukan: %s", action.ProjectID)
+		}
+		settings := project.SettingsFromMetadata(curr.Metadata)
+		deployBranch := settings.DeployBranch
+		if strings.TrimSpace(action.DeployBranch) != "" {
+			deployBranch = strings.TrimSpace(action.DeployBranch)
+		}
+		deployScript := settings.DeployScript
+		if action.DeployScript != "" {
+			deployScript = strings.TrimSpace(action.DeployScript)
+		}
+		autoDeploy := settings.AutoDeploy
+		if action.AutoDeploy != nil {
+			autoDeploy = action.AutoDeploy
+		}
+		req := project.UpdateSettingsRequest{
+			Name:              curr.Name,
+			Goal:              settings.Goal,
+			Instructions:      settings.Instructions,
+			RepoURL:           curr.RepoURL,
+			DefaultBranch:     curr.DefaultBranch,
+			DeployBranch:      deployBranch,
+			DeployScript:      deployScript,
+			AutoDeploy:        autoDeploy,
+			Environment:       settings.Environment,
+			ExpectedUpdatedAt: curr.UpdatedAt,
+		}
+		if _, err := s.projectSvc.UpdateSettings(ctx, action.ProjectID, req); err != nil {
+			return cleanText + fmt.Sprintf("\n\n⚠️ Gagal memperbarui konfigurasi deployment project %s: %v", action.ProjectID, err)
+		}
+		statusStr := "Nonaktif"
+		if autoDeploy != nil && *autoDeploy {
+			statusStr = "Aktif"
+		}
+		scriptSummary := deployScript
+		if scriptSummary == "" {
+			scriptSummary = "(Auto-detect default)"
+		}
+		return cleanText + fmt.Sprintf("\n\n✓ **Konfigurasi Deployment Diperbarui:** Auto-Deploy: `%s` | Branch: `%s` | Script: `%s`", statusStr, deployBranch, scriptSummary)
 
 	case "archive":
 		proj, err := s.projectSvc.Archive(ctx, action.ProjectID)

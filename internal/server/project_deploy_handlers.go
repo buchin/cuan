@@ -888,6 +888,35 @@ func (s *Server) handleProjectDeployWebhook(w http.ResponseWriter, r *http.Reque
 	})
 }
 
+// handleGetProjectDeploymentConfig returns deployment settings (auto_deploy, deploy_branch, deploy_script) for a project.
+// GET /api/v1/projects/{id}/deployment-config
+func (s *Server) handleGetProjectDeploymentConfig(w http.ResponseWriter, r *http.Request) {
+	projectID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if projectID == "" {
+		respondJSONError(w, http.StatusBadRequest, "project id is required")
+		return
+	}
+
+	proj, _, err := s.resolveProjectDeployRepoDir(r.Context(), projectID)
+	if err != nil {
+		if errors.Is(err, project.ErrProjectNotFound) {
+			respondJSONError(w, http.StatusNotFound, "project not found")
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to resolve project: %v", err))
+		return
+	}
+
+	settings := project.SettingsFromMetadata(proj.Metadata)
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"project_id":    proj.ID,
+		"project_name":  proj.Name,
+		"auto_deploy":   settings.IsAutoDeployEnabled(),
+		"deploy_branch": settings.DeployBranch,
+		"deploy_script": settings.DeployScript,
+	})
+}
+
 // handleUpdateProjectDeploymentConfig updates deployment settings (auto_deploy, deploy_branch, deploy_script) for a project.
 // PUT /api/v1/projects/{id}/deployment-config
 func (s *Server) handleUpdateProjectDeploymentConfig(w http.ResponseWriter, r *http.Request) {

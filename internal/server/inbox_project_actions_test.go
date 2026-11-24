@@ -41,6 +41,16 @@ func TestParseInboxProject(t *testing.T) {
 		t.Fatalf("expected valid archive parse, got: %v", err)
 	}
 
+	// 3b. Valid set_deployment
+	validDeploy := "Atur auto-deploy.\n```cuan-project\n{\"action\":\"set_deployment\",\"project_id\":\"proj_123\",\"auto_deploy\":true,\"deploy_branch\":\"main\",\"deploy_script\":\"npm run build\"}\n```"
+	clean, act, err = parseInboxProject(validDeploy)
+	if err != nil || act == nil {
+		t.Fatalf("expected valid set_deployment parse, got: %v", err)
+	}
+	if act.Action != "set_deployment" || act.ProjectID != "proj_123" || act.AutoDeploy == nil || !*act.AutoDeploy || act.DeployBranch != "main" || act.DeployScript != "npm run build" {
+		t.Fatalf("unexpected parsed set_deployment action: %+v", act)
+	}
+
 	// 4. Invalid: create without name
 	badCreate := "```cuan-project\n{\"action\":\"create\",\"name\":\"\"}\n```"
 	if _, _, err := parseInboxProject(badCreate); err == nil {
@@ -126,5 +136,27 @@ func TestApplyInboxProject(t *testing.T) {
 	projRestored, _ := s.projectSvc.Get(ctx, "proj_test1234567890123456789012345678")
 	if projRestored.IsArchived {
 		t.Fatal("expected project to be unarchived")
+	}
+
+	// 5. Set deployment configuration
+	deployContent := "Konfigurasi rilis otomatis.\n```cuan-project\n{\"action\":\"set_deployment\",\"project_id\":\"proj_test1234567890123456789012345678\",\"auto_deploy\":true,\"deploy_branch\":\"dev\",\"deploy_script\":\"go build -o server ./cmd/server\"}\n```"
+	deployReply := s.applyInboxProject(ctx, q, deployContent)
+	if !strings.Contains(deployReply, "Konfigurasi Deployment Diperbarui") || !strings.Contains(deployReply, "Aktif") || !strings.Contains(deployReply, "dev") {
+		t.Fatalf("unexpected deploy reply: %s", deployReply)
+	}
+
+	projDeploy, err := s.projectSvc.Get(ctx, "proj_test1234567890123456789012345678")
+	if err != nil {
+		t.Fatal(err)
+	}
+	deploySettings := project.SettingsFromMetadata(projDeploy.Metadata)
+	if !deploySettings.IsAutoDeployEnabled() {
+		t.Error("expected auto deploy to be enabled")
+	}
+	if deploySettings.DeployBranch != "dev" {
+		t.Errorf("expected deploy branch 'dev', got %q", deploySettings.DeployBranch)
+	}
+	if deploySettings.DeployScript != "go build -o server ./cmd/server" {
+		t.Errorf("expected deploy script to be set, got %q", deploySettings.DeployScript)
 	}
 }

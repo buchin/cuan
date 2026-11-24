@@ -1272,6 +1272,99 @@ func UpdateProject(ctx context.Context, id, name, description, repoURL, branch s
 	return map[string]any{"id": id, "status": "updated"}, nil
 }
 
+// GetProjectDeploymentConfig reads deployment configuration for a project.
+func GetProjectDeploymentConfig(ctx context.Context, projectID string) (any, error) {
+	projectID = strings.TrimSpace(projectID)
+	if projectID == "" {
+		return nil, fmt.Errorf("project_id is required")
+	}
+	if client := GetCuanClient(); client != nil && client.IsConfigured() {
+		return client.GetProjectDeploymentConfig(ctx, projectID)
+	}
+	db := getPlatformDB()
+	if db == nil {
+		return nil, fmt.Errorf("configure Cuan connection or database before reading project deployment config")
+	}
+	var id, name string
+	var metadataRaw []byte
+	err := db.QueryRowContext(ctx,
+		"SELECT id, name, COALESCE(metadata, '{}'::jsonb) FROM projects WHERE id = $1 OR LOWER(name) = LOWER($1) LIMIT 1",
+		projectID,
+	).Scan(&id, &name, &metadataRaw)
+	if err == sql.ErrNoRows {
+		return map[string]any{"error": "project_not_found", "project_id": projectID}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get project deployment config: %w", err)
+	}
+	var settings project.Settings
+	_ = json.Unmarshal(metadataRaw, &settings)
+	return map[string]any{
+		"project_id":    id,
+		"project_name":  name,
+		"auto_deploy":   settings.IsAutoDeployEnabled(),
+		"deploy_branch": settings.DeployBranch,
+		"deploy_script": settings.DeployScript,
+	}, nil
+}
+
+// UpdateProjectDeploymentConfig updates deployment configuration for a project.
+func UpdateProjectDeploymentConfig(ctx context.Context, projectID string, autoDeploy *bool, branch, script string) (any, error) {
+	if err := taskSessionOwnerWriteError(); err != nil {
+		return nil, err
+	}
+	projectID = strings.TrimSpace(projectID)
+	if projectID == "" {
+		return nil, fmt.Errorf("project_id is required")
+	}
+	if client := GetCuanClient(); client != nil && client.IsConfigured() {
+		return client.UpdateProjectDeploymentConfig(ctx, projectID, autoDeploy, branch, script)
+	}
+	db := getPlatformDB()
+	if db == nil {
+		return nil, fmt.Errorf("configure Cuan connection or database before updating project deployment config")
+	}
+	var id, name string
+	var metadataRaw []byte
+	err := db.QueryRowContext(ctx,
+		"SELECT id, name, COALESCE(metadata, '{}'::jsonb) FROM projects WHERE id = $1 OR LOWER(name) = LOWER($1) LIMIT 1",
+		projectID,
+	).Scan(&id, &name, &metadataRaw)
+	if err == sql.ErrNoRows {
+		return map[string]any{"error": "project_not_found", "project_id": projectID}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("update project deployment config: %w", err)
+	}
+	var settings project.Settings
+	_ = json.Unmarshal(metadataRaw, &settings)
+	if autoDeploy != nil {
+		settings.AutoDeploy = autoDeploy
+	}
+	if strings.TrimSpace(branch) != "" {
+		settings.DeployBranch = strings.TrimSpace(branch)
+	}
+	if script != "" {
+		settings.DeployScript = strings.TrimSpace(script)
+	}
+	updatedMetadata, err := json.Marshal(settings)
+	if err != nil {
+		return nil, fmt.Errorf("marshal updated settings: %w", err)
+	}
+	_, err = db.ExecContext(ctx, "UPDATE projects SET metadata = $1, updated_at = NOW() WHERE id = $2", updatedMetadata, id)
+	if err != nil {
+		return nil, fmt.Errorf("update project metadata: %w", err)
+	}
+	return map[string]any{
+		"message":       "Deployment configuration updated successfully",
+		"project_id":    id,
+		"project_name":  name,
+		"auto_deploy":   settings.IsAutoDeployEnabled(),
+		"deploy_branch": settings.DeployBranch,
+		"deploy_script": settings.DeployScript,
+	}, nil
+}
+
 // CreateContact creates a new CRM contact in Cuan.
 func CreateContact(ctx context.Context, name, email, phone, role, company, notes string) (any, error) {
 	if err := taskSessionOwnerWriteError(); err != nil {
