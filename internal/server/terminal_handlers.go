@@ -151,7 +151,28 @@ func (s *Server) handleTaskTerminalWebSocket(w http.ResponseWriter, r *http.Requ
 	if tDetail != nil {
 		cleanTitle = strings.TrimSpace(tDetail.Title)
 	}
-	isDedicatedTerminalTask := tDetail != nil && (strings.HasPrefix(cleanTitle, "Terminal ·") || strings.HasPrefix(cleanTitle, "Terminal -") || strings.HasPrefix(cleanTitle, "Terminal:")) && targetProjID != ""
+	if cleanTitle == "" && s.projectStudioRepo != nil {
+		if pt, err := s.projectStudioRepo.GetTaskByID(r.Context(), taskID); err == nil && pt != nil {
+			cleanTitle = strings.TrimSpace(pt.Title)
+		}
+	}
+	isDedicatedTerminalTask := (cleanTitle != "" && (strings.HasPrefix(cleanTitle, "Terminal ") || strings.HasPrefix(cleanTitle, "Terminal·") || strings.HasPrefix(cleanTitle, "Terminal:") || strings.HasPrefix(cleanTitle, "Terminal-") || strings.Contains(cleanTitle, "Terminal ·"))) ||
+		r.URL.Query().Get("runner_id") == "local_terminal" ||
+		(r.URL.Query().Get("mode") == "interactive" && strings.HasPrefix(cleanTitle, "Terminal"))
+
+	if targetProjID == "" && isDedicatedTerminalTask && s.projectSvc != nil {
+		if projs, err := s.projectSvc.List(r.Context()); err == nil && len(projs) > 0 {
+			for _, p := range projs {
+				if strings.EqualFold(p.Name, "cuan") {
+					targetProjID = p.ID
+					break
+				}
+			}
+			if targetProjID == "" {
+				targetProjID = projs[0].ID
+			}
+		}
+	}
 	isCancelled := tDetail != nil && (tDetail.Status == task.TaskStatusCancelled || tDetail.Status == "canceled")
 
 	if isDedicatedTerminalTask {
@@ -511,13 +532,32 @@ func (s *Server) handleProjectTerminalWebSocket(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	requestedAccountID := strings.TrimSpace(r.URL.Query().Get("account_id"))
+	if requestedAccountID == "" {
+		requestedAccountID = strings.TrimSpace(r.URL.Query().Get("brain_id"))
+	}
 	if ownerID != "" {
-		if home, brain, release, err := agent.LeaseHealthyBrainForProject(ownerID, proj.ID, nil); err == nil && home != "" {
+		var home string
+		var brain *agent.ProviderAccount
+		var release func()
+		var err error
+
+		if requestedAccountID != "" {
+			if h, b, rel, e := agent.LeaseSpecificBrain(ownerID, requestedAccountID); e == nil {
+				home, brain, release = h, b, rel
+			}
+		}
+		if home == "" {
+			home, brain, release, err = agent.LeaseHealthyBrainForProject(ownerID, proj.ID, nil)
+		}
+		if err == nil && home != "" {
 			env = append(env, agent.AntigravityProfileEnvironment(home)...)
 			if brain != nil && brain.ModelID != "" {
 				env = append(env, "CUAN_AGENT_MODEL="+brain.ModelID)
 			}
-			release()
+			if release != nil {
+				release()
+			}
 		}
 	}
 
@@ -901,7 +941,14 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 	if tDetail != nil {
 		cleanTaskTitle = strings.TrimSpace(tDetail.Title)
 	}
-	isDedicatedTerminalTask := (tDetail != nil && (strings.HasPrefix(cleanTaskTitle, "Terminal ·") || strings.HasPrefix(cleanTaskTitle, "Terminal -") || strings.HasPrefix(cleanTaskTitle, "Terminal:"))) || strings.HasPrefix(payload.Prompt, "Terminal ·") || payload.RunnerID == "local_terminal"
+	if cleanTaskTitle == "" && s.projectStudioRepo != nil {
+		if pt, err := s.projectStudioRepo.GetTaskByID(r.Context(), taskID); err == nil && pt != nil {
+			cleanTaskTitle = strings.TrimSpace(pt.Title)
+		}
+	}
+	isDedicatedTerminalTask := (cleanTaskTitle != "" && (strings.HasPrefix(cleanTaskTitle, "Terminal ") || strings.HasPrefix(cleanTaskTitle, "Terminal·") || strings.HasPrefix(cleanTaskTitle, "Terminal:") || strings.HasPrefix(cleanTaskTitle, "Terminal-") || strings.Contains(cleanTaskTitle, "Terminal ·"))) ||
+		strings.HasPrefix(payload.Prompt, "Terminal") ||
+		payload.RunnerID == "local_terminal"
 	if !isDedicatedTerminalTask && projID != "" && s.isProjectLaneActive(r.Context(), projID, taskCategory, taskID) {
 		status := task.TaskStatusQueued
 		if s.taskSvc != nil {
@@ -1230,13 +1277,13 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 				respondJSONError(w, 400, "Describe the changes needed before starting a revision")
 				return
 			}
-			if detail.Status == task.TaskStatusDone {
+			if detail.Status == task.TaskStatusDone || detail.Status == task.TaskStatusCancelled || detail.Status == "canceled" {
 				cleanTitle := strings.TrimSpace(detail.Title)
-				if strings.HasPrefix(cleanTitle, "Terminal ·") || strings.HasPrefix(cleanTitle, "Terminal -") || strings.HasPrefix(cleanTitle, "Terminal:") || strings.HasPrefix(payload.Prompt, "Terminal ·") {
+				if isDedicatedTerminalTask || strings.HasPrefix(cleanTitle, "Terminal") {
 					doingStatus := task.TaskStatusDoing
 					_, _ = s.taskSvc.UpdateTask(r.Context(), detail.ID, "runner", task.UpdateTaskRequest{Status: &doingStatus})
 					detail.Status = task.TaskStatusDoing
-				} else {
+				} else if detail.Status == task.TaskStatusDone {
 					respondJSONError(w, 409, "Reopen the completed task before starting a new session")
 					return
 				}
@@ -1369,7 +1416,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 				return
 			}
 			if runnerID == "" {
-				if isDedicatedTerminalTask || agentID == "agent_lifecycle" || agentID == "agent_queued" || (detail != nil && strings.HasPrefix(detail.Title, "Terminal ·")) {
+				if isDedicatedTerminalTask || agentID == "agent_lifecycle" || agentID == "agent_queued" || (detail != nil && strings.HasPrefix(detail.Title, "Terminal")) {
 					runnerID = "local_terminal"
 				} else {
 					runnerID = "cuan-runner"

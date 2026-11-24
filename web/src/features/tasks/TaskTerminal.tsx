@@ -2,6 +2,7 @@ import { TerminalInputBuffer } from './terminal-input-buffer'
 import { TerminalHelperTextareaInputFilter, terminalInputInvalidatesHelperTextarea } from './terminal/mobile-input'
 import { createPortal } from 'react-dom'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Copy,
   Download,
@@ -67,6 +68,7 @@ export function TaskTerminal({
   hideStatus?: boolean
 }) {
   const { t, language } = useLanguage()
+  const [searchParams] = useSearchParams()
   const menu = useRef<HTMLDetailsElement>(null)
   const mount = useRef<HTMLDivElement>(null)
   const terminalRoot = useRef<HTMLElement>(null)
@@ -138,10 +140,12 @@ export function TaskTerminal({
   const heartbeatTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const isDedicated = Boolean(isDedicatedTerminal)
-  const isCancelledOrFinished = Boolean(
-    attempt && ['canceled', 'failed', 'succeeded', 'interrupted'].includes(attempt.status)
-  )
-  const isTaskActive = !isCancelledOrFinished && (isDedicated || ['running', 'queued'].includes(attempt?.status || ''))
+  const isCancelledOrFinished = isDedicated
+    ? Boolean(attempt?.status === 'canceled')
+    : Boolean(attempt && ['canceled', 'failed', 'succeeded', 'interrupted'].includes(attempt.status))
+  const isTaskActive = isDedicated
+    ? !isCancelledOrFinished
+    : !isCancelledOrFinished && ['running', 'queued'].includes(attempt?.status || '')
   const isTaskActiveRef = useRef(isTaskActive)
   isTaskActiveRef.current = isTaskActive
 
@@ -772,6 +776,10 @@ export function TaskTerminal({
       if (term.current && term.current.cols > 0 && term.current.rows > 0) {
         url.searchParams.set('cols', String(term.current.cols))
         url.searchParams.set('rows', String(term.current.rows))
+      }
+      const requestedAccount = searchParams.get('account_id')
+      if (requestedAccount) {
+        url.searchParams.set('account_id', requestedAccount)
       }
 
       const token = getAuthToken()

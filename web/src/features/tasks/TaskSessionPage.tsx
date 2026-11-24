@@ -193,9 +193,11 @@ export function TaskSessionPage({
       ? detail?.latest_attempt || detail?.attempts[0]
       : detail?.attempts.find((a) => a.id === sessionId)
   const isDedicatedTerminal = Boolean(
-    detail?.title?.startsWith('Terminal ·') ||
-    detail?.title?.startsWith('Terminal -') ||
+    detail?.title?.startsWith('Terminal ') ||
+    detail?.title?.startsWith('Terminal·') ||
     detail?.title?.startsWith('Terminal:') ||
+    detail?.title?.startsWith('Terminal-') ||
+    detail?.title?.includes('Terminal ·') ||
     attempt?.runner_id === 'local_terminal'
   )
   const isTerminalSessionCancelled = Boolean(
@@ -699,21 +701,36 @@ export function TaskSessionPage({
                   disabled={busy}
                   onClick={async () => {
                     setBusy(true)
+                    setError('')
                     try {
+                      if (
+                        detail?.status === 'done' ||
+                        (detail?.status as string) === 'cancelled' ||
+                        (detail?.status as string) === 'canceled'
+                      ) {
+                        await tasksApi.updateStatus(taskId, 'todo')
+                      }
                       const request = {
                         request_id: crypto.randomUUID(),
                         agent_id: detail?.assignee_id || 'default',
                         runner_id: 'local_terminal',
                       }
-                      localStorage.setItem('cuan-task-launch:' + taskId, JSON.stringify(request))
-                      navigate(basePath + '/sessions/start' + suffix, {
-                        state: {
-                          taskReturnTo: state?.taskReturnTo,
-                          startRequestId: request.request_id,
-                        },
-                      })
-                    } catch {
-                      setError('Could not restart terminal session. Try again.')
+                      const runRes = await tasksApi.runAgent(taskId, request)
+                      if (runRes.attempt?.id) {
+                        navigate(
+                          basePath + '/sessions/' + encodeURIComponent(runRes.attempt.id) + suffix,
+                          { replace: true, state },
+                        )
+                      }
+                      await refresh()
+                    } catch (e) {
+                      setError(
+                        e instanceof Error
+                          ? e.message
+                          : (language === 'id'
+                              ? 'Gagal memulai kembali sesi terminal. Coba lagi.'
+                              : 'Could not restart terminal session. Try again.'),
+                      )
                     } finally {
                       setBusy(false)
                     }

@@ -24,6 +24,27 @@ func LeaseHealthyBrainForTask(owner string, excluded map[string]bool, requiresVi
 	return leaseHealthyBrain(owner, excluded, TryLeaseProviderAccountForTask, requiresVision...)
 }
 
+// LeaseSpecificBrain leases a specific provider account if it exists and is healthy.
+func LeaseSpecificBrain(owner, accountID string) (string, *ProviderAccount, func(), error) {
+	if owner == "" || accountID == "" {
+		return "", nil, nil, ErrBrainCapacity
+	}
+	p, err := GetProviderAccount(owner, accountID)
+	if err != nil || p == nil {
+		return "", nil, nil, err
+	}
+	release, err := TryLeaseProviderAccountForTask(owner, p.ID)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	home, err := ProviderAccountHome(owner, p.ID)
+	if err != nil {
+		release()
+		return "", nil, nil, err
+	}
+	return home, p, release, nil
+}
+
 // LeaseHealthyBrainForProject leases a consistent brain profile for a project to ensure account stickiness
 // across project terminal sessions rather than rotating accounts randomly on each reconnect or spawn.
 func LeaseHealthyBrainForProject(owner, projectID string, excluded map[string]bool, requiresVision ...bool) (string, *ProviderAccount, func(), error) {

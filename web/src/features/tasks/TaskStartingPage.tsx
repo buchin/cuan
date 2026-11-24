@@ -86,11 +86,14 @@ export function TaskStartingPage({ taskId }: { taskId: string }) {
           }
         } catch {}
       }
-      if (currentStatus === 'done') {
+      if (currentStatus === 'done' || currentStatus === 'cancelled' || currentStatus === 'canceled') {
         try {
           await tasksApi.updateStatus(taskId, 'todo')
           if (mounted.current) setTaskStatus('doing')
         } catch {}
+      }
+      if (!request.runner_id && (title.startsWith('Terminal') || title.includes('Terminal'))) {
+        request.runner_id = 'local_terminal'
       }
       const result = await tasksApi.runAgent(taskId, request)
       if (!result.attempt) throw new Error('The session was not confirmed.')
@@ -214,14 +217,21 @@ export function TaskStartingPage({ taskId }: { taskId: string }) {
               onClick={async () => {
                 setBusy(true)
                 setError('')
-                const isTerminal = title.startsWith('Terminal ·') || title.startsWith('Terminal -') || title.startsWith('Terminal:')
+                const isTerminal =
+                  title.startsWith('Terminal') ||
+                  title.includes('Terminal')
                 const req: RunTaskRequest = {
                   request_id: crypto.randomUUID(),
                   agent_id: selectedAgent,
                   runner_id: isTerminal ? 'local_terminal' : undefined,
                 }
                 try {
-                  if (error.includes('Reopen the completed task') || taskStatus === 'done') {
+                  if (
+                    error.includes('Reopen the completed task') ||
+                    taskStatus === 'done' ||
+                    taskStatus === 'cancelled' ||
+                    taskStatus === 'canceled'
+                  ) {
                     await tasksApi.updateStatus(taskId, 'todo')
                     setTaskStatus('doing')
                   }

@@ -241,8 +241,21 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 			req.ProjectID = active[0].ID
 			req.ProjectIDs = []string{active[0].ID}
 		} else if len(active) > 1 {
-			respondJSONError(w, 400, "Multiple active projects found. Choose an active project.")
-			return
+			cleanTitle := strings.TrimSpace(req.Title)
+			if strings.HasPrefix(cleanTitle, "Terminal ") || strings.HasPrefix(cleanTitle, "Terminal·") || strings.HasPrefix(cleanTitle, "Terminal:") || strings.HasPrefix(cleanTitle, "Terminal-") || strings.Contains(cleanTitle, "Terminal ·") {
+				chosen := active[0].ID
+				for _, p := range active {
+					if strings.EqualFold(p.Name, "cuan") {
+						chosen = p.ID
+						break
+					}
+				}
+				req.ProjectID = chosen
+				req.ProjectIDs = []string{chosen}
+			} else {
+				respondJSONError(w, 400, "Multiple active projects found. Choose an active project.")
+				return
+			}
 		} else {
 			p, err := s.projectSvc.EnsureDefault(r.Context())
 			if err != nil {

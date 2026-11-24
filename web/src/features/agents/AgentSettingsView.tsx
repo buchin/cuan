@@ -10,6 +10,7 @@ import { aiProvidersApi, type AIProviderDTO } from '../../api/aiProviders'
 import { accountsApi, type ProviderAccount } from '../../api/accounts'
 import { agentsApi, type Agent } from '../../api/agents'
 import { tasksApi } from '../../api/tasks'
+import { projectsApi } from '../../api/projects'
 import { AddBrainModal } from './AddBrainModal'
 import { AccountModelPicker } from './AccountModelPicker'
 import { AccountUsageDetails } from './AccountUsageDetails'
@@ -102,12 +103,30 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
       const assignedAgentId = brain.account?.agent_id || primary?.id || 'agent_cuan'
       const accountId = brain.account?.id || (brain.id.startsWith('byok_') ? '' : brain.id)
 
+      let targetProject = null
+      try {
+        const projectList = await projectsApi.list()
+        targetProject = projectList.find(p => !p.is_archived && p.name.toLowerCase() === 'cuan') || projectList.find(p => !p.is_archived) || null
+      } catch {}
+
+      const projId = targetProject?.id || 'default'
+
       if (!targetTask) {
         targetTask = await tasksApi.create({
           title: taskTitle,
+          project_id: projId,
+          project_ids: [projId],
           description: `Interactive terminal session to test and evaluate AI brain: ${brainLabel}.`,
           assignee_id: assignedAgentId,
         })
+      } else if (
+        targetTask.status === 'done' ||
+        (targetTask.status as string) === 'cancelled' ||
+        (targetTask.status as string) === 'canceled'
+      ) {
+        try {
+          await tasksApi.updateStatus(targetTask.id, 'todo')
+        } catch {}
       }
 
       const launchPayload = {
@@ -123,7 +142,8 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
       } catch {}
 
       const targetSessionId = 'latest'
-      navigate(`/tasks/${encodeURIComponent(targetTask.id)}/sessions/${encodeURIComponent(targetSessionId)}?terminal=open`, {
+      const accountParam = accountId ? `&account_id=${encodeURIComponent(accountId)}` : ''
+      navigate(`/tasks/${encodeURIComponent(targetTask.id)}/sessions/${encodeURIComponent(targetSessionId)}?terminal=open${accountParam}`, {
         state: {
           taskReturnTo: '/settings/agent',
         },
