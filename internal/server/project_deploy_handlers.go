@@ -561,6 +561,23 @@ func (s *Server) resolveProjectDeployWebhookURL(proj *project.ProjectResponse) s
 	return fmt.Sprintf("%s://%s/api/v1/projects/%s/webhooks/deploy", scheme, domain, proj.ID)
 }
 
+// resolveProjectDeployRepoDir resolves the canonical project checkout repository directory for deployment runs.
+// Deployments must run against the project root checkout (proj.LocalPath) rather than interactive terminal worktrees.
+func (s *Server) resolveProjectDeployRepoDir(ctx context.Context, id string) (*project.ProjectResponse, string, error) {
+	if s.projectSvc == nil {
+		return nil, "", errors.New("project service unavailable")
+	}
+	proj, err := s.projectSvc.Get(ctx, id)
+	if err != nil {
+		return nil, "", err
+	}
+	if proj == nil {
+		return nil, "", project.ErrProjectNotFound
+	}
+	workDir := proj.LocalPath
+	return proj, workDir, nil
+}
+
 // handleGetProjectDeployments lists deployment history and step timeline for a project.
 // GET /api/v1/projects/{id}/deployments
 func (s *Server) handleGetProjectDeployments(w http.ResponseWriter, r *http.Request) {
@@ -570,7 +587,7 @@ func (s *Server) handleGetProjectDeployments(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	proj, repoDir, err := s.resolveProjectRepoDir(r.Context(), projectID)
+	proj, repoDir, err := s.resolveProjectDeployRepoDir(r.Context(), projectID)
 	if err != nil {
 		if errors.Is(err, project.ErrProjectNotFound) {
 			respondJSONError(w, http.StatusNotFound, "project not found")
@@ -704,7 +721,7 @@ func (s *Server) handleProjectDeployWebhook(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	proj, repoDir, err := s.resolveProjectRepoDir(r.Context(), projectID)
+	proj, repoDir, err := s.resolveProjectDeployRepoDir(r.Context(), projectID)
 	if err != nil {
 		if errors.Is(err, project.ErrProjectNotFound) {
 			respondJSONError(w, http.StatusNotFound, "project not found")
@@ -833,7 +850,7 @@ func (s *Server) handleUpdateProjectDeploymentConfig(w http.ResponseWriter, r *h
 		return
 	}
 
-	proj, _, err := s.resolveProjectRepoDir(r.Context(), projectID)
+	proj, _, err := s.resolveProjectDeployRepoDir(r.Context(), projectID)
 	if err != nil {
 		if errors.Is(err, project.ErrProjectNotFound) {
 			respondJSONError(w, http.StatusNotFound, "project not found")
@@ -894,7 +911,7 @@ func (s *Server) handleTriggerProjectDeployment(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	proj, repoDir, err := s.resolveProjectRepoDir(r.Context(), projectID)
+	proj, repoDir, err := s.resolveProjectDeployRepoDir(r.Context(), projectID)
 	if err != nil {
 		if errors.Is(err, project.ErrProjectNotFound) {
 			respondJSONError(w, http.StatusNotFound, "project not found")
@@ -1213,11 +1230,26 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	settings := project.SettingsFromMetadata(proj.Metadata)
 	var ranDeployScript bool
 
+	deployEnv := os.Environ()
+	deployEnv = append(deployEnv,
+		fmt.Sprintf("CUAN_PROJECT_ID=%s", projectID),
+		fmt.Sprintf("CUAN_DEPLOYMENT_ID=%s", depID),
+		fmt.Sprintf("CUAN_BRANCH=%s", branch),
+		fmt.Sprintf("CUAN_COMMIT_SHA=%s", commitSHA),
+		fmt.Sprintf("CUAN_DEPLOY_BRANCH=%s", branch),
+	)
+	if strings.TrimSpace(settings.Environment) != "" {
+		for k, v := range project.ParseEnvironment(settings.Environment) {
+			deployEnv = append(deployEnv, fmt.Sprintf("%s=%s", k, v))
+		}
+	}
+
 	if strings.TrimSpace(settings.DeployScript) != "" && repoDir != "" {
 		ranDeployScript = true
 		buildLog.WriteString(fmt.Sprintf("Executing project deploy script in %s\n", repoDir))
 		cmd := exec.CommandContext(ctx, "bash", "-c", settings.DeployScript)
 		cmd.Dir = repoDir
+		cmd.Env = deployEnv
 		out, err := cmd.CombinedOutput()
 		buildLog.Write(out)
 		if err != nil {
@@ -1236,10 +1268,11 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 			buildLog.WriteString(fmt.Sprintf("Executing repository deployment script at %s\n", repoScript))
 			deployArgs := []string{repoScript}
 			if fileExists(filepath.Join(repoDir, "cmd", "server")) && fileExists("/opt/cuan/releases") {
-				deployArgs = append(deployArgs, "--local", "--native-sync", "--branch", branch)
+				deployArgs = append(deployArgs, "--local", "--native-sync", "--branch", branch, "--allow-divergent")
 			}
 			cmd := exec.CommandContext(ctx, "bash", deployArgs...)
 			cmd.Dir = repoDir
+			cmd.Env = deployEnv
 			out, err := cmd.CombinedOutput()
 			buildLog.Write(out)
 			if err != nil {
@@ -1258,6 +1291,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 				buildLog.WriteString(fmt.Sprintf("Auto-detected Laravel Fullstack project. Executing: %s\n", buildCmd))
 				cmd := exec.CommandContext(ctx, "bash", "-c", buildCmd)
 				cmd.Dir = repoDir
+				cmd.Env = deployEnv
 				out, err := cmd.CombinedOutput()
 				buildLog.Write(out)
 				if err != nil {
@@ -1276,6 +1310,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 				buildLog.WriteString(fmt.Sprintf("Auto-detected Node.js project. Executing: %s\n", buildCmd))
 				cmd := exec.CommandContext(ctx, "bash", "-c", buildCmd)
 				cmd.Dir = repoDir
+				cmd.Env = deployEnv
 				out, err := cmd.CombinedOutput()
 				buildLog.Write(out)
 				if err != nil {
@@ -1287,6 +1322,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 				buildLog.WriteString(fmt.Sprintf("Auto-detected Golang project. Executing: %s\n", buildCmd))
 				cmd := exec.CommandContext(ctx, "bash", "-c", buildCmd)
 				cmd.Dir = repoDir
+				cmd.Env = deployEnv
 				out, err := cmd.CombinedOutput()
 				buildLog.Write(out)
 				if err != nil {
@@ -1298,6 +1334,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 				buildLog.WriteString(fmt.Sprintf("Auto-detected PHP/Laravel project. Executing: %s\n", buildCmd))
 				cmd := exec.CommandContext(ctx, "bash", "-c", buildCmd)
 				cmd.Dir = repoDir
+				cmd.Env = deployEnv
 				out, err := cmd.CombinedOutput()
 				buildLog.Write(out)
 				if err != nil {
@@ -1352,6 +1389,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	} else if repoDir != "" && fileExists(filepath.Join(repoDir, "artisan")) {
 		migrateCmd := exec.CommandContext(ctx, "php", "artisan", "migrate", "--force")
 		migrateCmd.Dir = repoDir
+		migrateCmd.Env = deployEnv
 		out, err := migrateCmd.CombinedOutput()
 		migrationLog.Write(out)
 		if err != nil {
@@ -1431,13 +1469,21 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	healthSuccess := true
 
 	healthURL := ""
-	domain := s.resolveProjectDomain(ctx, proj)
-	if domain != "" {
-		d := domain
-		if !strings.HasPrefix(d, "http://") && !strings.HasPrefix(d, "https://") {
-			d = "https://" + d
+	if strings.TrimSpace(settings.Environment) != "" {
+		envMap := project.ParseEnvironment(settings.Environment)
+		if u := strings.TrimSpace(envMap["CUAN_PUBLICATION_HEALTH_URL"]); u != "" {
+			healthURL = u
 		}
-		healthURL = strings.TrimRight(d, "/") + "/healthz"
+	}
+	if healthURL == "" {
+		domain := s.resolveProjectDomain(ctx, proj)
+		if domain != "" {
+			d := domain
+			if !strings.HasPrefix(d, "http://") && !strings.HasPrefix(d, "https://") {
+				d = "https://" + d
+			}
+			healthURL = strings.TrimRight(d, "/") + "/healthz"
+		}
 	}
 	if healthURL == "" {
 		healthURL = "http://127.0.0.1:8080/healthz"
@@ -1546,7 +1592,7 @@ func (s *Server) handleCancelProjectDeployment(w http.ResponseWriter, r *http.Re
 
 	// If canceled deployment was active building, unblock lane by starting next queued
 	if wasBuilding {
-		proj, repoDir, _ := s.resolveProjectRepoDir(r.Context(), projectID)
+		proj, repoDir, _ := s.resolveProjectDeployRepoDir(r.Context(), projectID)
 		if proj != nil {
 			s.processNextQueuedDeployment(projectID, repoDir, proj)
 		}
