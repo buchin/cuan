@@ -211,11 +211,12 @@ func (s *AIProviderStore) ExportCatalogDTO(bm *BinaryManager, reg *ProviderRegis
 		supportedModes []string
 		defaultModel   string
 	}{
-		{id: "anthropic", name: "Anthropic (Claude)", harness: HarnessClaude, supportedModes: []string{"subscription", "byok"}, defaultModel: "claude-3-7-sonnet-20250219"},
-		{id: "openai", name: "OpenAI", harness: HarnessCodex, supportedModes: []string{"subscription", "byok"}, defaultModel: "gpt-4o"},
-		{id: "google", name: "Google (Antigravity)", harness: HarnessAGY, supportedModes: []string{"subscription", "byok"}, defaultModel: "gemini-1.5-pro"},
+		{id: "anthropic", name: "Anthropic (Claude)", harness: HarnessClaude, supportedModes: []string{"subscription", "byok"}, defaultModel: "claude-sonnet-5-5"},
+		{id: "openai", name: "OpenAI", harness: HarnessCodex, supportedModes: []string{"subscription", "byok"}, defaultModel: "gpt-6.1-sol"},
+		{id: "grok", name: "xAI (Grok)", harness: HarnessGrok, supportedModes: []string{"subscription", "byok"}, defaultModel: "grok-4.7"},
+		{id: "google", name: "Google (Antigravity)", harness: HarnessAGY, supportedModes: []string{"subscription", "byok"}, defaultModel: "gemini-4-neon"},
+		{id: "commandcode", name: "CommandCode", harness: "commandcode", supportedModes: []string{"subscription", "byok"}, defaultModel: "commandcode-default"},
 		{id: "deepseek", name: "DeepSeek", harness: "", supportedModes: []string{"byok"}, defaultModel: "deepseek-chat"},
-		{id: "grok", name: "xAI (Grok)", harness: "", supportedModes: []string{"byok"}, defaultModel: "grok-2-latest"},
 		{id: "openrouter", name: "OpenRouter", harness: "", supportedModes: []string{"byok"}, defaultModel: "deepseek/deepseek-r1"},
 		{id: "groq", name: "Groq", harness: "", supportedModes: []string{"byok"}, defaultModel: "llama-3.3-70b-versatile"},
 		{id: "ollama", name: "Ollama (Local)", harness: "", supportedModes: []string{"byok"}, defaultModel: "llama3"},

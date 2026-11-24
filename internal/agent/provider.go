@@ -54,20 +54,20 @@ func IsModelVisionCapable(provider, modelID string) bool {
 		return IsCommandCodeModelVision(m)
 	}
 	if p == "claude" || p == "anthropic" {
-		// Claude 3+ Sonnet and Opus support vision
-		if strings.Contains(m, "sonnet") || strings.Contains(m, "opus") || strings.Contains(m, "haiku") || strings.Contains(m, "claude-3") {
+		// Claude 3+, 4.x and 5.x support vision
+		if strings.Contains(m, "sonnet") || strings.Contains(m, "opus") || strings.Contains(m, "haiku") || strings.Contains(m, "claude-") || strings.Contains(m, "fable") {
 			return true
 		}
 		return false
 	}
 	if p == "openai" {
-		if strings.Contains(m, "gpt-4o") || strings.Contains(m, "vision") || strings.Contains(m, "o1") {
+		if strings.Contains(m, "gpt-4o") || strings.Contains(m, "vision") || strings.Contains(m, "o1") || strings.Contains(m, "gpt-6") || strings.Contains(m, "sol") || strings.Contains(m, "astra") || strings.Contains(m, "luna") || strings.Contains(m, "gpt-4.5") {
 			return true
 		}
 		return false
 	}
 	if p == "grok" || p == "xai" {
-		if strings.Contains(m, "vision") || strings.Contains(m, "grok-2") {
+		if strings.Contains(m, "vision") || strings.Contains(m, "grok-2") || strings.Contains(m, "grok-3") || strings.Contains(m, "grok-4") {
 			return true
 		}
 		return false

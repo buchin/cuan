@@ -335,15 +335,21 @@ func TestIsModelVisionCapable_BYOK(t *testing.T) {
 		model    string
 		expected bool
 	}{
+		{"openai", "gpt-6.1-sol", true},
+		{"openai", "gpt-6-astra", true},
 		{"openai", "gpt-4o", true},
 		{"openai", "gpt-4o-mini", true},
 		{"openai", "o1", true},
 		{"openai", "o3-mini", false},
 		{"deepseek", "deepseek-chat", false},
 		{"deepseek", "deepseek-reasoner", false},
+		{"anthropic", "claude-sonnet-5-5", true},
+		{"anthropic", "claude-fable-5-2", true},
 		{"anthropic", "claude-3-5-sonnet-20241022", true},
 		{"anthropic", "claude-3-5-haiku-20241022", true},
 		{"claude", "claude-3-opus-20240229", true},
+		{"grok", "grok-4.7", true},
+		{"grok", "grok-3", true},
 		{"grok", "grok-2-latest", true},
 		{"grok", "grok-beta", false},
 		{"ollama", "llava:13b", true},

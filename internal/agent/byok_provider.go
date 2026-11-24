@@ -21,6 +21,7 @@ const (
 	ProviderGrok       = "grok"
 	ProviderXAI        = "xai"
 	ProviderOpenRouter = "openrouter"
+	ProviderOpenCode   = "opencode"
 	ProviderGroq       = "groq"
 	ProviderOllama     = "ollama"
 )
@@ -126,6 +127,8 @@ func defaultProviderName(pType string) string {
 		return "xAI (Grok)"
 	case ProviderOpenRouter:
 		return "OpenRouter"
+	case ProviderOpenCode:
+		return "OpenCode"
 	case ProviderGroq:
 		return "Groq"
 	case ProviderOllama:
@@ -145,7 +148,7 @@ func defaultProviderBaseURL(pType string) string {
 		return "https://api.anthropic.com/v1"
 	case ProviderGrok, ProviderXAI:
 		return "https://api.x.ai/v1"
-	case ProviderOpenRouter:
+	case ProviderOpenRouter, ProviderOpenCode:
 		return "https://openrouter.ai/api/v1"
 	case ProviderGroq:
 		return "https://api.groq.com/openai/v1"
@@ -916,23 +919,23 @@ func DefaultBYOKModels(providerType string) []ModelInfo {
 	case ProviderOpenAI:
 		return []ModelInfo{
 			{
-				ID: "gpt-4o", Name: "gpt-4o", DisplayName: "OpenAI GPT-4o",
-				Description: "Flagship omni model with advanced multimodal capabilities",
-				Provider: ProviderOpenAI, InputTokenLimit: 128000, OutputTokenLimit: 4096,
+				ID: "gpt-6.1-sol", Name: "gpt-6.1-sol", DisplayName: "OpenAI GPT-6.1 Sol",
+				Description: "High-performance agentic coding and professional workflows with reasoning effort control",
+				Provider: ProviderOpenAI, InputTokenLimit: 1000000, OutputTokenLimit: 131072,
 				IsDefault: true, SupportsVision: true,
 				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
 			},
 			{
-				ID: "gpt-4o-mini", Name: "gpt-4o-mini", DisplayName: "OpenAI GPT-4o Mini",
-				Description: "Cost-efficient lightweight intelligence for fast lightweight tasks",
-				Provider: ProviderOpenAI, InputTokenLimit: 128000, OutputTokenLimit: 4096,
+				ID: "gpt-6-astra", Name: "gpt-6-astra", DisplayName: "OpenAI GPT-6 Astra",
+				Description: "Frontier flagship intelligence for complex multi-step scientific and engineering challenges",
+				Provider: ProviderOpenAI, InputTokenLimit: 1000000, OutputTokenLimit: 131072,
 				IsDefault: false, SupportsVision: true,
 				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
 			},
 			{
-				ID: "o1", Name: "o1", DisplayName: "OpenAI o1 Reasoning",
-				Description: "Deep reasoning model designed for complex multi-step reasoning",
-				Provider: ProviderOpenAI, InputTokenLimit: 200000, OutputTokenLimit: 100000,
+				ID: "gpt-6-luna", Name: "gpt-6-luna", DisplayName: "OpenAI GPT-6 Luna",
+				Description: "Ultra-fast, cost-efficient model for lightweight automation and tool calling",
+				Provider: ProviderOpenAI, InputTokenLimit: 1000000, OutputTokenLimit: 32768,
 				IsDefault: false, SupportsVision: true,
 				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
 			},
@@ -942,6 +945,34 @@ func DefaultBYOKModels(providerType string) []ModelInfo {
 				Provider: ProviderOpenAI, InputTokenLimit: 200000, OutputTokenLimit: 100000,
 				IsDefault: false, SupportsVision: false,
 				Capabilities: ModelCapabilities{Vision: false, SupportsVision: false},
+			},
+			{
+				ID: "o1", Name: "o1", DisplayName: "OpenAI o1 Reasoning",
+				Description: "Deep reasoning model designed for complex multi-step reasoning",
+				Provider: ProviderOpenAI, InputTokenLimit: 200000, OutputTokenLimit: 100000,
+				IsDefault: false, SupportsVision: true,
+				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
+			},
+			{
+				ID: "gpt-4.5-preview", Name: "gpt-4.5-preview", DisplayName: "OpenAI GPT-4.5 Preview",
+				Description: "Scaled frontier intelligence with broad world knowledge and reduced hallucinations",
+				Provider: ProviderOpenAI, InputTokenLimit: 128000, OutputTokenLimit: 16384,
+				IsDefault: false, SupportsVision: true,
+				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
+			},
+			{
+				ID: "gpt-4o", Name: "gpt-4o", DisplayName: "OpenAI GPT-4o",
+				Description: "Omni model with multimodal capabilities",
+				Provider: ProviderOpenAI, InputTokenLimit: 128000, OutputTokenLimit: 4096,
+				IsDefault: false, SupportsVision: true,
+				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
+			},
+			{
+				ID: "gpt-4o-mini", Name: "gpt-4o-mini", DisplayName: "OpenAI GPT-4o Mini",
+				Description: "Cost-efficient lightweight intelligence for fast lightweight tasks",
+				Provider: ProviderOpenAI, InputTokenLimit: 128000, OutputTokenLimit: 4096,
+				IsDefault: false, SupportsVision: true,
+				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
 			},
 		}
 	case ProviderDeepSeek:
@@ -964,10 +995,52 @@ func DefaultBYOKModels(providerType string) []ModelInfo {
 	case ProviderAnthropic:
 		return []ModelInfo{
 			{
+				ID: "claude-sonnet-5-5", Name: "claude-sonnet-5-5", DisplayName: "Claude Sonnet 5.5",
+				Description: "Frontier workhorse model for coding, analysis, and responsive agentic loops",
+				Provider: ProviderAnthropic, InputTokenLimit: 1000000, OutputTokenLimit: 131072,
+				IsDefault: true, SupportsVision: true,
+				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
+			},
+			{
+				ID: "claude-opus-5-5", Name: "claude-opus-5-5", DisplayName: "Claude Opus 5.5",
+				Description: "Heavy-duty agentic coding and deep professional reasoning",
+				Provider: ProviderAnthropic, InputTokenLimit: 1000000, OutputTokenLimit: 131072,
+				IsDefault: false, SupportsVision: true,
+				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
+			},
+			{
+				ID: "claude-fable-5-2", Name: "claude-fable-5-2", DisplayName: "Claude Fable 5.2",
+				Description: "Top-tier cutting-edge reasoning and complex multi-step agentic problem solving",
+				Provider: ProviderAnthropic, InputTokenLimit: 1000000, OutputTokenLimit: 131072,
+				IsDefault: false, SupportsVision: true,
+				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
+			},
+			{
+				ID: "claude-haiku-5-5", Name: "claude-haiku-5-5", DisplayName: "Claude Haiku 5.5",
+				Description: "High-volume, low-latency model for rapid sub-agent routing and execution",
+				Provider: ProviderAnthropic, InputTokenLimit: 1000000, OutputTokenLimit: 32768,
+				IsDefault: false, SupportsVision: true,
+				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
+			},
+			{
+				ID: "claude-sonnet-4-6", Name: "claude-sonnet-4-6", DisplayName: "Claude Sonnet 4.6 (Thinking)",
+				Description: "Frontier coding and vision reasoning with thinking",
+				Provider: ProviderAnthropic, InputTokenLimit: 1000000, OutputTokenLimit: 65536,
+				IsDefault: false, SupportsVision: true,
+				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
+			},
+			{
+				ID: "claude-opus-4-6-thinking", Name: "claude-opus-4-6-thinking", DisplayName: "Claude Opus 4.6 (Thinking)",
+				Description: "Deepest reasoning with vision and extended thinking",
+				Provider: ProviderAnthropic, InputTokenLimit: 1000000, OutputTokenLimit: 65536,
+				IsDefault: false, SupportsVision: true,
+				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
+			},
+			{
 				ID: "claude-3-7-sonnet-20250219", Name: "claude-3-7-sonnet-20250219", DisplayName: "Claude 3.7 Sonnet",
 				Description: "Leading hybrid reasoning model with adjustable thinking modes",
 				Provider: ProviderAnthropic, InputTokenLimit: 200000, OutputTokenLimit: 8192,
-				IsDefault: true, SupportsVision: true,
+				IsDefault: false, SupportsVision: true,
 				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
 			},
 			{
@@ -984,14 +1057,63 @@ func DefaultBYOKModels(providerType string) []ModelInfo {
 				IsDefault: false, SupportsVision: true,
 				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
 			},
+			{
+				ID: "claude-3-opus-20240229", Name: "claude-3-opus-20240229", DisplayName: "Claude 3 Opus",
+				Description: "Deep analytical and writing model for complex tasks",
+				Provider: ProviderAnthropic, InputTokenLimit: 200000, OutputTokenLimit: 4096,
+				IsDefault: false, SupportsVision: true,
+				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
+			},
 		}
 	case ProviderGrok, ProviderXAI:
 		return []ModelInfo{
 			{
+				ID: "grok-4.7", Name: "grok-4.7", DisplayName: "xAI Grok 4.7 (Reasoning)",
+				Description: "Primary flagship for complex tasks, advanced self-correction, and encrypted reasoning traces",
+				Provider: ProviderGrok, InputTokenLimit: 262144, OutputTokenLimit: 32768,
+				IsDefault: true, SupportsVision: true,
+				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
+			},
+			{
+				ID: "grok-4.5", Name: "grok-4.5", DisplayName: "xAI Grok 4.5",
+				Description: "High-capability flagship text and agentic coding model",
+				Provider: ProviderGrok, InputTokenLimit: 262144, OutputTokenLimit: 16384,
+				IsDefault: false, SupportsVision: true,
+				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
+			},
+			{
+				ID: "grok-4.20", Name: "grok-4.20", DisplayName: "xAI Grok 4.20",
+				Description: "High-performance variant optimized for long-horizon agentic tool calling",
+				Provider: ProviderGrok, InputTokenLimit: 262144, OutputTokenLimit: 16384,
+				IsDefault: false, SupportsVision: true,
+				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
+			},
+			{
+				ID: "grok-3", Name: "grok-3", DisplayName: "xAI Grok 3 (Reasoning)",
+				Description: "Foundational frontier reasoning and deep multi-step coding model",
+				Provider: ProviderGrok, InputTokenLimit: 131072, OutputTokenLimit: 16384,
+				IsDefault: false, SupportsVision: true,
+				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
+			},
+			{
+				ID: "grok-3-mini", Name: "grok-3-mini", DisplayName: "xAI Grok 3 Mini",
+				Description: "Fast, cost-efficient reasoning model for agentic workflows",
+				Provider: ProviderGrok, InputTokenLimit: 131072, OutputTokenLimit: 8192,
+				IsDefault: false, SupportsVision: true,
+				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
+			},
+			{
 				ID: "grok-2-latest", Name: "grok-2-latest", DisplayName: "xAI Grok 2",
 				Description: "Advanced reasoning model with real-time knowledge and image understanding",
 				Provider: ProviderGrok, InputTokenLimit: 131072, OutputTokenLimit: 4096,
-				IsDefault: true, SupportsVision: true,
+				IsDefault: false, SupportsVision: true,
+				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
+			},
+			{
+				ID: "grok-2-vision-1212", Name: "grok-2-vision-1212", DisplayName: "xAI Grok 2 Vision",
+				Description: "Multimodal visual reasoning and document understanding",
+				Provider: ProviderGrok, InputTokenLimit: 32768, OutputTokenLimit: 4096,
+				IsDefault: false, SupportsVision: true,
 				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
 			},
 			{
@@ -1002,7 +1124,7 @@ func DefaultBYOKModels(providerType string) []ModelInfo {
 				Capabilities: ModelCapabilities{Vision: false, SupportsVision: false},
 			},
 		}
-	case ProviderOpenRouter:
+	case ProviderOpenRouter, ProviderOpenCode:
 		return []ModelInfo{
 			{
 				ID: "deepseek/deepseek-r1", Name: "deepseek/deepseek-r1", DisplayName: "OpenRouter DeepSeek R1",
@@ -1012,16 +1134,37 @@ func DefaultBYOKModels(providerType string) []ModelInfo {
 				Capabilities: ModelCapabilities{Vision: false, SupportsVision: false},
 			},
 			{
-				ID: "openai/gpt-4o", Name: "openai/gpt-4o", DisplayName: "OpenRouter OpenAI GPT-4o",
-				Description: "Universal routing to OpenAI GPT-4o omni model",
-				Provider: ProviderOpenRouter, InputTokenLimit: 128000, OutputTokenLimit: 4096,
+				ID: "openai/gpt-6.1-sol", Name: "openai/gpt-6.1-sol", DisplayName: "OpenRouter OpenAI GPT-6.1 Sol",
+				Description: "Universal routing to OpenAI GPT-6.1 Sol workhorse model",
+				Provider: ProviderOpenRouter, InputTokenLimit: 1000000, OutputTokenLimit: 131072,
 				IsDefault: false, SupportsVision: true,
 				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
 			},
 			{
-				ID: "anthropic/claude-3.5-sonnet", Name: "anthropic/claude-3.5-sonnet", DisplayName: "OpenRouter Claude 3.5 Sonnet",
-				Description: "Universal routing to Claude 3.5 Sonnet",
-				Provider: ProviderOpenRouter, InputTokenLimit: 200000, OutputTokenLimit: 8192,
+				ID: "anthropic/claude-sonnet-5.5", Name: "anthropic/claude-sonnet-5.5", DisplayName: "OpenRouter Claude Sonnet 5.5",
+				Description: "Universal routing to Claude Sonnet 5.5",
+				Provider: ProviderOpenRouter, InputTokenLimit: 1000000, OutputTokenLimit: 131072,
+				IsDefault: false, SupportsVision: true,
+				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
+			},
+			{
+				ID: "anthropic/claude-fable-5.2", Name: "anthropic/claude-fable-5.2", DisplayName: "OpenRouter Claude Fable 5.2",
+				Description: "Universal routing to top-tier Claude Fable 5.2",
+				Provider: ProviderOpenRouter, InputTokenLimit: 1000000, OutputTokenLimit: 131072,
+				IsDefault: false, SupportsVision: true,
+				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
+			},
+			{
+				ID: "google/gemini-4-neon", Name: "google/gemini-4-neon", DisplayName: "OpenRouter Gemini 4 Neon",
+				Description: "Universal routing to Gemini 4 Neon balanced flagship",
+				Provider: ProviderOpenRouter, InputTokenLimit: 1000000, OutputTokenLimit: 65536,
+				IsDefault: false, SupportsVision: true,
+				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
+			},
+			{
+				ID: "openai/gpt-4o", Name: "openai/gpt-4o", DisplayName: "OpenRouter OpenAI GPT-4o",
+				Description: "Universal routing to OpenAI GPT-4o omni model",
+				Provider: ProviderOpenRouter, InputTokenLimit: 128000, OutputTokenLimit: 4096,
 				IsDefault: false, SupportsVision: true,
 				Capabilities: ModelCapabilities{Vision: true, SupportsVision: true},
 			},

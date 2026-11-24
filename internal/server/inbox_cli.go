@@ -405,6 +405,18 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		if model, _ := ctx.Value(inboxModelKey{}).(string); model != "" && model != "commandcode-default" && model != "default" {
 			args = append(args, "-m", model)
 		}
+	case "grok":
+		binary = "grok"
+		args = []string{"--prompt", system}
+		if model, _ := ctx.Value(inboxModelKey{}).(string); model != "" && model != "default" {
+			args = append(args, "-m", model)
+		}
+	case "opencode":
+		binary = "opencode"
+		args = []string{"run", system}
+		if model, _ := ctx.Value(inboxModelKey{}).(string); model != "" && model != "default" {
+			args = append(args, "--model", model)
+		}
 	default:
 		binary = normHarness
 	}
@@ -452,6 +464,18 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 					break
 				}
 			}
+		} else if binary == "opencode" {
+			for _, candidate := range []string{
+				"/home/dev/.local/bin/opencode",
+				"/home/ubuntu/.local/bin/opencode",
+				"/usr/local/bin/opencode",
+			} {
+				if _, e := os.Stat(candidate); e == nil {
+					path = candidate
+					err = nil
+					break
+				}
+			}
 		} else if binary == "claude" {
 			for _, candidate := range []string{
 				"/home/dev/.local/bin/claude",
@@ -469,6 +493,18 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 				"/home/dev/.local/bin/codex",
 				"/home/ubuntu/.local/bin/codex",
 				"/usr/local/bin/codex",
+			} {
+				if _, e := os.Stat(candidate); e == nil {
+					path = candidate
+					err = nil
+					break
+				}
+			}
+		} else if binary == "grok" {
+			for _, candidate := range []string{
+				"/home/dev/.local/bin/grok",
+				"/home/ubuntu/.local/bin/grok",
+				"/usr/local/bin/grok",
 			} {
 				if _, e := os.Stat(candidate); e == nil {
 					path = candidate

@@ -33,18 +33,18 @@ func TestGeminiProvider_MockKeyVerification(t *testing.T) {
 		t.Fatalf("expected available models in probe result, got 0")
 	}
 
-	hasGemini15Pro := false
+	hasGemini4Neon := false
 	for _, m := range probe.AvailableModels {
-		if m.ID == "gemini-1.5-pro" {
-			hasGemini15Pro = true
+		if m.ID == "gemini-4-neon" {
+			hasGemini4Neon = true
 			if !m.IsDefault {
-				t.Errorf("expected gemini-1.5-pro to be default model")
+				t.Errorf("expected gemini-4-neon to be default model")
 			}
 		}
 	}
 
-	if !hasGemini15Pro {
-		t.Errorf("expected gemini-1.5-pro model in probe result")
+	if !hasGemini4Neon {
+		t.Errorf("expected gemini-4-neon model in probe result")
 	}
 }
 

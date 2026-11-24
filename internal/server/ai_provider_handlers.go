@@ -1,9 +1,11 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -218,6 +220,220 @@ func (s *Server) handleTestAIProvider(w http.ResponseWriter, r *http.Request) {
 		"models":     probe.AvailableModels,
 		"tested_at":  probe.TestedAt,
 	})
+}
+
+// handleFetchAIProviderModels discovers models dynamically from provider endpoint or catalog cache.
+// Routes: POST /api/v1/ai/providers/models, POST /api/ai/providers/models
+func (s *Server) handleFetchAIProviderModels(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Provider string `json:"provider"`
+		ID       string `json:"id"`
+		APIKey   string `json:"api_key"`
+		BaseURL  string `json:"base_url"`
+		Refresh  bool   `json:"refresh"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil && err != io.EOF {
+		respondJSONError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+		return
+	}
+
+	providerID := strings.TrimSpace(input.Provider)
+	if providerID == "" {
+		providerID = strings.TrimSpace(input.ID)
+	}
+	if providerID == "" {
+		providerID = "claude"
+	}
+
+	apiKey := strings.TrimSpace(input.APIKey)
+	if apiKey == "" {
+		if storedKey, err := s.AIProviderStore().GetDecryptedAPIKey(providerID); err == nil && storedKey != "" {
+			apiKey = storedKey
+		}
+	}
+
+	baseURL := strings.TrimSpace(input.BaseURL)
+	if baseURL == "" {
+		if cfg := s.AIProviderStore().GetConfig(providerID); cfg.BaseURL != "" {
+			baseURL = cfg.BaseURL
+		}
+	}
+
+	models := s.fetchDynamicProviderModels(r.Context(), providerID, baseURL, apiKey, input.Refresh)
+
+	respondJSON(w, http.StatusOK, map[string]any{
+		"status":   "success",
+		"provider": providerID,
+		"models":   models,
+	})
+}
+
+func (s *Server) fetchDynamicProviderModels(ctx context.Context, providerID, baseURL, apiKey string, refresh bool) []agent.ModelInfo {
+	p := strings.ToLower(strings.TrimSpace(providerID))
+
+	if baseURL == "" {
+		switch p {
+		case "anthropic", "claude":
+			baseURL = "https://api.anthropic.com"
+		case "openai", "codex":
+			baseURL = "https://api.openai.com/v1"
+		case "xai", "grok":
+			baseURL = "https://api.x.ai/v1"
+		case "deepseek":
+			baseURL = "https://api.deepseek.com"
+		case "groq":
+			baseURL = "https://api.groq.com/openai/v1"
+		case "openrouter", "opencode":
+			baseURL = "https://openrouter.ai/api/v1"
+		}
+	}
+
+	// Live remote probe if apiKey and baseURL are provided
+	if apiKey != "" && baseURL != "" {
+		cleanBase := strings.TrimRight(baseURL, "/")
+		urls := []string{cleanBase + "/models", cleanBase + "/v1/models"}
+		isAnthropic := p == "anthropic" || p == "claude" || strings.Contains(strings.ToLower(baseURL), "anthropic")
+		if isAnthropic {
+			urls = []string{cleanBase + "/v1/models", cleanBase + "/models"}
+		}
+
+		client := &http.Client{Timeout: 8 * time.Second}
+		for _, targetURL := range urls {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
+			if err != nil {
+				continue
+			}
+			req.Header.Set("Accept", "application/json")
+			if isAnthropic {
+				req.Header.Set("x-api-key", apiKey)
+				req.Header.Set("anthropic-version", "2023-06-01")
+			} else {
+				req.Header.Set("Authorization", "Bearer "+apiKey)
+			}
+
+			resp, err := client.Do(req)
+			if err != nil || resp == nil {
+				continue
+			}
+			body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+			_ = resp.Body.Close()
+
+			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+				parsed := parseDiscoveredModels(body, p)
+				if len(parsed) > 0 {
+					return parsed
+				}
+			}
+		}
+	}
+
+	// CatalogCache fallback
+	if s.CatalogCache() != nil {
+		if list, err := s.CatalogCache().DiscoverModels(ctx, s.ProviderRegistry(), p, refresh); err == nil && len(list) > 0 {
+			return list
+		}
+	}
+
+	// Built-in defaults
+	switch p {
+	case "anthropic", "claude":
+		return agent.DefaultBYOKModels("anthropic")
+	case "openai", "codex":
+		return agent.DefaultBYOKModels("openai")
+	case "grok", "xai":
+		return agent.DefaultBYOKModels("grok")
+	case "google", "agy":
+		return agent.DefaultGeminiModels()
+	case "commandcode":
+		return agent.DefaultCommandCodeModels()
+	case "opencode", "openrouter":
+		return agent.DefaultBYOKModels("openrouter")
+	default:
+		return agent.DefaultBYOKModels("openai")
+	}
+}
+
+type rawModelResp struct {
+	Data   []rawModelItem `json:"data"`
+	Models []rawModelItem `json:"models"`
+}
+
+type rawModelItem struct {
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	DisplayName   string `json:"display_name"`
+	ContextWindow int    `json:"context_window"`
+	ContextLength int    `json:"context_length"`
+	MaxContext    int    `json:"max_context"`
+}
+
+func parseDiscoveredModels(body []byte, provider string) []agent.ModelInfo {
+	var resp rawModelResp
+	var items []rawModelItem
+
+	if err := json.Unmarshal(body, &resp); err == nil {
+		if len(resp.Data) > 0 {
+			items = resp.Data
+		} else if len(resp.Models) > 0 {
+			items = resp.Models
+		}
+	}
+
+	if len(items) == 0 {
+		var arr []rawModelItem
+		if err := json.Unmarshal(body, &arr); err == nil {
+			items = arr
+		}
+	}
+
+	if len(items) == 0 {
+		return nil
+	}
+
+	var results []agent.ModelInfo
+	for _, it := range items {
+		mid := strings.TrimSpace(it.ID)
+		if mid == "" {
+			mid = strings.TrimSpace(it.Name)
+		}
+		if mid == "" {
+			continue
+		}
+		name := it.DisplayName
+		if name == "" {
+			name = it.Name
+		}
+		if name == "" {
+			name = mid
+		}
+		limit := it.ContextWindow
+		if limit == 0 {
+			limit = it.ContextLength
+		}
+		if limit == 0 {
+			limit = it.MaxContext
+		}
+		if limit == 0 {
+			limit = 128000
+		}
+
+		vision := agent.IsModelVisionCapable(provider, mid)
+		results = append(results, agent.ModelInfo{
+			ID:               mid,
+			Name:             mid,
+			DisplayName:      name,
+			Provider:         provider,
+			InputTokenLimit:  limit,
+			OutputTokenLimit: 8192,
+			SupportsVision:   vision,
+			Capabilities: agent.ModelCapabilities{
+				Vision:         vision,
+				SupportsVision: vision,
+			},
+		})
+	}
+	return results
 }
 
 // handleInstallHarnessBinary triggers 1-click user-space installation or update of a CLI harness binary.

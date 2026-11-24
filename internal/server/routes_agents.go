@@ -64,6 +64,7 @@ func (s *Server) registerAgentRoutes(r chi.Router) {
 	r.Get("/api/ai/providers", s.handleListAIProviders)
 	r.Post("/api/ai/providers", s.handleSaveAIProvider)
 	r.Post("/api/ai/providers/test", s.handleTestAIProvider)
+	r.Post("/api/ai/providers/models", s.handleFetchAIProviderModels)
 	r.Post("/api/ai/providers/install-binary", s.handleInstallHarnessBinary)
 	r.Get("/api/agents/{id}/provider", s.handleGetAgentProvider)
 	r.Put("/api/agents/{id}/provider", s.handleUpdateAgentProvider)
@@ -149,6 +150,7 @@ func (s *Server) registerAgentV1Routes(r chi.Router) {
 		pr.Get("/", s.handleListAIProviders)
 		pr.Post("/", s.handleSaveAIProvider)
 		pr.Post("/test", s.handleTestAIProvider)
+		pr.Post("/models", s.handleFetchAIProviderModels)
 		pr.Post("/install-binary", s.handleInstallHarnessBinary)
 	})
 }

@@ -66,11 +66,15 @@ export interface ConnectCLIAgentRequest {
   name: string
   handle?: string
   provider?: string
-  auth_type?: 'subscription' | 'byok' | 'oauth' | 'cli_login' | string
+  auth_type?: 'subscription' | 'byok' | 'oauth' | 'cli_login' | 'custom' | string
   model_id?: string
   role?: string
   system_prompt?: string
   session_token?: string
+  base_url?: string
+  custom_api_key?: string
+  custom_model?: string
+  context_limit?: number
 }
 
 export interface ConnectCLIAgentResponse {

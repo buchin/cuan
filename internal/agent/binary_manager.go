@@ -24,6 +24,7 @@ const (
 	HarnessClaude = "claude"
 	HarnessCodex  = "codex"
 	HarnessAGY    = "agy"
+	HarnessGrok   = "grok"
 
 	DefaultExecutionTimeout = 60 * time.Second
 	MaxExecutionOutputBytes = 2 * 1024 * 1024 // 2MB
@@ -110,7 +111,7 @@ func (m *BinaryManager) DetectHarness(harness string) HarnessBinaryStatus {
 		LastCheckedAt: time.Now().UTC(),
 	}
 
-	if name != HarnessClaude && name != HarnessCodex && name != HarnessAGY {
+	if name != HarnessClaude && name != HarnessCodex && name != HarnessAGY && name != HarnessGrok {
 		return status
 	}
 
@@ -177,7 +178,7 @@ func (m *BinaryManager) queryVersion(path, name string) string {
 
 // DetectAllHarnesses returns the statuses of all supported harness runners.
 func (m *BinaryManager) DetectAllHarnesses() []HarnessBinaryStatus {
-	harnesses := []string{HarnessClaude, HarnessCodex, HarnessAGY}
+	harnesses := []string{HarnessClaude, HarnessCodex, HarnessGrok, HarnessAGY}
 	results := make([]HarnessBinaryStatus, 0, len(harnesses))
 	for _, h := range harnesses {
 		results = append(results, m.DetectHarness(h))
@@ -188,7 +189,7 @@ func (m *BinaryManager) DetectAllHarnesses() []HarnessBinaryStatus {
 // InstallBinary performs an automated 1-click bootstrap of the harness into ~/.local/bin without root/sudo.
 func (m *BinaryManager) InstallBinary(ctx context.Context, harness string) (*HarnessBinaryStatus, error) {
 	name := strings.ToLower(strings.TrimSpace(harness))
-	if name != HarnessClaude && name != HarnessCodex && name != HarnessAGY {
+	if name != HarnessClaude && name != HarnessCodex && name != HarnessAGY && name != HarnessGrok {
 		return nil, fmt.Errorf("%w: %s", ErrUnsupportedHarness, harness)
 	}
 
@@ -265,6 +266,42 @@ PROMPT="${1:-}"
 echo "[Codex Headless Runner] Executed in non-interactive batch mode."
 exit 0
 `
+	case HarnessGrok:
+		return `#!/usr/bin/env bash
+# Cuan Automated User-Space Harness: Grok CLI
+set -euo pipefail
+
+if [[ "${1:-}" == "--version" || "${1:-}" == "-v" ]]; then
+  echo "grok 0.2.120 (user-space headless)"
+  exit 0
+fi
+
+PROMPT=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --prompt|-p)
+      PROMPT="$2"
+      shift 2
+      ;;
+    --always-approve)
+      shift
+      ;;
+    *)
+      if [[ -z "$PROMPT" && ! "$1" =~ ^- ]]; then
+        PROMPT="$1"
+      fi
+      shift
+      ;;
+  esac
+done
+
+if [[ -n "$PROMPT" ]]; then
+  echo "[Grok Headless Runner] Executed prompt: ${PROMPT}"
+else
+  echo "[Grok Headless Runner] Running in non-interactive mode."
+fi
+exit 0
+`
 	case HarnessAGY:
 		return `#!/usr/bin/env bash
 # Cuan Automated User-Space Harness: Antigravity (AGY) CLI
@@ -325,6 +362,8 @@ func (m *BinaryManager) RunHeadless(ctx context.Context, req HeadlessRunRequest)
 		cmdArgs = append(cmdArgs, "--print", req.Prompt)
 	case HarnessCodex:
 		cmdArgs = append(cmdArgs, "--batch", req.Prompt)
+	case HarnessGrok:
+		cmdArgs = append(cmdArgs, "--prompt", req.Prompt)
 	default:
 		if len(req.Args) > 0 {
 			cmdArgs = append(cmdArgs, req.Args...)

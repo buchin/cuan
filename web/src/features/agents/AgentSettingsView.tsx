@@ -18,6 +18,7 @@ import { AccountUsageDetails } from './AccountUsageDetails'
 import { SlideDrawer } from '../../components/layout/SlideDrawer'
 import { GroupedSection } from '../../components/layout/GroupedSection'
 import { FormField, Input } from '../../components/ui/forms'
+import { BrandLogo } from '../../components/ui/BrandLogo'
 
 function BrainQuotaTag({ account }: { account: ProviderAccount }) {
   const { t } = useLanguage()
@@ -61,8 +62,36 @@ export function setStoredAssistantName(name: string): void {
   }
 }
 
+type Brain = {
+  id: string
+  label: string
+  provider: string
+  state: string
+  account?: ProviderAccount
+  byok?: AIProviderDTO
+  cliAgent?: Agent
+}
 
-type Brain = { id: string; label: string; provider: string; state: string; account?: ProviderAccount; byok?: AIProviderDTO }
+function getProviderBadge(provider: string) {
+  const p = provider.toLowerCase()
+  let bgClass = 'bg-muted/50 text-muted-foreground'
+  if (p.includes('google') || p.includes('antigravity') || p.includes('agy')) {
+    bgClass = 'bg-blue-500/10 text-blue-500'
+  } else if (p.includes('claude') || p.includes('anthropic')) {
+    bgClass = 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+  } else if (p.includes('codex') || p.includes('openai')) {
+    bgClass = 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+  } else if (p.includes('grok') || p.includes('xai')) {
+    bgClass = 'bg-sky-500/10 text-sky-500'
+  } else if (p.includes('commandcode') || p.includes('cc')) {
+    bgClass = 'bg-amber-500/10 text-amber-500'
+  }
+  return (
+    <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${bgClass}`}>
+      <BrandLogo id={provider} className="h-4 w-4" />
+    </span>
+  )
+}
 
 export function AgentSettingsView({ showHeading = true }: { showHeading?: boolean }) {
   const { t } = useLanguage()
@@ -72,6 +101,7 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
   const [baselineName, setBaselineName] = useState('')
   const [accounts, setAccounts] = useState<ProviderAccount[]>([])
   const [providers, setProviders] = useState<AIProviderDTO[]>([])
+  const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -115,7 +145,24 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
         )
       } catch {}
 
-      const assignedAgentId = brain.account?.agent_id || primary?.id || 'agent_cuan'
+      let assignedAgentId = brain.account?.agent_id || brain.cliAgent?.id
+      if (!assignedAgentId) {
+        const p = brain.provider.toLowerCase()
+        const matchingCli = agents.find(
+          (a) =>
+            a.harness === brain.provider ||
+            a.provider === brain.provider ||
+            (p.includes('claude') && (a.harness === 'claude' || a.provider === 'claude')) ||
+            (p.includes('codex') && (a.harness === 'codex' || a.provider === 'codex')) ||
+            (p.includes('grok') && (a.harness === 'grok' || a.provider === 'grok')) ||
+            (p.includes('commandcode') && (a.harness === 'commandcode' || a.provider === 'commandcode'))
+        )
+        if (matchingCli) {
+          assignedAgentId = matchingCli.id
+        } else {
+          assignedAgentId = primary?.id || 'agent_cuan'
+        }
+      }
       const accountId = brain.account?.id || (brain.id.startsWith('byok_') ? '' : brain.id)
 
       if (!targetTask) {
@@ -170,7 +217,7 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
       setTerminalLaunching(null)
       setProjectPickerBrain(null)
     }
-  }, [terminalLaunching, availableProjects, primary?.id, navigate, t])
+  }, [terminalLaunching, availableProjects, primary?.id, agents, navigate, t])
 
   const openTerminalForBrain = useCallback(async (brain: Brain) => {
     if (terminalLaunching) return
@@ -198,250 +245,694 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
     setLoading(true)
     setError('')
     try {
-      const [accountList, providerList, agentList] = await Promise.all([accountsApi.list(), aiProvidersApi.list(), agentsApi.list()])
+      const [accountList, providerList, agentList] = await Promise.all([
+        accountsApi.list(),
+        aiProvidersApi.list(),
+        agentsApi.list(),
+      ])
       setAccounts(accountList || [])
       setProviders(providerList || [])
-      const assistant = agentList.find(a => a.id === 'agent_cuan') || null
+      setAgents(agentList || [])
+      const assistant = agentList.find((a) => a.id === 'agent_cuan') || null
       setPrimary(assistant)
       if (assistant) {
         const saved = assistant.name.replace(/^@/, '')
-        setName(saved); setBaselineName(saved); setStoredAssistantName(saved)
+        setName(saved)
+        setBaselineName(saved)
+        setStoredAssistantName(saved)
       }
-      // Auto-verify unknown accounts in background (fire-and-forget, update state silently)
-      const unknownAccounts = (accountList || []).filter(a => !a.legacy && a.credentials_present && a.state === 'unknown')
+      // Auto-verify unknown accounts in background
+      const unknownAccounts = (accountList || []).filter(
+        (a) => !a.legacy && a.credentials_present && a.state === 'unknown'
+      )
       if (unknownAccounts.length > 0) {
-        void Promise.allSettled(unknownAccounts.map(a => accountsApi.verify(a.id))).then(results => {
-          const verified: Record<string, typeof accountList[number]> = {}
-          results.forEach((r, i) => { if (r.status === 'fulfilled') verified[unknownAccounts[i].id] = r.value })
-          if (Object.keys(verified).length > 0) {
-            setAccounts(old => old.map(a => verified[a.id] ?? a))
+        void Promise.allSettled(unknownAccounts.map((a) => accountsApi.verify(a.id))).then(
+          (results) => {
+            const verified: Record<string, (typeof accountList)[number]> = {}
+            results.forEach((r, i) => {
+              if (r.status === 'fulfilled') verified[unknownAccounts[i].id] = r.value
+            })
+            if (Object.keys(verified).length > 0) {
+              setAccounts((old) => old.map((a) => verified[a.id] ?? a))
+            }
           }
-        })
+        )
       }
-    } catch { setError(t('Could not load assistant settings. Try again.')) }
-    finally { setLoading(false) }
+    } catch {
+      setError(t('Could not load assistant settings. Try again.'))
+    } finally {
+      setLoading(false)
+    }
   }, [t])
-  useEffect(() => { void load() }, [load])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  // Registered CLI agents (Claude Code, Codex, Grok, CommandCode)
+  const cliAgents = agents.filter(
+    (a) =>
+      a.id !== 'agent_cuan' &&
+      (a.harness === 'claude' ||
+        a.harness === 'codex' ||
+        a.harness === 'grok' ||
+        a.harness === 'commandcode' ||
+        a.provider === 'claude' ||
+        a.provider === 'codex' ||
+        a.provider === 'grok' ||
+        a.provider === 'commandcode')
+  )
+
   const brains: Brain[] = [
-    ...accounts.filter(account => !account.legacy).map(account => ({ id: account.id, label: account.label, provider: account.provider === 'agy' ? 'Google · Antigravity' : account.provider, state: account.state, account })),
-    ...providers.filter(provider => provider.has_api_key).map(byok => ({ id: 'byok_' + byok.id, label: byok.name, provider: byok.id, state: 'configured', byok })),
+    ...accounts
+      .filter((account) => !account.legacy)
+      .map((account) => ({
+        id: account.id,
+        label: account.label,
+        provider: account.provider === 'agy' ? 'Google · Antigravity' : account.provider,
+        state: account.state,
+        account,
+      })),
+    ...cliAgents.map((agent) => {
+      const p = agent.harness || agent.provider || 'cli'
+      const providerLabel =
+        p === 'claude'
+          ? 'Anthropic · Claude Code'
+          : p === 'codex'
+          ? 'OpenAI · Codex CLI'
+          : p === 'grok'
+          ? 'xAI · Grok CLI'
+          : p === 'commandcode'
+          ? 'CommandCode'
+          : p
+      return {
+        id: 'agent_' + agent.id,
+        label: agent.name,
+        provider: providerLabel,
+        state: agent.status === 'active' ? 'verified' : agent.status || 'configured',
+        cliAgent: agent,
+      }
+    }),
+    ...providers
+      .filter((provider) => provider.has_api_key)
+      .map((byok) => {
+        const providerLabel =
+          byok.id === 'claude' || byok.id === 'anthropic'
+            ? 'Anthropic · Claude Code (BYOK)'
+            : byok.id === 'codex' || byok.id === 'openai'
+            ? 'OpenAI · Codex CLI (BYOK)'
+            : byok.id === 'grok' || byok.id === 'xai'
+            ? 'xAI · Grok (BYOK)'
+            : byok.name
+        return {
+          id: 'byok_' + byok.id,
+          label: byok.name,
+          provider: providerLabel,
+          state: 'configured',
+          byok,
+        }
+      }),
   ]
-  const verified = brains.filter(brain => brain.state === 'verified').length
-  const cooldown = brains.filter(brain => brain.state === 'quota_limited').length
-  const statusText = (state: string) => t(({ verified: 'Connected', quota_limited: 'Waiting for capacity', login_required: 'Sign-in required', unavailable: 'Connection needs attention', unknown: 'Not checked', configured: 'Configured' } as Record<string, string>)[state] || 'Not checked')
+
+  const verified = brains.filter((brain) => brain.state === 'verified').length
+  const cooldown = brains.filter((brain) => brain.state === 'quota_limited').length
+  const statusText = (state: string) =>
+    t(
+      (
+        {
+          verified: 'Connected',
+          quota_limited: 'Waiting for capacity',
+          login_required: 'Sign-in required',
+          unavailable: 'Connection needs attention',
+          unknown: 'Not checked',
+          configured: 'Configured',
+        } as Record<string, string>
+      )[state] || 'Not checked'
+    )
+
   const openBrain = (brain: Brain) => {
     setSelected(brain)
-    setModel(brain.account?.model_id || brain.byok?.default_model || '')
-    setDrawerError(''); setDrawerNotice('')
+    setModel(
+      brain.account?.model_id ||
+        brain.cliAgent?.model_id ||
+        brain.byok?.default_model ||
+        ''
+    )
+    setDrawerError('')
+    setDrawerNotice('')
   }
+
   const saveName = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!primary || busy || !name.trim() || !isOwner) return
-    setBusy(true); setError(''); setNotice('')
+    setBusy(true)
+    setError('')
+    setNotice('')
     try {
       const clean = name.trim().replace(/^@/, '')
       const saved = await agentsApi.patch(primary.id, { name: '@' + clean })
-      setPrimary(saved); setName(clean); setBaselineName(clean); setStoredAssistantName(clean)
+      setPrimary(saved)
+      setName(clean)
+      setBaselineName(clean)
+      setStoredAssistantName(clean)
       setNotice(t('Changes saved.'))
-    } catch { setError(t('Could not save the assistant name. Your draft is preserved.')) }
-    finally { setBusy(false) }
+    } catch {
+      setError(t('Could not save the assistant name. Your draft is preserved.'))
+    } finally {
+      setBusy(false)
+    }
   }
+
   const saveBrain = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!selected || busy || !isOwner) return
-    setBusy(true); setDrawerError(''); setDrawerNotice('')
+    setBusy(true)
+    setDrawerError('')
+    setDrawerNotice('')
     try {
       if (selected.account) {
-        const saved = await accountsApi.update(selected.account.id, { label: selected.label, model_id: model })
-        setAccounts(old => old.map(account => account.id === saved.id ? saved : account))
+        const saved = await accountsApi.update(selected.account.id, {
+          label: selected.label,
+          model_id: model,
+        })
+        setAccounts((old) =>
+          old.map((account) => (account.id === saved.id ? saved : account))
+        )
         setSelected({ ...selected, label: saved.label, account: saved })
         setModel(saved.model_id || '')
+      } else if (selected.cliAgent) {
+        const saved = await agentsApi.patch(selected.cliAgent.id, { model_id: model })
+        setAgents((old) => (old.map((a) => (a.id === saved.id ? saved : a))))
+        setSelected({ ...selected, label: saved.name, cliAgent: saved })
+        setModel(saved.model_id || '')
       } else if (selected.byok) {
-        await aiProvidersApi.save({ provider: selected.byok.id, id: selected.byok.id, default_model: model })
-        setProviders(old => old.map(provider => provider.id === selected.byok?.id ? { ...provider, default_model: model } : provider))
-        setSelected({ ...selected, byok: { ...selected.byok, default_model: model } })
+        await aiProvidersApi.save({
+          provider: selected.byok.id,
+          id: selected.byok.id,
+          default_model: model,
+        })
+        setProviders((old) =>
+          old.map((provider) =>
+            provider.id === selected.byok?.id
+              ? { ...provider, default_model: model }
+              : provider
+          )
+        )
+        setSelected({
+          ...selected,
+          byok: { ...selected.byok, default_model: model },
+        })
       }
       setDrawerNotice(t('Changes saved.'))
-    } catch { setDrawerError(t('Could not save brain settings. Your draft is preserved.')) }
-    finally { setBusy(false) }
+    } catch {
+      setDrawerError(t('Could not save brain settings. Your draft is preserved.'))
+    } finally {
+      setBusy(false)
+    }
   }
+
   const checkBrain = async () => {
     if (!selected || checking) return
-    setChecking(true); setDrawerError(''); setDrawerNotice('')
+    setChecking(true)
+    setDrawerError('')
+    setDrawerNotice('')
     try {
       if (selected.account) {
         const saved = await accountsApi.verify(selected.account.id)
-        setAccounts(old => old.map(account => account.id === saved.id ? saved : account))
+        setAccounts((old) =>
+          old.map((account) => (account.id === saved.id ? saved : account))
+        )
         setSelected({ ...selected, state: saved.state, account: saved })
         setDrawerNotice(statusText(saved.state))
+      } else if (selected.cliAgent) {
+        const harness = selected.cliAgent.harness || selected.cliAgent.provider || ''
+        const result = await agentsApi.authStatus(harness)
+        setDrawerNotice(
+          result.authenticated || result.verified
+            ? t('Connection verified.')
+            : t('Connection needs attention')
+        )
       } else if (selected.byok) {
-        const result = await aiProvidersApi.test({ provider: selected.byok.id, id: selected.byok.id, model: selected.byok.default_model })
-        setDrawerNotice(result.valid ? t('Connection verified.') : t('Connection needs attention'))
+        const result = await aiProvidersApi.test({
+          provider: selected.byok.id,
+          id: selected.byok.id,
+          model: selected.byok.default_model,
+        })
+        setDrawerNotice(
+          result.valid ? t('Connection verified.') : t('Connection needs attention')
+        )
       }
-    } catch { setDrawerError(t('Could not check this connection. Try again.')) }
-    finally { setChecking(false) }
+    } catch {
+      setDrawerError(t('Could not check this connection. Try again.'))
+    } finally {
+      setChecking(false)
+    }
   }
+
   const disconnect = async () => {
     if (!selected || !isOwner || busy) return
-    setBusy(true); setDrawerError('')
+    setBusy(true)
+    setDrawerError('')
     try {
       if (selected.account) {
         await accountsApi.delete(selected.account.id)
-        setAccounts(old => old.filter(account => account.id !== selected.account?.id))
+        setAccounts((old) => old.filter((account) => account.id !== selected.account?.id))
+      } else if (selected.cliAgent) {
+        await agentsApi.delete(selected.cliAgent.id)
+        setAgents((old) => old.filter((a) => a.id !== selected.cliAgent?.id))
       } else if (selected.byok) {
-        await aiProvidersApi.save({ provider: selected.byok.id, id: selected.byok.id, clear_api_key: true, enabled: false })
-        setProviders(old => old.filter(provider => provider.id !== selected.byok?.id))
+        await aiProvidersApi.save({
+          provider: selected.byok.id,
+          id: selected.byok.id,
+          clear_api_key: true,
+          enabled: false,
+        })
+        setProviders((old) => old.filter((provider) => provider.id !== selected.byok?.id))
       }
-      setDisconnectOpen(false); setSelected(null); setNotice(t('Connection removed. Your saved work is preserved.'))
-    } catch (cause) { setDrawerError(t(cause instanceof Error ? cause.message : 'Could not disconnect this brain. Try again.')) }
-    finally { setBusy(false) }
+      setDisconnectOpen(false)
+      setSelected(null)
+      setNotice(t('Connection removed. Your saved work is preserved.'))
+    } catch (cause) {
+      setDrawerError(
+        t(
+          cause instanceof Error
+            ? cause.message
+            : 'Could not disconnect this brain. Try again.'
+        )
+      )
+    } finally {
+      setBusy(false)
+    }
   }
-  const dirty = selected ? model !== (selected.account?.model_id || selected.byok?.default_model || '') : false
+
+  const dirty = selected
+    ? model !==
+      (selected.account?.model_id ||
+        selected.cliAgent?.model_id ||
+        selected.byok?.default_model ||
+        '')
+    : false
+
   const closeDrawer = () => {
     if (busy || checking) return
     if (dirty && !confirm(t('Discard unsaved changes?'))) return
     setSelected(null)
   }
-  return <div className="mx-auto w-full max-w-2xl space-y-8 pb-8">
-    {showHeading && <div className="space-y-2"><h2 className="text-lg font-semibold">{t('Assistant & AI brains')}</h2><p className="text-sm leading-6 text-muted-foreground">{t('One assistant for your conversations and work. AI capacity is managed automatically.')}</p></div>}
-    {error && <p role="alert" className="text-sm text-destructive">{error} <button className="min-h-11 underline" onClick={() => void load()}>{t('Try again')}</button></p>}
-    {notice && <p role="status" className="text-sm text-muted-foreground">{notice}</p>}
-    <section className="space-y-4" aria-label={t('Assistant identity')}>
-      <div className="flex items-center gap-3"><Bot className="h-5 w-5 text-muted-foreground" /><div><h3 className="text-base font-semibold">{primary?.name || name}</h3><p className="mt-1 text-sm text-muted-foreground">{loading ? t('Loading…') : `${verified} ${t('connected')} · ${cooldown} ${t('waiting for capacity')}`}</p></div></div>
-      <form onSubmit={saveName} className="space-y-2">
-        <FormField
-          label={t('Assistant name')}
-          htmlFor="assistant-name-input"
-          helperText={t('Used in new replies and conversations across your workspace.')}
-        >
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Input
-              id="assistant-name-input"
-              className="min-w-0 flex-1"
-              maxLength={100}
-              required
-              value={name}
-              disabled={busy || loading || !isOwner}
-              onChange={event => setName(event.target.value)}
-            />
-            <button
-              type="submit"
-              className="action-secondary"
-              disabled={busy || loading || !primary || !isOwner || !name.trim() || name === baselineName}
-            >
-              {t(busy ? 'Saving…' : 'Save changes')}
-            </button>
+
+  return (
+    <div className="mx-auto w-full max-w-2xl space-y-8 pb-8">
+      {showHeading && (
+        <div className="space-y-2">
+          <h2 className="text-lg font-semibold">{t('Assistant & AI brains')}</h2>
+          <p className="text-sm leading-6 text-muted-foreground">
+            {t(
+              'One assistant for your conversations and work. AI capacity and coding harnesses are managed automatically.'
+            )}
+          </p>
+        </div>
+      )}
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}{' '}
+          <button className="min-h-11 underline" onClick={() => void load()}>
+            {t('Try again')}
+          </button>
+        </p>
+      )}
+      {notice && <p role="status" className="text-sm text-muted-foreground">{notice}</p>}
+      <section className="space-y-4" aria-label={t('Assistant identity')}>
+        <div className="flex items-center gap-3">
+          <Bot className="h-5 w-5 text-muted-foreground" />
+          <div>
+            <h3 className="text-base font-semibold">{primary?.name || name}</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {loading
+                ? t('Loading…')
+                : `${verified} ${t('connected')} · ${cooldown} ${t('waiting for capacity')}`}
+            </p>
           </div>
-        </FormField>
-      </form>
-    </section>
-    <section className="space-y-3" aria-label={t('AI brains')}>
-      <div className="flex items-center justify-between gap-3"><h3 className="text-base font-semibold">{t('AI brains')}</h3>{isOwner && <button className="action-secondary inline-flex items-center gap-1.5" onClick={() => setAddOpen(true)}><Plus className="h-4 w-4" />{t('Add brain')}</button>}</div>
-      <p className="text-sm leading-6 text-muted-foreground">{t('Cuan uses available capacity automatically. Open a connection to edit its model or connection details.')}</p>
-      {loading ? <p role="status" className="py-5 text-sm text-muted-foreground">{t('Loading…')}</p> : brains.length === 0 ? <p className="py-5 text-sm text-muted-foreground">{t('Connect an AI brain to get started.')}</p> : <GroupedSection inset={false} containerClassName="!bg-transparent">
-        {brains.map(brain => <ItemActions key={brain.id} label={brain.label} actions={[{ label: t('Uji coba Terminal'), run: () => void openTerminalForBrain(brain) }, { label: 'Edit brain', run: () => openBrain(brain) }, ...(isOwner ? [{ label: 'Disconnect brain', run: () => { openBrain(brain); setDisconnectOpen(true) } }] : [])]}>
-          <div className="flex min-h-[76px] w-full items-center justify-between gap-3 px-3 py-3 hover:bg-muted/20">
-            <button className="flex flex-1 min-w-0 items-center gap-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => openBrain(brain)} aria-label={t('Edit brain') + ': ' + brain.label}>
-              <ListRowContent leading={<span className="flex h-9 w-9 items-center justify-center bg-muted/50 text-xs text-muted-foreground">{brain.provider.slice(0,1).toUpperCase()}</span>} title={brain.label}
-                description={<><span className="block whitespace-normal break-all">{brain.account ? (brain.account.email || t('Email identity unavailable')) : brain.provider}</span><span className="mt-1 block whitespace-normal">{brain.provider} · {statusText(brain.state)}</span>{brain.account && <BrainQuotaTag account={brain.account} />}</>} />
+        </div>
+        <form onSubmit={saveName} className="space-y-2">
+          <FormField
+            label={t('Assistant name')}
+            htmlFor="assistant-name-input"
+            helperText={t('Used in new replies and conversations across your workspace.')}
+          >
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                id="assistant-name-input"
+                className="min-w-0 flex-1"
+                maxLength={100}
+                required
+                value={name}
+                disabled={busy || loading || !isOwner}
+                onChange={(event) => setName(event.target.value)}
+              />
+              <button
+                type="submit"
+                className="action-secondary"
+                disabled={
+                  busy || loading || !primary || !isOwner || !name.trim() || name === baselineName
+                }
+              >
+                {t(busy ? 'Saving…' : 'Save changes')}
+              </button>
+            </div>
+          </FormField>
+        </form>
+      </section>
+
+      <section className="space-y-3" aria-label={t('AI brains')}>
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-base font-semibold">{t('AI brains')}</h3>
+          {isOwner && (
+            <button
+              className="action-secondary inline-flex items-center gap-1.5"
+              onClick={() => setAddOpen(true)}
+            >
+              <Plus className="h-4 w-4" />
+              {t('Add brain')}
+            </button>
+          )}
+        </div>
+        <p className="text-sm leading-6 text-muted-foreground">
+          {t(
+            'Cuan uses available capacity automatically. Open a connection to edit its model, check connection status, or run an interactive terminal test.'
+          )}
+        </p>
+        {loading ? (
+          <p role="status" className="py-5 text-sm text-muted-foreground">
+            {t('Loading…')}
+          </p>
+        ) : brains.length === 0 ? (
+          <p className="py-5 text-sm text-muted-foreground">
+            {t('Connect an AI brain to get started.')}
+          </p>
+        ) : (
+          <GroupedSection inset={false} containerClassName="!bg-transparent">
+            {brains.map((brain) => (
+              <ItemActions
+                key={brain.id}
+                label={brain.label}
+                actions={[
+                  {
+                    label: t('Uji coba Terminal'),
+                    run: () => void openTerminalForBrain(brain),
+                  },
+                  { label: 'Edit brain', run: () => openBrain(brain) },
+                  ...(isOwner
+                    ? [
+                        {
+                          label: 'Disconnect brain',
+                          run: () => {
+                            openBrain(brain)
+                            setDisconnectOpen(true)
+                          },
+                        },
+                      ]
+                    : []),
+                ]}
+              >
+                <div className="flex min-h-[76px] w-full items-center justify-between gap-3 px-3 py-3 hover:bg-muted/20">
+                  <button
+                    className="flex flex-1 min-w-0 items-center gap-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                    onClick={() => openBrain(brain)}
+                    aria-label={t('Edit brain') + ': ' + brain.label}
+                  >
+                    <ListRowContent
+                      leading={getProviderBadge(brain.provider)}
+                      title={brain.label}
+                      description={
+                        <>
+                          <span className="block whitespace-normal break-all">
+                            {brain.account
+                              ? brain.account.email || t('Email identity unavailable')
+                              : brain.provider}
+                          </span>
+                          <span className="mt-1 block whitespace-normal">
+                            {brain.provider} · {statusText(brain.state)}
+                          </span>
+                          {brain.account && <BrainQuotaTag account={brain.account} />}
+                        </>
+                      }
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    className="action-secondary inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium shrink-0"
+                    disabled={terminalLaunching === brain.id}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void openTerminalForBrain(brain)
+                    }}
+                    title={t('Uji coba di terminal')}
+                    aria-label={`${t('Uji coba terminal')}: ${brain.label}`}
+                  >
+                    <Terminal className="h-3.5 w-3.5 text-primary" />
+                    <span className="hidden sm:inline">
+                      {terminalLaunching === brain.id ? t('Starting…') : t('Terminal')}
+                    </span>
+                  </button>
+                </div>
+              </ItemActions>
+            ))}
+          </GroupedSection>
+        )}
+      </section>
+
+      <SlideDrawer
+        isOpen={!!selected}
+        onClose={closeDrawer}
+        title={t('Brain settings')}
+        description={selected?.label}
+        size="md"
+      >
+        {selected && (
+          <div className="space-y-6">
+            <div className="space-y-3 border-t border-border/40 pt-5">
+              <h3 className="text-sm font-medium">{t('Connection')}</h3>
+              <p className="text-sm text-muted-foreground">{statusText(selected.state)}</p>
+              {selected.account && (
+                <div className="space-y-1 text-sm">
+                  <p className="break-all">
+                    {selected.account.email || t('Email identity unavailable')}
+                  </p>
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    {t(
+                      'Subscription account. Check the connection to refresh its email identity.'
+                    )}
+                  </p>
+                </div>
+              )}
+              {selected.cliAgent && (
+                <div className="space-y-1 text-sm">
+                  <p className="text-xs font-mono text-muted-foreground">
+                    {selected.cliAgent.name} ({selected.cliAgent.harness || selected.cliAgent.provider})
+                  </p>
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    {t('Coding harness agent for interactive terminal and tasks.')}
+                  </p>
+                </div>
+              )}
+              {selected.account?.message && (
+                <p className="break-words text-xs leading-6 text-muted-foreground">
+                  {selected.account.message}
+                </p>
+              )}
+              {selected.account?.quota_retry_at && (
+                <p className="text-xs text-muted-foreground">
+                  {t('Next capacity check')}:{' '}
+                  {new Date(selected.account.quota_retry_at).toLocaleString()}
+                </p>
+              )}
+              {selected.byok?.api_key_masked && (
+                <p className="text-xs font-mono text-muted-foreground">
+                  {selected.byok.api_key_masked}
+                </p>
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className="action-secondary inline-flex items-center gap-2"
+                  disabled={checking || busy}
+                  onClick={() => void checkBrain()}
+                >
+                  <RefreshCw className={`h-4 w-4 ${checking ? 'animate-spin' : ''}`} />
+                  {t(checking ? 'Checking…' : 'Check connection')}
+                </button>
+                <button
+                  type="button"
+                  className="action-secondary inline-flex items-center gap-2"
+                  disabled={checking || busy || !!terminalLaunching}
+                  onClick={() => void openTerminalForBrain(selected)}
+                >
+                  <Terminal className="h-4 w-4 text-primary" />
+                  {t('Uji coba di terminal')}
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={saveBrain} className="space-y-5">
+              {!selected.account && <p className="text-sm font-medium">{selected.label}</p>}
+              <AccountModelPicker
+                account={selected.account}
+                provider={
+                  selected.cliAgent?.harness ||
+                  selected.cliAgent?.provider ||
+                  selected.byok?.id
+                }
+                value={model}
+                onChange={setModel}
+                disabled={busy || !isOwner || selected.account?.legacy}
+              />
+              {drawerError && (
+                <p role="alert" className="text-sm text-destructive">
+                  {drawerError}
+                </p>
+              )}
+              {drawerNotice && (
+                <p role="status" className="text-sm text-muted-foreground">
+                  {drawerNotice}
+                </p>
+              )}
+              {isOwner && !selected.account?.legacy && (
+                <button className="action-primary" disabled={busy || !dirty}>
+                  {t(busy ? 'Saving…' : 'Save changes')}
+                </button>
+              )}
+            </form>
+
+            {selected.account && (
+              <AccountUsageDetails key={selected.id} account={selected.account} />
+            )}
+
+            {isOwner && (
+              <div className="border-t border-border/40 pt-5">
+                <button
+                  type="button"
+                  className="min-h-11 text-sm text-muted-foreground hover:text-destructive"
+                  disabled={busy || checking}
+                  onClick={() => setDisconnectOpen(true)}
+                >
+                  {t('Disconnect brain')}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </SlideDrawer>
+
+      <ActionDialog
+        open={disconnectOpen}
+        onClose={() => {
+          if (!busy) setDisconnectOpen(false)
+        }}
+        title={t('Disconnect brain')}
+        busy={busy}
+      >
+        <div className="space-y-4">
+          <p className="text-sm leading-6 text-muted-foreground">
+            {t(
+              'Disconnect this AI brain? Saved conversations and work will be preserved.'
+            )}
+          </p>
+          <p className="break-all text-sm font-medium">
+            {selected?.account?.email || selected?.label}
+          </p>
+          {drawerError && (
+            <p role="alert" className="text-sm text-destructive">
+              {drawerError}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              className="action-secondary"
+              disabled={busy}
+              onClick={() => setDisconnectOpen(false)}
+            >
+              {t('Cancel')}
             </button>
             <button
               type="button"
-              className="action-secondary inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium shrink-0"
-              disabled={terminalLaunching === brain.id}
-              onClick={(e) => {
-                e.stopPropagation()
-                void openTerminalForBrain(brain)
-              }}
-              title={t('Uji coba di terminal')}
-              aria-label={`${t('Uji coba terminal')}: ${brain.label}`}
+              className="action-primary"
+              disabled={busy}
+              onClick={() => void disconnect()}
             >
-              <Terminal className="h-3.5 w-3.5 text-primary" />
-              <span className="hidden sm:inline">{terminalLaunching === brain.id ? t('Starting…') : t('Terminal')}</span>
+              {t(busy ? 'Saving…' : 'Disconnect brain')}
             </button>
           </div>
-        </ItemActions>)}
+        </div>
+      </ActionDialog>
 
-      </GroupedSection>}
-    </section>
-    <SlideDrawer isOpen={!!selected} onClose={closeDrawer} title={t('Brain settings')} description={selected?.label} size="md">
-      {selected && <div className="space-y-6">
-        <div className="space-y-3 border-t border-border/40 pt-5"><h3 className="text-sm font-medium">{t('Connection')}</h3><p className="text-sm text-muted-foreground">{statusText(selected.state)}</p>{selected.account && <div className="space-y-1 text-sm"><p className="break-all">{selected.account.email || t('Email identity unavailable')}</p><p className="text-xs leading-5 text-muted-foreground">{t('Subscription account. Check the connection to refresh its email identity.')}</p></div>}{selected.account?.message && <p className="break-words text-xs leading-6 text-muted-foreground">{selected.account.message}</p>}{selected.account?.quota_retry_at && <p className="text-xs text-muted-foreground">{t('Next capacity check')}: {new Date(selected.account.quota_retry_at).toLocaleString()}</p>}{selected.byok?.api_key_masked && <p className="text-xs font-mono text-muted-foreground">{selected.byok.api_key_masked}</p>}
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="button" className="action-secondary inline-flex items-center gap-2" disabled={checking || busy} onClick={() => void checkBrain()}><RefreshCw className={`h-4 w-4 ${checking ? 'animate-spin' : ''}`} />{t(checking ? 'Checking…' : 'Check connection')}</button>
-            <button type="button" className="action-secondary inline-flex items-center gap-2" disabled={checking || busy || !!terminalLaunching} onClick={() => void openTerminalForBrain(selected)}><Terminal className="h-4 w-4 text-primary" />{t('Uji coba di terminal')}</button>
+      <ActionDialog
+        open={!!projectPickerBrain}
+        onClose={() => {
+          if (!terminalLaunching) setProjectPickerBrain(null)
+        }}
+        title={t('Test AI brain')}
+        busy={!!terminalLaunching}
+      >
+        <div className="space-y-4">
+          <p className="text-sm leading-6 text-muted-foreground">
+            {t('Select project workspace to test this AI brain:')}
+          </p>
+          <div className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-1">
+            <p className="text-xs text-muted-foreground">{t('Tested AI brain:')}</p>
+            <p className="text-sm font-medium text-foreground">
+              {projectPickerBrain?.label || projectPickerBrain?.id}
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="brain-project-select" className="text-xs font-medium text-foreground">
+              {t('Project workspace')}
+            </label>
+            <select
+              id="brain-project-select"
+              className="field-control text-sm w-full"
+              value={selectedProjectId}
+              disabled={!!terminalLaunching}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
+            >
+              {availableProjects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} {p.name.toLowerCase() === 'cuan' ? `(${t('Primary')})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              className="action-secondary"
+              disabled={!!terminalLaunching}
+              onClick={() => setProjectPickerBrain(null)}
+            >
+              {t('Cancel')}
+            </button>
+            <button
+              type="button"
+              className="action-primary inline-flex items-center gap-1.5"
+              disabled={!!terminalLaunching || !selectedProjectId}
+              onClick={() => {
+                if (projectPickerBrain && selectedProjectId) {
+                  void launchTerminalForBrain(projectPickerBrain, selectedProjectId)
+                }
+              }}
+            >
+              <Play className="h-3.5 w-3.5 fill-current" />
+              <span>{terminalLaunching ? t('Starting…') : t('Start terminal')}</span>
+            </button>
           </div>
         </div>
-        <form onSubmit={saveBrain} className="space-y-5">
-          {!selected.account && <p className="text-sm font-medium">{selected.label}</p>}
-          <AccountModelPicker account={selected.account} provider={selected.byok?.id} value={model} onChange={setModel} disabled={busy || !isOwner || selected.account?.legacy} />
-          {drawerError && <p role="alert" className="text-sm text-destructive">{drawerError}</p>}{drawerNotice && <p role="status" className="text-sm text-muted-foreground">{drawerNotice}</p>}
-          {isOwner && !selected.account?.legacy && <button className="action-primary" disabled={busy || !dirty}>{t(busy ? 'Saving…' : 'Save changes')}</button>}
-        </form>
-        {selected.account && <AccountUsageDetails key={selected.id} account={selected.account} />}
-        {isOwner && <div className="border-t border-border/40 pt-5"><button type="button" className="min-h-11 text-sm text-muted-foreground hover:text-destructive" disabled={busy || checking} onClick={() => setDisconnectOpen(true)}>{t('Disconnect brain')}</button></div>}
-      </div>}
-    </SlideDrawer>
-    <ActionDialog open={disconnectOpen} onClose={() => { if (!busy) setDisconnectOpen(false) }} title={t('Disconnect brain')} busy={busy}>
-      <div className="space-y-4"><p className="text-sm leading-6 text-muted-foreground">{t('Disconnect this AI brain? Saved conversations and work will be preserved.')}</p><p className="break-all text-sm font-medium">{selected?.account?.email || selected?.label}</p>{drawerError && <p role="alert" className="text-sm text-destructive">{drawerError}</p>}<div className="flex justify-end gap-2"><button type="button" className="action-secondary" disabled={busy} onClick={() => setDisconnectOpen(false)}>{t('Cancel')}</button><button type="button" className="action-primary" disabled={busy} onClick={() => void disconnect()}>{t(busy ? 'Saving…' : 'Disconnect brain')}</button></div></div>
-    </ActionDialog>
-    <ActionDialog
-      open={!!projectPickerBrain}
-      onClose={() => { if (!terminalLaunching) setProjectPickerBrain(null) }}
-      title={t('Test AI brain')}
-      busy={!!terminalLaunching}
-    >
-      <div className="space-y-4">
-        <p className="text-sm leading-6 text-muted-foreground">
-          {t('Select project workspace to test this AI brain:')}
-        </p>
-        <div className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-1">
-          <p className="text-xs text-muted-foreground">{t('Tested AI brain:')}</p>
-          <p className="text-sm font-medium text-foreground">{projectPickerBrain?.label || projectPickerBrain?.id}</p>
-        </div>
-        <div className="space-y-1.5">
-          <label htmlFor="brain-project-select" className="text-xs font-medium text-foreground">
-            {t('Project workspace')}
-          </label>
-          <select
-            id="brain-project-select"
-            className="field-control text-sm w-full"
-            value={selectedProjectId}
-            disabled={!!terminalLaunching}
-            onChange={(e) => setSelectedProjectId(e.target.value)}
-          >
-            {availableProjects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} {p.name.toLowerCase() === 'cuan' ? `(${t('Primary')})` : ''}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex justify-end gap-2 pt-2">
-          <button
-            type="button"
-            className="action-secondary"
-            disabled={!!terminalLaunching}
-            onClick={() => setProjectPickerBrain(null)}
-          >
-            {t('Cancel')}
-          </button>
-          <button
-            type="button"
-            className="action-primary inline-flex items-center gap-1.5"
-            disabled={!!terminalLaunching || !selectedProjectId}
-            onClick={() => {
-              if (projectPickerBrain && selectedProjectId) {
-                void launchTerminalForBrain(projectPickerBrain, selectedProjectId)
-              }
-            }}
-          >
-            <Play className="h-3.5 w-3.5 fill-current" />
-            <span>{terminalLaunching ? t('Starting…') : t('Start terminal')}</span>
-          </button>
-        </div>
-      </div>
-    </ActionDialog>
-    <AddBrainModal open={addOpen} onClose={() => setAddOpen(false)} onBrainAdded={load} existingProviders={providers} />
-  </div>
+      </ActionDialog>
+
+      <AddBrainModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onBrainAdded={load}
+        existingProviders={providers}
+      />
+    </div>
+  )
 }

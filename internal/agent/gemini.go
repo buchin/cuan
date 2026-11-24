@@ -18,7 +18,7 @@ const (
 	DefaultGeminiBaseURL = "https://generativelanguage.googleapis.com"
 	GeminiProviderType   = "google"
 	GeminiProviderName   = "Google Gemini Pro"
-	DefaultGeminiModel   = "gemini-1.5-pro"
+	DefaultGeminiModel   = "gemini-4-neon"
 )
 
 // GeminiProvider implements Provider for Google Gemini Pro / Flash LLMs.
@@ -92,13 +92,13 @@ func (p *GeminiProvider) Type() string {
 func DefaultGeminiModels() []ModelInfo {
 	return []ModelInfo{
 		{
-			ID:                         "gemini-1.5-pro",
-			Name:                       "models/gemini-1.5-pro",
-			DisplayName:                "Gemini 1.5 Pro",
-			Description:                "Mid-size multimodal model optimized for complex reasoning and large context windows",
+			ID:                         "gemini-4-neon",
+			Name:                       "models/gemini-4-neon",
+			DisplayName:                "Gemini 4 Neon",
+			Description:                "Balanced mid-tier flagship bridging fast execution with frontier intelligence",
 			Provider:                   "google",
-			InputTokenLimit:            2097152,
-			OutputTokenLimit:           8192,
+			InputTokenLimit:            1048576,
+			OutputTokenLimit:           65536,
 			SupportedGenerationMethods: []string{"generateContent", "countTokens"},
 			IsDefault:                  true,
 			SupportsVision:             true,
@@ -108,10 +108,106 @@ func DefaultGeminiModels() []ModelInfo {
 			},
 		},
 		{
-			ID:                         "gemini-1.5-flash",
-			Name:                       "models/gemini-1.5-flash",
-			DisplayName:                "Gemini 1.5 Flash",
-			Description:                "Fast and versatile multimodal model designed for low-latency tasks",
+			ID:                         "gemini-4-carbon",
+			Name:                       "models/gemini-4-carbon",
+			DisplayName:                "Gemini 4 Carbon",
+			Description:                "Google's heaviest, highest-capability frontier reasoning flagship",
+			Provider:                   "google",
+			InputTokenLimit:            1048576,
+			OutputTokenLimit:           131072,
+			SupportedGenerationMethods: []string{"generateContent", "countTokens"},
+			IsDefault:                  false,
+			SupportsVision:             true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
+		},
+		{
+			ID:                         "gemini-4-hydrogen",
+			Name:                       "models/gemini-4-hydrogen",
+			DisplayName:                "Gemini 4 Hydrogen",
+			Description:                "Fast, cost-efficient everyday execution workhorse for agentic workflows",
+			Provider:                   "google",
+			InputTokenLimit:            1048576,
+			OutputTokenLimit:           32768,
+			SupportedGenerationMethods: []string{"generateContent", "countTokens"},
+			IsDefault:                  false,
+			SupportsVision:             true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
+		},
+		{
+			ID:                         "gemini-4-argon",
+			Name:                       "models/gemini-4-argon",
+			DisplayName:                "Gemini 4 Argon",
+			Description:                "Reasoning-focused model for multi-step analytical and security workflows",
+			Provider:                   "google",
+			InputTokenLimit:            1048576,
+			OutputTokenLimit:           65536,
+			SupportedGenerationMethods: []string{"generateContent", "countTokens"},
+			IsDefault:                  false,
+			SupportsVision:             true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
+		},
+		{
+			ID:                         "gemini-3.8-flash-high",
+			Name:                       "models/gemini-3.8-flash-high",
+			DisplayName:                "Gemini 3.8 Flash (High)",
+			Description:                "Gemini 3.8 Flash with high thinking capacity",
+			Provider:                   "google",
+			InputTokenLimit:            1048576,
+			OutputTokenLimit:           65536,
+			SupportedGenerationMethods: []string{"generateContent", "countTokens"},
+			IsDefault:                  false,
+			SupportsVision:             true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
+		},
+		{
+			ID:                         "gemini-3.8-flash-medium",
+			Name:                       "models/gemini-3.8-flash-medium",
+			DisplayName:                "Gemini 3.8 Flash (Medium)",
+			Description:                "Gemini 3.8 Flash with medium thinking capacity",
+			Provider:                   "google",
+			InputTokenLimit:            1048576,
+			OutputTokenLimit:           32768,
+			SupportedGenerationMethods: []string{"generateContent", "countTokens"},
+			IsDefault:                  false,
+			SupportsVision:             true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
+		},
+		{
+			ID:                         "gemini-2.5-pro",
+			Name:                       "models/gemini-2.5-pro",
+			DisplayName:                "Gemini 2.5 Pro",
+			Description:                "Google's premier deep-reasoning model for complex analytical tasks, coding, and expansive context windows",
+			Provider:                   "google",
+			InputTokenLimit:            1048576,
+			OutputTokenLimit:           65536,
+			SupportedGenerationMethods: []string{"generateContent", "countTokens"},
+			IsDefault:                  false,
+			SupportsVision:             true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
+		},
+		{
+			ID:                         "gemini-2.5-flash",
+			Name:                       "models/gemini-2.5-flash",
+			DisplayName:                "Gemini 2.5 Flash",
+			Description:                "Balanced speed and frontier performance for high-volume multimodal agentic tasks",
 			Provider:                   "google",
 			InputTokenLimit:            1048576,
 			OutputTokenLimit:           8192,
@@ -128,6 +224,54 @@ func DefaultGeminiModels() []ModelInfo {
 			Name:                       "models/gemini-2.0-flash",
 			DisplayName:                "Gemini 2.0 Flash",
 			Description:                "Next-generation ultra-fast multimodal model with advanced code intelligence",
+			Provider:                   "google",
+			InputTokenLimit:            1048576,
+			OutputTokenLimit:           8192,
+			SupportedGenerationMethods: []string{"generateContent", "countTokens"},
+			IsDefault:                  false,
+			SupportsVision:             true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
+		},
+		{
+			ID:                         "gemini-2.0-flash-lite",
+			Name:                       "models/gemini-2.0-flash-lite",
+			DisplayName:                "Gemini 2.0 Flash Lite",
+			Description:                "High-throughput, cost-efficient model for lightweight routing and tasks",
+			Provider:                   "google",
+			InputTokenLimit:            1048576,
+			OutputTokenLimit:           8192,
+			SupportedGenerationMethods: []string{"generateContent", "countTokens"},
+			IsDefault:                  false,
+			SupportsVision:             true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
+		},
+		{
+			ID:                         "gemini-1.5-pro",
+			Name:                       "models/gemini-1.5-pro",
+			DisplayName:                "Gemini 1.5 Pro",
+			Description:                "Mid-size multimodal model optimized for complex reasoning and large context windows",
+			Provider:                   "google",
+			InputTokenLimit:            2097152,
+			OutputTokenLimit:           8192,
+			SupportedGenerationMethods: []string{"generateContent", "countTokens"},
+			IsDefault:                  false,
+			SupportsVision:             true,
+			Capabilities: ModelCapabilities{
+				Vision:         true,
+				SupportsVision: true,
+			},
+		},
+		{
+			ID:                         "gemini-1.5-flash",
+			Name:                       "models/gemini-1.5-flash",
+			DisplayName:                "Gemini 1.5 Flash",
+			Description:                "Fast and versatile multimodal model designed for low-latency tasks",
 			Provider:                   "google",
 			InputTokenLimit:            1048576,
 			OutputTokenLimit:           8192,
@@ -302,7 +446,7 @@ func (p *GeminiProvider) VerifyConnection(ctx context.Context, apiKey string) (*
 			continue
 		}
 
-		isDefault := id == "gemini-1.5-pro"
+		isDefault := id == "gemini-4-neon" || id == DefaultGeminiModel
 		models = append(models, ModelInfo{
 			ID:                         id,
 			Name:                       m.Name,
@@ -323,6 +467,17 @@ func (p *GeminiProvider) VerifyConnection(ctx context.Context, apiKey string) (*
 
 	if len(models) == 0 {
 		models = DefaultGeminiModels()
+	} else {
+		hasDefault := false
+		for _, m := range models {
+			if m.IsDefault {
+				hasDefault = true
+				break
+			}
+		}
+		if !hasDefault {
+			models[0].IsDefault = true
+		}
 	}
 
 	return &ConnectionProbeResult{

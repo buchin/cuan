@@ -139,53 +139,6 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
   python3 scripts/test-runtime-cache-maintenance.py
 fi
 
-echo "=== RESCUE ATTEMPT FOR AI BRAIN COMMITS & RELEASES ==="
-rescue_log="/opt/cuan/rescue.txt"
-mkdir -p /opt/cuan 2>/dev/null || true
-touch /tmp/rescue.txt || true
-
-{
-  echo "=== REFLOG ==="
-  orig_pwd="$(pwd)"
-  real_repo="/opt/cuan/data/projects/proj_4978b0b914eaaf0d588df037977fb652"
-  if [ -d "$real_repo/.git" ]; then
-    echo "Using real repo at $real_repo"
-    cd "$real_repo"
-  fi
-  git reflog -n 30 2>/dev/null || true
-
-  echo "=== RELEASES LISTING ==="
-  ls -la /opt/cuan/releases/ 2>/dev/null || true
-
-  for rel in /opt/cuan/releases/*; do
-    if [ -d "$rel" ] && [ -f "$rel/source-commits.pack" ]; then
-      echo "Unpacking $rel/source-commits.pack into git objects..."
-      git unpack-objects < "$rel/source-commits.pack" 2>/dev/null || true
-    fi
-  done
-
-  for target_sha in a559de4f8e66c631608f78bb7c083462e33bb38e fb5ea70d85709198869c93708b870d8e83a32d95 aa62643444439c636f328a2a0752a78f24b3337e 1ce6be6ce0cf68e8b3a82402df543c8b0076e496 7ff46756616010a30b42f61e7a5026c48ee42419; do
-    if git cat-file -e "$target_sha" 2>/dev/null; then
-      echo "FOUND COMMIT $target_sha!"
-      git log -1 --stat "$target_sha"
-    else
-      echo "Commit $target_sha not found."
-    fi
-  done
-
-  if git cat-file -e a559de4f8e66c631608f78bb7c083462e33bb38e 2>/dev/null; then
-    echo "=== RESCUED COMMIT LOG (UP TO 15) ==="
-    git log -n 15 --oneline a559de4f8e66c631608f78bb7c083462e33bb38e
-    echo "--- BEGIN BASE64 ALL PATCHES ---"
-    git format-patch -15 a559de4f8e66c631608f78bb7c083462e33bb38e --stdout | gzip -9 | base64
-    echo "--- END BASE64 ALL PATCHES ---"
-    echo "--- BEGIN BASE64 TARGET ARCHIVE ---"
-    git archive --format=tar.gz a559de4f8e66c631608f78bb7c083462e33bb38e internal/agent internal/server web/src/components web/src/features/agents web/scripts | base64
-    echo "--- END BASE64 TARGET ARCHIVE ---"
-  fi
-  cd "$orig_pwd"
-} | tee -a /tmp/rescue.txt | sudo -n tee "$rescue_log" 2>/dev/null || true
-
 echo '::cuan-release-stage::dependencies'
 echo "==> Installing locked frontend dependencies in this release checkout..."
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=512}"

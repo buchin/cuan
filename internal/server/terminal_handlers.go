@@ -1055,6 +1055,8 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		expectedBinary = "claude"
 	case "codex":
 		expectedBinary = "codex"
+	case "grok":
+		expectedBinary = "grok"
 	case "commandcode":
 		expectedBinary = "commandcode"
 	case "", "agy", "antigravity":
@@ -1210,19 +1212,43 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		routeNote = fmt.Sprintf("Provider preflight selected %s; model: %s. Agent identity and task scope are unchanged.", source, model)
 	}
 	var commandCodeKey string
-	if expectedBinary == "commandcode" {
+	var harnessCustomKey string
+	if expectedBinary == "claude" || expectedBinary == "codex" || expectedBinary == "grok" || expectedBinary == "commandcode" {
 		var conn *db.AgentConnection
 		if registeredAgent.ConnectionID != "" {
 			conn, _ = s.agentRepo.GetConnectionByID(r.Context(), registeredAgent.ConnectionID)
 		}
 		if (conn == nil || conn.CredentialsEncrypted == "") && ownerID != "" {
-			if userConn, err := s.agentRepo.GetConnectionByUserAndProvider(r.Context(), ownerID, "commandcode"); err == nil && userConn != nil && userConn.CredentialsEncrypted != "" {
+			if userConn, err := s.agentRepo.GetConnectionByUserAndProvider(r.Context(), ownerID, expectedBinary); err == nil && userConn != nil && userConn.CredentialsEncrypted != "" {
 				conn = userConn
 			}
 		}
 		if conn != nil && conn.CredentialsEncrypted != "" {
 			if key, err := agent.DecryptCredential(conn.CredentialsEncrypted); err == nil {
-				commandCodeKey = key
+				harnessCustomKey = key
+				if expectedBinary == "commandcode" {
+					commandCodeKey = key
+				}
+			}
+		}
+		if harnessCustomKey == "" && s.AIProviderStore() != nil {
+			if key, err := s.AIProviderStore().GetDecryptedAPIKey(expectedBinary); err == nil && key != "" {
+				harnessCustomKey = key
+			} else {
+				switch expectedBinary {
+				case "codex":
+					if k, err := s.AIProviderStore().GetDecryptedAPIKey("openai"); err == nil && k != "" {
+						harnessCustomKey = k
+					}
+				case "claude":
+					if k, err := s.AIProviderStore().GetDecryptedAPIKey("anthropic"); err == nil && k != "" {
+						harnessCustomKey = k
+					}
+				case "grok":
+					if k, err := s.AIProviderStore().GetDecryptedAPIKey("xai"); err == nil && k != "" {
+						harnessCustomKey = k
+					}
+				}
 			}
 		}
 		selectedModel = registeredAgent.ModelID
@@ -1545,7 +1571,25 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		if commandCodeKey != "" {
 			reportEnv = append(reportEnv, "COMMAND_CODE_API_KEY="+commandCodeKey)
 		}
-		if expectedBinary == "commandcode" && detail != nil && strings.HasPrefix(detail.Title, "Terminal · ") && strings.TrimSpace(payload.Prompt) == "" {
+		if harnessCustomKey != "" {
+			cfg := s.AIProviderStore().GetConfig(expectedBinary)
+			baseURL := cfg.BaseURL
+			if baseURL == "" {
+				switch expectedBinary {
+				case "codex":
+					baseURL = s.AIProviderStore().GetConfig("openai").BaseURL
+				case "claude":
+					baseURL = s.AIProviderStore().GetConfig("anthropic").BaseURL
+				case "grok":
+					baseURL = s.AIProviderStore().GetConfig("xai").BaseURL
+				}
+			}
+			customEnv := agent.HarnessCustomEnv(expectedBinary, harnessCustomKey, baseURL, selectedModel, 128000)
+			reportEnv = append(reportEnv, customEnv...)
+			_ = agent.PrepareHarnessCustomConfig(expectedBinary, profileHome, harnessCustomKey, baseURL, selectedModel, 128000)
+		}
+		isDedicatedBrainTerminal := detail != nil && (strings.HasPrefix(detail.Title, "Terminal · ") || strings.HasPrefix(detail.Title, "Terminal - ") || strings.HasPrefix(detail.Title, "Terminal:"))
+		if (expectedBinary == "commandcode" || expectedBinary == "grok" || expectedBinary == "claude" || expectedBinary == "codex") && isDedicatedBrainTerminal && strings.TrimSpace(payload.Prompt) == "" {
 			taskPrompt = ""
 		} else {
 			taskPrompt += extra

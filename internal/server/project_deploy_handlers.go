@@ -380,13 +380,6 @@ func (s *Server) reconcileProjectDeployments(ctx context.Context, proj *project.
 									}
 									needUpdate = true
 								}
-								if rescueBytes, err := os.ReadFile("/opt/cuan/rescue.txt"); err == nil && len(rescueBytes) > 0 {
-									d.Steps[idx].Log = string(rescueBytes)
-									needUpdate = true
-								} else if tmpRescue, err := os.ReadFile("/tmp/rescue.txt"); err == nil && len(tmpRescue) > 0 {
-									d.Steps[idx].Log = string(tmpRescue)
-									needUpdate = true
-								}
 							case "step-3":
 								if strings.HasPrefix(d.Steps[idx].Summary, "Pending") {
 									d.Steps[idx].Summary = "Database schema verified and up to date"
@@ -824,19 +817,8 @@ func (s *Server) handleGetProjectDeploymentDetail(w http.ResponseWriter, r *http
 		return
 	}
 
-	item := toDeploymentItem(dep)
-	for i := range item.Steps {
-		if item.Steps[i].ID == "step-2" && (item.Steps[i].Log == "" || item.Steps[i].Log == "Release build completed cleanly by deployment pipeline.") {
-			if b, err := os.ReadFile("/opt/cuan/rescue.txt"); err == nil && len(b) > 0 {
-				item.Steps[i].Log = string(b)
-			} else if b, err := os.ReadFile("/tmp/rescue.txt"); err == nil && len(b) > 0 {
-				item.Steps[i].Log = string(b)
-			}
-		}
-	}
-
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"deployment": item,
+		"deployment": toDeploymentItem(dep),
 	})
 }
 

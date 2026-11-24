@@ -59,8 +59,8 @@ func TestBinaryManager_DetectionAndInstall(t *testing.T) {
 		t.Errorf("unexpected version string: %s", recheck.Version)
 	}
 
-	// 4. Install Codex & AGY
-	for _, h := range []string{HarnessCodex, HarnessAGY} {
+	// 4. Install Codex, Grok & AGY
+	for _, h := range []string{HarnessCodex, HarnessGrok, HarnessAGY} {
 		stat, err := mgr.InstallBinary(ctx, h)
 		if err != nil {
 			t.Fatalf("InstallBinary(%s) failed: %v", h, err)
@@ -71,8 +71,8 @@ func TestBinaryManager_DetectionAndInstall(t *testing.T) {
 	}
 
 	all := mgr.DetectAllHarnesses()
-	if len(all) != 3 {
-		t.Errorf("expected 3 harnesses detected, got %d", len(all))
+	if len(all) != 4 {
+		t.Errorf("expected 4 harnesses detected, got %d", len(all))
 	}
 }
 

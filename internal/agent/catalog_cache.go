@@ -281,6 +281,12 @@ func (c *ModelCatalogCache) DiscoverModels(ctx context.Context, reg *ProviderReg
 		fallbackModels = DefaultAGYModels()
 	case "google":
 		fallbackModels = DefaultGeminiModels()
+	case "claude", "anthropic":
+		fallbackModels = DefaultBYOKModels("anthropic")
+	case "codex", "openai":
+		fallbackModels = DefaultBYOKModels("openai")
+	case "grok", "xai":
+		fallbackModels = DefaultBYOKModels("grok")
 	case "commandcode":
 		fallbackModels = DefaultCommandCodeModels()
 	case "mock":

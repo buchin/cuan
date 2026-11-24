@@ -386,3 +386,25 @@ func TestAIProviderHandlers_ExplicitDisconnectAndAutoModel(t *testing.T) {
 		t.Fatal("Disconnect must remove retained key and disable provider")
 	}
 }
+
+func TestAIProviderHandlers_FetchModelsEndpoint(t *testing.T) {
+	srv, _, dir, _ := setupAIProviderTestServer(t)
+	defer os.RemoveAll(dir)
+
+	w := httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/v1/ai/providers/models", strings.NewReader(`{"provider":"claude"}`)))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", w.Code)
+	}
+
+	var resp struct {
+		Status string            `json:"status"`
+		Models []agent.ModelInfo `json:"models"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if resp.Status != "success" || len(resp.Models) == 0 {
+		t.Fatalf("expected models in response, got %v", resp)
+	}
+}

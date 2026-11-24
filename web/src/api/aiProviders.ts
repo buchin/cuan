@@ -153,6 +153,19 @@ export const aiProvidersApi = {
     })
   },
 
+  fetchModels: async (req: {
+    provider: string
+    id?: string
+    api_key?: string
+    base_url?: string
+    refresh?: boolean
+  }): Promise<{ status: string; models: AIProviderModelInfo[] }> => {
+    return apiFetch<{ status: string; models: AIProviderModelInfo[] }>('/api/v1/ai/providers/models', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    })
+  },
+
   installBinary: async (binary: string): Promise<InstallBinaryResponse> => {
     return apiFetch<InstallBinaryResponse>('/api/v1/ai/providers/install-binary', {
       method: 'POST',
