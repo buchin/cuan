@@ -583,17 +583,57 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-foreground flex items-center justify-between">
                 <span>{t('Script Deployment (Build & Release Hook)')}</span>
-                <span className="text-[11px] text-muted-foreground font-mono">bash</span>
+                <span className="text-[11px] text-muted-foreground font-mono">bash (opsional)</span>
               </label>
+              <div className="flex items-center gap-1.5 flex-wrap pb-0.5">
+                <span className="text-[11px] text-muted-foreground mr-1">{t('Preset cepat:')}</span>
+                <button
+                  type="button"
+                  onClick={() => setDeployScript('npm ci && npm run build')}
+                  className="rounded-md border border-border/40 bg-muted/40 hover:bg-muted px-2 py-0.5 text-[11px] font-mono text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                >
+                  Node.js
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeployScript('go build -v -o app .')}
+                  className="rounded-md border border-border/40 bg-muted/40 hover:bg-muted px-2 py-0.5 text-[11px] font-mono text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                >
+                  Golang
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeployScript('composer install --no-dev && php artisan optimize')}
+                  className="rounded-md border border-border/40 bg-muted/40 hover:bg-muted px-2 py-0.5 text-[11px] font-mono text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                >
+                  Laravel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeployScript('./scripts/deploy.sh')}
+                  className="rounded-md border border-border/40 bg-muted/40 hover:bg-muted px-2 py-0.5 text-[11px] font-mono text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                >
+                  scripts/deploy.sh
+                </button>
+                {deployScript && (
+                  <button
+                    type="button"
+                    onClick={() => setDeployScript('')}
+                    className="rounded-md border border-transparent px-1.5 py-0.5 text-[11px] text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                  >
+                    {t('Kosongkan (Otomatis)')}
+                  </button>
+                )}
+              </div>
               <textarea
-                rows={5}
+                rows={4}
                 value={deployScript}
                 onChange={(e) => setDeployScript(e.target.value)}
-                placeholder={"# Contoh perintah rilis:\n./scripts/deploy.sh --branch dev"}
+                placeholder={"# Opsional: Kosongkan untuk deteksi otomatis (Node.js/Go/PHP)\n# Atau tentukan perintah kustom, contoh:\n# npm ci && npm run build"}
                 className="w-full rounded-lg border border-border/50 bg-neutral-950 p-3 font-mono text-xs leading-relaxed text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500 shadow-inner"
               />
               <p className="text-[11px] text-muted-foreground">
-                {t('Script bash yang dieksekusi di runner deployment lane. Setiap proyek bebas memiliki alur build/rilis sendiri.')}
+                {t('Jika dikosongkan, Cuan akan otomatis mendeteksi stack (Node.js, Go, PHP) atau mencari file scripts/deploy.sh di repositori Anda.')}
               </p>
             </div>
 

@@ -294,3 +294,80 @@ func TestProjectDeployWebhook_UnauthorizedAndSuccess(t *testing.T) {
 		t.Errorf("expected status 'ok' and event 'ping', got %+v", pingResp)
 	}
 }
+
+func TestProjectDeploy_SmartFallbackPipeline(t *testing.T) {
+	// 1. Setup in-memory deployment repository
+	depRepo := cuanDB.NewMemoryProjectDeploymentRepository()
+	srv := &Server{
+		projectDeploymentRepo: depRepo,
+	}
+
+	ctx := context.Background()
+	projID := "proj-fallback-test"
+
+	// Case A: Repo has scripts/deploy.sh
+	tempRepoA := t.TempDir()
+	scriptsDir := filepath.Join(tempRepoA, "scripts")
+	if err := os.MkdirAll(scriptsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	deploySh := filepath.Join(scriptsDir, "deploy.sh")
+	if err := os.WriteFile(deploySh, []byte("#!/bin/bash\necho 'DEPLOY_VIA_REPO_SCRIPT_SUCCESS'\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	depA := &cuanDB.ProjectDeployment{
+		ID:        "dep-fallback-a",
+		ProjectID: projID,
+		CommitSHA: "abcdef1234567890",
+		ShortSHA:  "abcdef1",
+		Status:    cuanDB.DeploymentStatusBuilding,
+		Steps:     generateStandardDeploymentSteps("main", "abcdef1234567890", "feat: test", cuanDB.DeploymentStatusBuilding),
+	}
+	if err := depRepo.Create(ctx, depA); err != nil {
+		t.Fatal(err)
+	}
+
+	projA := &project.ProjectResponse{
+		ID:            projID,
+		DefaultBranch: "main",
+	}
+
+	// Run pipeline synchronously for test
+	srv.runProjectDeploymentPipeline(depA.ID, projID, tempRepoA, projA, "main", "abcdef1234567890")
+
+	updatedA, err := depRepo.GetByID(ctx, depA.ID)
+	if err != nil || updatedA == nil {
+		t.Fatalf("failed to get updated deployment: %v", err)
+	}
+	if !strings.Contains(updatedA.Steps[1].Log, "DEPLOY_VIA_REPO_SCRIPT_SUCCESS") {
+		t.Errorf("expected Step 2 log to contain script execution output, got: %s", updatedA.Steps[1].Log)
+	}
+
+	// Case B: Static HTML repo without deployment script
+	tempRepoB := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tempRepoB, "index.html"), []byte("<html><body>Hello</body></html>"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	depB := &cuanDB.ProjectDeployment{
+		ID:        "dep-fallback-b",
+		ProjectID: projID,
+		CommitSHA: "1111222333444555",
+		ShortSHA:  "1111222",
+		Status:    cuanDB.DeploymentStatusBuilding,
+		Steps:     generateStandardDeploymentSteps("main", "1111222333444555", "feat: static site", cuanDB.DeploymentStatusBuilding),
+	}
+	if err := depRepo.Create(ctx, depB); err != nil {
+		t.Fatal(err)
+	}
+
+	srv.runProjectDeploymentPipeline(depB.ID, projID, tempRepoB, projA, "main", "1111222333444555")
+
+	updatedB, err := depRepo.GetByID(ctx, depB.ID)
+	if err != nil || updatedB == nil {
+		t.Fatalf("failed to get updated deployment: %v", err)
+	}
+	if !strings.Contains(updatedB.Steps[1].Log, "Auto-detected static web project") {
+		t.Errorf("expected Step 2 log to contain static detection, got: %s", updatedB.Steps[1].Log)
+	}
+}

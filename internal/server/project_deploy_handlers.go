@@ -199,6 +199,11 @@ func isFileLocked(path string) bool {
 	return false
 }
 
+func fileExists(path string) bool {
+	fi, err := os.Stat(path)
+	return err == nil && !fi.IsDir()
+}
+
 func generateStandardDeploymentSteps(branch, commitSHA, commitMsg, status string) []cuanDB.ProjectDeploymentStep {
 	shortSHA := commitSHA
 	if len(shortSHA) > 7 {
@@ -1144,10 +1149,77 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 			buildLog.WriteString(fmt.Sprintf("\nBuild script returned error: %v\n", err))
 		}
 	} else if repoDir != "" {
-		deployScript := filepath.Join(repoDir, "scripts", "deploy.sh")
-		buildLog.WriteString(fmt.Sprintf("Checking for deployment script at %s\n", deployScript))
-		buildLog.WriteString("✓ Verified application runtime and workspace dependencies\n")
-		buildLog.WriteString("✓ Build assets compiled cleanly\n")
+		// Layer 1: Check for existing script file in repository (scripts/deploy.sh or deploy.sh)
+		repoScript := filepath.Join(repoDir, "scripts", "deploy.sh")
+		if !fileExists(repoScript) {
+			repoScript = filepath.Join(repoDir, "deploy.sh")
+		}
+
+		if fileExists(repoScript) {
+			buildLog.WriteString(fmt.Sprintf("Executing repository deployment script at %s\n", repoScript))
+			cmd := exec.CommandContext(ctx, "bash", repoScript)
+			cmd.Dir = repoDir
+			out, err := cmd.CombinedOutput()
+			buildLog.Write(out)
+			if err != nil {
+				buildSuccess = false
+				buildLog.WriteString(fmt.Sprintf("\nRepository deploy script returned error: %v\n", err))
+			}
+		} else {
+			// Layer 2: Auto-detect stack by repository manifest files
+			hasPackageJSON := fileExists(filepath.Join(repoDir, "package.json"))
+			hasGoMod := fileExists(filepath.Join(repoDir, "go.mod"))
+			hasComposerJSON := fileExists(filepath.Join(repoDir, "composer.json"))
+			hasIndexHTML := fileExists(filepath.Join(repoDir, "index.html")) || fileExists(filepath.Join(repoDir, "public", "index.html"))
+
+			if hasPackageJSON {
+				buildCmd := "npm run build"
+				if fileExists(filepath.Join(repoDir, "package-lock.json")) {
+					buildCmd = "npm ci && npm run build"
+				} else if fileExists(filepath.Join(repoDir, "yarn.lock")) {
+					buildCmd = "yarn --frozen-lockfile && yarn build"
+				} else if fileExists(filepath.Join(repoDir, "pnpm-lock.yaml")) {
+					buildCmd = "pnpm install --frozen-lockfile && pnpm build"
+				}
+				buildLog.WriteString(fmt.Sprintf("Auto-detected Node.js project. Executing: %s\n", buildCmd))
+				cmd := exec.CommandContext(ctx, "bash", "-c", buildCmd)
+				cmd.Dir = repoDir
+				out, err := cmd.CombinedOutput()
+				buildLog.Write(out)
+				if err != nil {
+					buildSuccess = false
+					buildLog.WriteString(fmt.Sprintf("\nNode.js build returned error: %v\n", err))
+				}
+			} else if hasGoMod {
+				buildCmd := "go build -v ."
+				buildLog.WriteString(fmt.Sprintf("Auto-detected Golang project. Executing: %s\n", buildCmd))
+				cmd := exec.CommandContext(ctx, "bash", "-c", buildCmd)
+				cmd.Dir = repoDir
+				out, err := cmd.CombinedOutput()
+				buildLog.Write(out)
+				if err != nil {
+					buildSuccess = false
+					buildLog.WriteString(fmt.Sprintf("\nGolang build returned error: %v\n", err))
+				}
+			} else if hasComposerJSON {
+				buildCmd := "composer install --no-dev --prefer-dist --no-interaction && if [ -f artisan ]; then php artisan optimize:clear; fi"
+				buildLog.WriteString(fmt.Sprintf("Auto-detected PHP/Laravel project. Executing: %s\n", buildCmd))
+				cmd := exec.CommandContext(ctx, "bash", "-c", buildCmd)
+				cmd.Dir = repoDir
+				out, err := cmd.CombinedOutput()
+				buildLog.Write(out)
+				if err != nil {
+					buildSuccess = false
+					buildLog.WriteString(fmt.Sprintf("\nPHP build returned error: %v\n", err))
+				}
+			} else if hasIndexHTML {
+				buildLog.WriteString("Auto-detected static web project.\n")
+				buildLog.WriteString("✓ Web assets synchronized cleanly without compilation.\n")
+			} else {
+				buildLog.WriteString("No compilation manifest detected.\n")
+				buildLog.WriteString("✓ Repository source synchronized cleanly.\n")
+			}
+		}
 	}
 
 	step2End := time.Now().UTC()
