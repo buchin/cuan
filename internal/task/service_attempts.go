@@ -739,6 +739,11 @@ func attemptRequestID(taskID, requestID string) string {
 	return "att_" + hex.EncodeToString(sum[:16])
 }
 
+// AttemptRequestID derives the deterministic attempt ID for a given task and request.
+func AttemptRequestID(taskID, requestID string) string {
+	return attemptRequestID(taskID, requestID)
+}
+
 // FindRequestAttempt supports durable retries, including after a fast process exit
 // or server restart. A replay returns recorded state and never launches work.
 func (s *Service) FindRequestAttempt(ctx context.Context, taskID, requestID, hash string) (*TaskAttempt, error) {

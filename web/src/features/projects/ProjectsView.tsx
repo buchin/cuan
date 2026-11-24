@@ -97,6 +97,7 @@ export function ProjectsView({
       if (!targetTask) {
         targetTask = await tasksApi.create({
           title: terminalTitle,
+          project_id: projId,
           project_ids: [projId],
           description: `Interactive terminal workspace session with AI agent for ${projName}.`,
           assignee_id: assignedAgentId,
@@ -309,6 +310,13 @@ export function ProjectsView({
             {displayedProjects.map((project) => {
               const taskCount = getTaskCountForProject(project.id)
               const statusInfo = getProjectStatus(project.id)
+              const hasActiveWork = Boolean(
+                project.task_progress &&
+                  ((project.task_progress.active || 0) > 0 ||
+                    (project.task_progress.queued || 0) > 0 ||
+                    (project.task_progress.review || 0) > 0 ||
+                    (project.task_progress.blocked || 0) > 0)
+              )
 
               return (
                 <HairlineListItem
@@ -327,7 +335,7 @@ export function ProjectsView({
                   }
                   title={
                     <div className="flex items-center gap-2 min-w-0">
-                      <TaskProgress {...project.task_progress} />
+                      {hasActiveWork && <TaskProgress {...project.task_progress} />}
                       <span className="font-semibold text-foreground group-hover:text-primary transition-colors truncate">
                         {project.name}
                       </span>
@@ -535,9 +543,9 @@ export function ProjectsView({
                 title={t('Open terminal for this project')}
               >
                 {openingTerminalId === drawerProject.id ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-500" />
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                 ) : (
-                  <Terminal className="h-3.5 w-3.5 text-emerald-500" />
+                  <Terminal className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground transition-colors" />
                 )}
                 <span>
                   {openingTerminalId === drawerProject.id

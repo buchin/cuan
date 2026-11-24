@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import {
   Users,
+  User,
   LogOut,
   MoreHorizontal,
   Settings,
@@ -69,7 +70,8 @@ export function NavUser({
 
   const username = user?.display_name || user?.username || 'admin'
   const email = user?.email || 'admin@cuan.local'
-  const initials = username.slice(0, 2).toUpperCase()
+  const rawInitials = username.trim().slice(0, 2).toUpperCase()
+  const initials = rawInitials || 'U'
 
   const handleLogout = async () => {
     setMenuOpen(false)
@@ -113,10 +115,9 @@ export function NavUser({
               'flex shrink-0 items-center justify-center font-mono font-bold rounded-full transition-colors',
               bottomNavigation ? 'h-7 w-7 text-[10px]' : 'h-9 w-9 text-xs bg-primary text-primary-foreground',
               bottomNavigation && (active ? 'bg-primary/10 text-primary' : 'bg-muted/60 text-muted-foreground'),
-
             )}
           >
-            {initials}
+            {user?.display_name || user?.username ? initials : <User className={bottomNavigation ? "h-3.5 w-3.5" : "h-4 w-4"} />}
           </div>
 
           {bottomNavigation && <span>{t('Account')}</span>}

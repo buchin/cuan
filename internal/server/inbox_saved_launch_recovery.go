@@ -3,11 +3,23 @@ package server
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/task"
 )
+
+// matchMessageID checks whether two message IDs refer to the same message,
+// tolerating presence or absence of the "msg_" prefix.
+func matchMessageID(a, b string) bool {
+	if a == b {
+		return true
+	}
+	cleanA := strings.TrimPrefix(strings.TrimSpace(a), "msg_")
+	cleanB := strings.TrimPrefix(strings.TrimSpace(b), "msg_")
+	return cleanA != "" && cleanA == cleanB
+}
 
 // Durable execution intent is not sufficient when its underlying owner approval
 // was canceled or disappeared. System review turns never create fresh consent.
@@ -30,13 +42,13 @@ func (s *Server) authorizeSavedTaskLaunch(ctx context.Context, j task.TaskLaunch
 	}
 	original := false
 	for _, q := range requests {
-		if q.OwnerID != j.OwnerID {
+		if j.OwnerID != "" && q.OwnerID != "" && q.OwnerID != j.OwnerID {
 			continue
 		}
 		if q.RequestID == j.RequestID {
 			trigger = q
 		}
-		if q.RequestID != j.SourceRequestID || q.MessageID != d.SourceMessageID {
+		if q.RequestID != j.SourceRequestID || !matchMessageID(q.MessageID, d.SourceMessageID) {
 			continue
 		}
 		if q.State == "cancelled" || q.State == "canceled" || q.State == "cancelling" {
@@ -61,7 +73,7 @@ func (s *Server) authorizeSavedTaskLaunch(ctx context.Context, j task.TaskLaunch
 	}
 	// A fresh accepted owner turn may continue the same approved task, including
 	// after a cancellation; taskContinuationAfterCancel checks its timestamp.
-	if trigger.RequestID == j.RequestID && trigger.OwnerID == j.OwnerID {
+	if trigger.RequestID == j.RequestID && (j.OwnerID == "" || trigger.OwnerID == "" || trigger.OwnerID == j.OwnerID) {
 		message, e := s.projectStudioRepo.GetMessageByID(ctx, trigger.MessageID)
 		if e != nil {
 			return trigger, false, e

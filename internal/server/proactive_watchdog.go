@@ -269,14 +269,14 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 		// All continuation paths require the original user authorization lineage.
 		var rootRequest *db.InboxRequest
 		for i := range requests {
-			if requests[i].MessageID == detail.SourceMessageID && requests[i].State != "canceled" && requests[i].State != "cancelled" && requests[i].State != "cancelling" {
+			if matchMessageID(requests[i].MessageID, detail.SourceMessageID) && requests[i].State != "canceled" && requests[i].State != "cancelled" && requests[i].State != "cancelling" {
 				rootRequest = &requests[i]
 				break
 			}
 		}
 		if rootRequest == nil {
 			for i := range requests {
-				if requests[i].MessageID == detail.SourceMessageID {
+				if matchMessageID(requests[i].MessageID, detail.SourceMessageID) {
 					rootRequest = &requests[i]
 					break
 				}
@@ -344,14 +344,22 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			strings.TrimSpace(latestAssessment.Revision) != "" {
 
 			sourceRequestID := origin.RequestID
+			hasExistingAttempt := func(id string) bool {
+				targetAttID := task.AttemptRequestID(detail.ID, id)
+				for _, a := range detail.Attempts {
+					if a != nil && a.ID == targetAttID {
+						return true
+					}
+				}
+				return false
+			}
 			baseKey := fmt.Sprintf("watchdog-continuation:%s:%s:%d", detail.ID, sourceRequestID, len(detail.Attempts)+1)
 			launchID := delegationMessageID(baseKey)
 			for retrySeq := 1; retrySeq <= 10; retrySeq++ {
-				if existing, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(detail.ID, launchID)); err == nil && existing != nil {
-					if existing.State == "stopped" || existing.State == "cancelled" {
-						launchID = delegationMessageID(fmt.Sprintf("%s:retry:%d", baseKey, retrySeq))
-						continue
-					}
+				existingLaunch, lErr := s.taskSvc.GetLaunch(ctx, task.LaunchID(detail.ID, launchID))
+				if (lErr == nil && existingLaunch != nil && (existingLaunch.State == "stopped" || existingLaunch.State == "cancelled")) || hasExistingAttempt(launchID) {
+					launchID = delegationMessageID(fmt.Sprintf("%s:retry:%d", baseKey, retrySeq))
+					continue
 				}
 				break
 			}

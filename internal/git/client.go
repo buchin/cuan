@@ -330,6 +330,7 @@ func (c *Client) CloneOrFetch(ctx context.Context, owner, repo, token, targetDir
 	}
 
 	cmd := exec.CommandContext(ctx, c.gitBinary, "clone", "--quiet", repoURL, targetDir)
+	cmd.Dir = filepath.Dir(targetDir)
 	authenticate(cmd)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

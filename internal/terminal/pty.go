@@ -179,7 +179,20 @@ func SpawnPTY(ctx context.Context, cfg PTYConfig) (*PTYProcess, error) {
 		return nil, fmt.Errorf("resolve canonical workdir %q: %w", cfg.WorkDir, err)
 	}
 
-	shellPath := FindShell(cfg.Shell)
+	shellPath := cfg.Shell
+	cmdArgs := cfg.Args
+	if shellPath == "" {
+		shellPath = FindShell("")
+		cmdArgs = []string{"-i"}
+	} else if fi, err := os.Stat(shellPath); err != nil || fi.IsDir() || (fi.Mode()&0111 == 0) {
+		// If custom executable is missing or not executable, look up in PATH or fall back to default shell without custom flags
+		if looked, err := exec.LookPath(shellPath); err == nil {
+			shellPath = looked
+		} else {
+			shellPath = FindShell("")
+			cmdArgs = []string{"-i"}
+		}
+	}
 	if shellPath == "" {
 		return nil, ErrShellNotFound
 	}
@@ -215,7 +228,7 @@ func SpawnPTY(ctx context.Context, cfg PTYConfig) (*PTYProcess, error) {
 		env = append(filtered, prefix+value)
 	}
 
-	cmd := exec.CommandContext(ctx, shellPath, cfg.Args...)
+	cmd := exec.CommandContext(ctx, shellPath, cmdArgs...)
 	cmd.Dir = canonicalDir
 	cmd.Env = env
 	cmd.Cancel = func() error {

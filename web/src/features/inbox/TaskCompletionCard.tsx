@@ -230,7 +230,7 @@ export const TaskCompletionCard = memo(function TaskCompletionCard({
             title={t('Live Terminal')}
             aria-label={t('Live Terminal')}
           >
-            <Terminal className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+            <Terminal className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground transition-colors shrink-0" />
             <span className="hidden xs:inline sm:inline">{t('Live Terminal')}</span>
           </button>
 

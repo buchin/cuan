@@ -31,7 +31,7 @@ func (s *Server) startAuthorizedLaunch(ctx context.Context, q db.InboxRequest, t
 	// System-generated phase turns are execution context, never fresh consent.
 	// All continuation paths (capacity, interruption, inspection and review) must
 	// retain the same original owner approval rather than a generated request ID.
-	if t != nil && q.MessageID == t.SourceMessageID && s.projectStudioRepo != nil {
+	if t != nil && matchMessageID(q.MessageID, t.SourceMessageID) && s.projectStudioRepo != nil {
 		source, err := s.projectStudioRepo.GetMessageByID(ctx, q.MessageID)
 		if err != nil {
 			recordInboxReviewLaunchError(ctx, err)
@@ -623,6 +623,21 @@ func (s *Server) publishTaskLaunchOutcome(ctx context.Context, job task.TaskLaun
 	// Customer / visitor rooms must NEVER receive internal intermediate status dumps or execution errors.
 	if s.isCustomerRoom(ctx, job.RoomID) {
 		return
+	}
+
+	if state == "stopped" {
+		errLower := strings.ToLower(job.SafeError)
+		if errLower == "" ||
+			strings.Contains(errLower, "orphan launch") ||
+			strings.Contains(errLower, "reconciled") ||
+			strings.Contains(errLower, "terminal status") ||
+			strings.Contains(errLower, "release activation") ||
+			strings.Contains(errLower, "completed release") ||
+			strings.Contains(errLower, "recorded execution") ||
+			strings.Contains(errLower, "authorization is unavailable") ||
+			strings.Contains(errLower, "authorization") {
+			return
+		}
 	}
 
 	// A stale parallel inspection is not a blocker for a different, recorded

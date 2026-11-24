@@ -8,7 +8,7 @@ import type { Project, Task } from '../../api/types'
 import { tasksApi } from '../../api/tasks'
 import { agentsApi } from '../../api/agents'
 import { useLanguage } from '../../context/LanguageContext'
-import { TaskProgress, taskProgressModel } from '../../components/ui/TaskProgress'
+import { TaskProgress } from '../../components/ui/TaskProgress'
 import { ProjectIcon } from './ProjectIcon'
 import { ProjectWorkView } from './ProjectWorkView'
 import { ProjectActivityView } from './ProjectActivityView'
@@ -227,6 +227,7 @@ export function ProjectsWorkspace({
       if (!targetTask) {
         targetTask = await tasksApi.create({
           title: terminalTitle,
+          project_id: projId,
           project_ids: [projId],
           description: `Interactive terminal workspace session with AI agent for ${projName}.`,
           assignee_id: assignedAgentId,
@@ -308,7 +309,13 @@ export function ProjectsWorkspace({
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-2">
           {visible.map((item) => {
-            const hasProgress = Boolean(taskProgressModel(item.task_progress || {}))
+            const hasProgress = Boolean(
+              item.task_progress &&
+                ((item.task_progress.active || 0) > 0 ||
+                  (item.task_progress.queued || 0) > 0 ||
+                  (item.task_progress.review || 0) > 0 ||
+                  (item.task_progress.blocked || 0) > 0)
+            )
             return (
               <ItemActions key={item.id} label={item.name} actions={[
                 { label: 'Open project', run: () => navigate('/projects/' + encodeURIComponent(item.id) + '/settings') },
@@ -343,14 +350,14 @@ export function ProjectsWorkspace({
                       e.preventDefault()
                       void handleOpenProjectTerminal(item.id)
                     }}
-                    className="icon-action text-muted-foreground hover:text-emerald-500 shrink-0"
+                    className="icon-action text-muted-foreground hover:text-foreground shrink-0 transition-colors"
                     title={t('Open terminal for this project')}
                     aria-label={t('Open terminal for this project')}
                   >
                     {openingTerminalId === item.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-emerald-500" />
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                     ) : (
-                      <Terminal className="h-4 w-4 text-emerald-500" />
+                      <Terminal className="h-4 w-4 text-muted-foreground hover:text-foreground transition-colors" />
                     )}
                   </button>
                 </div>
@@ -402,7 +409,13 @@ export function ProjectsWorkspace({
                 ) : (
                   <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
                 )}
-                <TaskProgress {...project.task_progress} />
+                {Boolean(
+                  project.task_progress &&
+                    ((project.task_progress.active || 0) > 0 ||
+                      (project.task_progress.queued || 0) > 0 ||
+                      (project.task_progress.review || 0) > 0 ||
+                      (project.task_progress.blocked || 0) > 0)
+                ) && <TaskProgress {...project.task_progress} />}
                 <h2 className="truncate text-sm font-semibold">
                   {project.name}
                 </h2>
@@ -421,9 +434,9 @@ export function ProjectsWorkspace({
                   title={t('Open terminal for this project')}
                 >
                   {openingTerminalId === project.id ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-500" />
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                   ) : (
-                    <Terminal className="h-3.5 w-3.5 text-emerald-500" />
+                    <Terminal className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground transition-colors" />
                   )}
                   <span>
                     {openingTerminalId === project.id ? t('Opening…') : t('Terminal')}

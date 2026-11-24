@@ -257,14 +257,20 @@ func ResolveProjectTerminalExecutable(workDir, requestedShell string, env []stri
 		return FindShell(requestedShell), nil, env
 	}
 
-	// 1. Try Antigravity (agy)
-	if agyBin, err := agent.ResolveAGYBinaryPath(); err == nil && agyBin != "" {
-		args := []string{"--dangerously-skip-permissions"}
+	// Read desired harness from environment if set
+	requestedHarness := ""
+	for _, e := range env {
+		if strings.HasPrefix(e, "CUAN_AGENT_HARNESS=") {
+			requestedHarness = strings.ToLower(strings.TrimSpace(strings.TrimPrefix(e, "CUAN_AGENT_HARNESS=")))
+			break
+		}
+	}
+
+	resolveHomeAndArgs := func(bin string, baseArgs []string) (string, []string, []string) {
+		args := append([]string{}, baseArgs...)
 		if workDir != "" {
 			args = append(args, "--add-dir", workDir)
 		}
-
-		// Check for CUAN_AGENT_MODEL in environment
 		for _, e := range env {
 			if strings.HasPrefix(e, "CUAN_AGENT_MODEL=") {
 				model := strings.TrimPrefix(e, "CUAN_AGENT_MODEL=")
@@ -274,8 +280,6 @@ func ResolveProjectTerminalExecutable(workDir, requestedShell string, env []stri
 				break
 			}
 		}
-
-		// Configure SSH PTY env vars for agy
 		env = append(env, "SSH_CONNECTION=127.0.0.1 22 127.0.0.1 22", "SSH_CLIENT=127.0.0.1 22 22", "SSH_TTY=/dev/pts/0")
 		var homeDir string
 		for _, e := range env {
@@ -288,38 +292,79 @@ func ResolveProjectTerminalExecutable(workDir, requestedShell string, env []stri
 			_ = agent.PrepareAntigravitySettings(homeDir, workDir)
 			_ = agent.EnsureAntigravityOnboarding(homeDir)
 		}
-		return agyBin, args, env
+		return bin, args, env
 	}
 
-	// 2. Try CommandCode
-	candidates := []string{
-		"/home/dev/.local/bin/commandcode",
-		"/home/ubuntu/.local/bin/commandcode",
-		"/usr/local/bin/commandcode",
-	}
-	for _, cand := range candidates {
-		if _, err := os.Stat(cand); err == nil {
-			args := []string{"--yolo"}
-			if workDir != "" {
-				args = append(args, "--add-dir", workDir)
+	findBinary := func(name string, extraPaths ...string) string {
+		if p, err := exec.LookPath(name); err == nil && p != "" {
+			return p
+		}
+		candidates := append(extraPaths,
+			"/usr/local/bin/"+name,
+			"/usr/bin/"+name,
+			"/home/ubuntu/.local/bin/"+name,
+			"/home/dev/.local/bin/"+name,
+		)
+		if h, err := os.UserHomeDir(); err == nil && h != "" {
+			candidates = append([]string{filepath.Join(h, ".local", "bin", name)}, candidates...)
+		}
+		for _, cand := range candidates {
+			if fi, err := os.Stat(cand); err == nil && !fi.IsDir() && (fi.Mode()&0111 != 0) {
+				return cand
 			}
-			return cand, args, env
 		}
-	}
-	if ccBin, err := exec.LookPath("commandcode"); err == nil && ccBin != "" {
-		args := []string{"--yolo"}
-		if workDir != "" {
-			args = append(args, "--add-dir", workDir)
-		}
-		return ccBin, args, env
+		return ""
 	}
 
-	// 3. Try Claude CLI
-	if claudeBin, err := exec.LookPath("claude"); err == nil && claudeBin != "" {
-		return claudeBin, nil, env
+	// 1. If explicit harness requested, try it first
+	switch requestedHarness {
+	case "claude", "anthropic":
+		if bin := findBinary("claude"); bin != "" {
+			return bin, nil, env
+		}
+	case "codex", "openai":
+		if bin := findBinary("codex"); bin != "" {
+			return bin, nil, env
+		}
+	case "grok", "xai":
+		if bin := findBinary("grok"); bin != "" {
+			return bin, nil, env
+		}
+	case "opencode":
+		if bin := findBinary("opencode"); bin != "" {
+			return bin, nil, env
+		}
+	case "commandcode":
+		if bin := findBinary("commandcode"); bin != "" {
+			return resolveHomeAndArgs(bin, []string{"--yolo"})
+		}
+	case "agy", "antigravity", "gemini":
+		if agyBin, err := agent.ResolveAGYBinaryPath(); err == nil && agyBin != "" {
+			return resolveHomeAndArgs(agyBin, []string{"--dangerously-skip-permissions"})
+		}
 	}
 
-	// 4. Fallback to default shell
+	// 2. Auto-discovery fallback
+	if agyBin, err := agent.ResolveAGYBinaryPath(); err == nil && agyBin != "" {
+		return resolveHomeAndArgs(agyBin, []string{"--dangerously-skip-permissions"})
+	}
+	if bin := findBinary("opencode"); bin != "" {
+		return bin, nil, env
+	}
+	if bin := findBinary("commandcode"); bin != "" {
+		return resolveHomeAndArgs(bin, []string{"--yolo"})
+	}
+	if bin := findBinary("claude"); bin != "" {
+		return bin, nil, env
+	}
+	if bin := findBinary("codex"); bin != "" {
+		return bin, nil, env
+	}
+	if bin := findBinary("grok"); bin != "" {
+		return bin, nil, env
+	}
+
+	// 3. Fallback to default shell
 	return FindShell(""), []string{"-i"}, env
 }
 

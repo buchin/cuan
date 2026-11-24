@@ -643,7 +643,10 @@ func (s *Server) deliverInboxTaskUpdates(ctx context.Context) {
 						strings.Contains(errLower, "reconciled") ||
 						strings.Contains(errLower, "terminal status") ||
 						strings.Contains(errLower, "release activation") ||
-						strings.Contains(errLower, "completed release") {
+						strings.Contains(errLower, "completed release") ||
+						strings.Contains(errLower, "recorded execution") ||
+						strings.Contains(errLower, "authorization is unavailable") ||
+						strings.Contains(errLower, "authorization") {
 						shouldReport = false
 					}
 				}

@@ -302,6 +302,7 @@ func (l *DetachedLauncher) Spawn(ctx context.Context, cfg *config.Config, claim 
 			}
 			sysArgs = append(sysArgs, workerArgs...)
 			sysCmd := exec.Command("systemd-run", sysArgs...)
+			sysCmd.Dir = l.registry.Dir()
 			sysCmd.Stdout = logFile
 			sysCmd.Stderr = logFile
 			sysCmd.Env = os.Environ()
@@ -315,6 +316,7 @@ func (l *DetachedLauncher) Spawn(ctx context.Context, cfg *config.Config, claim 
 	// Fallback to POSIX session detachment (setsid)
 	if cmd == nil {
 		cmd = exec.Command(binPath, workerArgs...)
+		cmd.Dir = l.registry.Dir()
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Setsid: true, // Creates a new session, detaching from parent process tree and terminal
 		}

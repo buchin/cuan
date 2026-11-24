@@ -232,17 +232,9 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 			} else if recoverSnapshot && inboxReviewEvidenceChanged(detail, previous.Content) {
 				key += ":evidence:" + inboxReviewEvidenceDigest(detail)
 				requestID = delegationMessageID(key)
-			} else if recoverSnapshot && !strings.Contains(key, ":ownership-assessment:") && inboxReviewExecutionSucceeded(detail) && len(task.AcceptanceGaps(&detail.Task)) == 0 && (reviewAssessmentMissing(detail) || detail.Status == task.TaskStatusReview || detail.Status == task.TaskStatusBlocked) {
-				if !strings.Contains(key, ":evaluation:") && !strings.Contains(key, ":evaluation-v2:") && !strings.Contains(key, ":evaluation-v3:") {
+			} else if recoverSnapshot && !strings.Contains(key, ":ownership-assessment:") && inboxReviewExecutionSucceeded(detail) && len(task.AcceptanceGaps(&detail.Task)) == 0 && (reviewAssessmentMissing(detail) || detail.Status == task.TaskStatusReview) {
+				if !strings.Contains(key, ":evaluation:") {
 					key += ":evaluation:" + inboxReviewEvidenceDigest(detail)
-					requestID = delegationMessageID(key)
-				} else if strings.Contains(key, ":evaluation:") && !strings.Contains(key, ":evaluation-v2:") && !strings.Contains(key, ":evaluation-v3:") {
-					idx := strings.Index(key, ":evaluation:")
-					key = key[:idx] + ":evaluation-v2:" + inboxReviewEvidenceDigest(detail)
-					requestID = delegationMessageID(key)
-				} else if strings.Contains(key, ":evaluation-v2:") && !strings.Contains(key, ":evaluation-v3:") {
-					idx := strings.Index(key, ":evaluation-v2:")
-					key = key[:idx] + ":evaluation-v3:" + inboxReviewEvidenceDigest(detail)
 					requestID = delegationMessageID(key)
 				} else {
 					return

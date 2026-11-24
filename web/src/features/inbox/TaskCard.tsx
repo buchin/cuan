@@ -566,7 +566,7 @@ export const TaskCard = memo(function TaskCard({
           >
             {isWorking ? (
               <>
-                <Terminal className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                <Terminal className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
                 <span>{t('Live Terminal')}</span>
               </>
             ) : isQueued ? (

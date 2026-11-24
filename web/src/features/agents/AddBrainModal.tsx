@@ -73,7 +73,7 @@ const PROVIDER_OPTIONS: ProviderOption[] = [
   {
     id: 'google',
     harness: 'google',
-    name: 'Google (Antigravity)',
+    name: 'Google Gemini',
     defaultHandle: '@cuan',
     defaultModel: 'gemini-4-neon',
     keyPlaceholder: 'AIzaSy...',
@@ -469,30 +469,29 @@ export function AddBrainModal({
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-foreground">
             <Bot className="h-4 w-4" />
           </div>
-          <span>{t('Tambah Otak AI ke Cluster')}</span>
+          <span>{t('Tambah Otak AI')}</span>
         </div>
       }
-      description={t('Pilih harness coding, tentukan metode koneksi, dan pilih model aktif.')}
       size="lg"
       data-testid="add-brain-drawer"
     >
       <div className="space-y-5 pt-1 pb-6" data-testid="add-brain-content">
         {/* Status alerts */}
         {error && (
-          <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+          <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
             {error}
           </div>
         )}
         {success && (
-          <div role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-400">
+          <div role="status" className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-400">
             {success}
           </div>
         )}
 
-        {/* 1. Pilih Harness Coding (Zero Visual Noise - Hanya Logo + Nama) */}
+        {/* 1. Pilih AI Brain (Zero Visual Noise - Hanya Logo + Nama) */}
         <section className="space-y-2">
           <label className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
-            {t('1. Pilih Harness Coding')}
+            {t('Pilih AI Brain')}
           </label>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {PROVIDER_OPTIONS.map((provider) => {
@@ -504,7 +503,7 @@ export function AddBrainModal({
                   onClick={() => {
                     setSelectedId(provider.id)
                   }}
-                  className={`w-full min-w-0 flex items-center gap-2.5 rounded-xl border px-3 py-2 text-left transition-all h-12 ${
+                  className={`w-full min-w-0 flex items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition-all h-12 ${
                     isSelected
                       ? 'border-2 border-foreground dark:border-primary bg-background shadow-xs ring-1 ring-foreground/10 dark:ring-primary/20'
                       : 'border-border/40 bg-muted/15 text-muted-foreground hover:bg-muted/35 hover:border-border/80 hover:text-foreground'
@@ -527,7 +526,7 @@ export function AddBrainModal({
           <label className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
             {t('2. Metode Koneksi')}
           </label>
-          <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted/30 p-1 border border-border/40 text-xs">
+          <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/30 p-1 border border-border/40 text-xs">
             <button
               type="button"
               className={`flex items-center justify-center gap-1.5 min-h-10 rounded-lg transition-all ${
@@ -577,7 +576,7 @@ export function AddBrainModal({
             {activeProvider.harness === 'google' ? (
               /* Google OAuth Flow */
               googleStep === 'init' ? (
-                <div className="space-y-3 rounded-xl border border-border/50 bg-muted/15 p-4">
+                <div className="space-y-3 rounded-lg border border-border/50 bg-muted/15 p-4">
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     {t('Masuk dengan Akun Google resmi Anda untuk mengaktifkan Antigravity.')}
                   </p>
@@ -587,21 +586,21 @@ export function AddBrainModal({
                       value={googleLabel}
                       disabled={busy}
                       onChange={(e) => setGoogleLabel(e.target.value)}
-                      className="h-11 rounded-xl"
+                      className="h-11 rounded-lg"
                     />
                   </FormField>
                   <button
                     type="button"
                     disabled={busy}
                     onClick={() => void handleStartGoogleAuth()}
-                    className="action-primary flex w-full items-center justify-center gap-2 h-11 rounded-xl font-medium"
+                    className="action-primary flex w-full items-center justify-center gap-2 h-11 rounded-lg font-medium"
                   >
                     <ExternalLink className="h-4 w-4" />
                     <span>{busy ? t('Mempersiapkan Otorisasi…') : t('Buka Otorisasi Google di Browser')}</span>
                   </button>
                 </div>
               ) : (
-                <div className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4">
+                <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-4">
                   <p className="text-xs text-muted-foreground">
                     {t('Tempel kode otorisasi dari jendela Google yang baru saja terbuka:')}
                   </p>
@@ -612,13 +611,13 @@ export function AddBrainModal({
                       value={googleCode}
                       disabled={busy}
                       onChange={(e) => setGoogleCode(e.target.value)}
-                      className="h-11 rounded-xl font-mono text-xs"
+                      className="h-11 rounded-lg font-mono text-xs"
                     />
                   </FormField>
                   <div className="flex gap-2 pt-1">
                     <button
                       type="button"
-                      className="action-secondary h-11 rounded-xl"
+                      className="action-secondary h-11 rounded-lg"
                       disabled={busy}
                       onClick={() => setGoogleStep('init')}
                     >
@@ -626,7 +625,7 @@ export function AddBrainModal({
                     </button>
                     <button
                       type="button"
-                      className="action-primary flex-1 h-11 rounded-xl font-medium"
+                      className="action-primary flex-1 h-11 rounded-lg font-medium"
                       disabled={busy || !googleCode.trim()}
                       onClick={() => void handleVerifyGoogleCode()}
                     >
@@ -639,7 +638,7 @@ export function AddBrainModal({
               /* CLI Harness Official Login Flow */
               cliAuthMethod === 'browser' ? (
                 cliStep === 'init' ? (
-                  <div className="space-y-3 rounded-xl border border-border/50 bg-muted/15 p-4">
+                  <div className="space-y-3 rounded-lg border border-border/50 bg-muted/15 p-4">
                     <p className="text-xs text-muted-foreground leading-relaxed">
                       {t(`Hubungkan sesi langganan resmi ${activeProvider.name} langsung lewat browser Anda.`)}
                     </p>
@@ -647,7 +646,7 @@ export function AddBrainModal({
                       type="button"
                       disabled={busy}
                       onClick={() => void handleStartCliAuth()}
-                      className="action-primary flex w-full items-center justify-center gap-2 h-11 rounded-xl font-medium"
+                      className="action-primary flex w-full items-center justify-center gap-2 h-11 rounded-lg font-medium"
                     >
                       <ExternalLink className="h-4 w-4" />
                       <span>{busy ? t('Mempersiapkan Login…') : `${t('Masuk via Browser')} ${activeProvider.name}`}</span>
@@ -663,14 +662,14 @@ export function AddBrainModal({
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4">
+                  <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-4">
                     <p className="text-xs text-muted-foreground">
                       {t('Selesaikan login di tab browser yang terbuka, lalu konfirmasi di bawah:')}
                     </p>
                     <div className="flex gap-2">
                       <button
                         type="button"
-                        className="action-secondary h-11 rounded-xl"
+                        className="action-secondary h-11 rounded-lg"
                         disabled={busy}
                         onClick={() => setCliStep('init')}
                       >
@@ -678,7 +677,7 @@ export function AddBrainModal({
                       </button>
                       <button
                         type="button"
-                        className="action-primary flex-1 h-11 rounded-xl font-medium"
+                        className="action-primary flex-1 h-11 rounded-lg font-medium"
                         disabled={busy}
                         onClick={() => void handleFinishCliBrowser()}
                       >
@@ -688,7 +687,7 @@ export function AddBrainModal({
                   </div>
                 )
               ) : (
-                <div className="space-y-3 rounded-xl border border-border/50 bg-muted/15 p-4">
+                <div className="space-y-3 rounded-lg border border-border/50 bg-muted/15 p-4">
                   <FormField
                     label={t('Token Sesi CLI')}
                     htmlFor="cli-token"
@@ -702,7 +701,7 @@ export function AddBrainModal({
                         value={cliToken}
                         disabled={busy}
                         onChange={(e) => setCliToken(e.target.value)}
-                        className="h-11 rounded-xl font-mono text-xs pr-10"
+                        className="h-11 rounded-lg font-mono text-xs pr-10"
                       />
                       <button
                         type="button"
@@ -716,7 +715,7 @@ export function AddBrainModal({
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      className="action-secondary h-11 rounded-xl"
+                      className="action-secondary h-11 rounded-lg"
                       disabled={busy}
                       onClick={() => setCliAuthMethod('browser')}
                     >
@@ -726,7 +725,7 @@ export function AddBrainModal({
                       type="button"
                       disabled={busy || !cliToken.trim()}
                       onClick={() => void handleStartCliAuth()}
-                      className="action-primary flex-1 flex items-center justify-center gap-2 h-11 rounded-xl font-medium"
+                      className="action-primary flex-1 flex items-center justify-center gap-2 h-11 rounded-lg font-medium"
                     >
                       <Terminal className="h-4 w-4" />
                       <span>{busy ? t('Menghubungkan…') : t('Hubungkan dengan Token')}</span>
@@ -770,7 +769,7 @@ export function AddBrainModal({
                   value={apiKey}
                   disabled={busy}
                   onChange={(e) => setApiKey(e.target.value)}
-                  className="h-11 rounded-xl font-mono text-xs pr-10"
+                  className="h-11 rounded-lg font-mono text-xs pr-10"
                 />
                 <button
                   type="button"
@@ -796,7 +795,7 @@ export function AddBrainModal({
                   value={baseUrl}
                   disabled={busy}
                   onChange={(e) => setBaseUrl(e.target.value)}
-                  className="h-11 rounded-xl font-mono text-xs"
+                  className="h-11 rounded-lg font-mono text-xs"
                 />
               </FormField>
             )}
@@ -832,7 +831,7 @@ export function AddBrainModal({
               {modelMode === 'select' && discoveredModels.length > 0 ? (
                 <select
                   id="custom-model"
-                  className="field-control h-11 w-full rounded-xl text-xs font-medium"
+                  className="field-control h-11 w-full rounded-lg text-xs font-medium"
                   value={customModel}
                   disabled={busy}
                   onChange={(e) => {
@@ -859,7 +858,7 @@ export function AddBrainModal({
                   value={customModel}
                   disabled={busy}
                   onChange={(e) => setCustomModel(e.target.value)}
-                  className="h-11 rounded-xl font-mono text-xs"
+                  className="h-11 rounded-lg font-mono text-xs"
                 />
               )}
             </FormField>
@@ -884,7 +883,7 @@ export function AddBrainModal({
                         value={customAgentName}
                         disabled={busy}
                         onChange={(e) => setCustomAgentName(e.target.value)}
-                        className="h-11 rounded-xl"
+                        className="h-11 rounded-lg"
                       />
                     </FormField>
                     <FormField label={t('Handle / Mention')} htmlFor="custom-handle">
@@ -893,7 +892,7 @@ export function AddBrainModal({
                         value={customHandle}
                         disabled={busy}
                         onChange={(e) => setCustomHandle(e.target.value)}
-                        className="h-11 rounded-xl font-mono"
+                        className="h-11 rounded-lg font-mono"
                       />
                     </FormField>
                   </div>
@@ -906,7 +905,7 @@ export function AddBrainModal({
                       value={contextLimit}
                       disabled={busy}
                       onChange={(e) => setContextLimit(e.target.value)}
-                      className="h-11 rounded-xl font-mono"
+                      className="h-11 rounded-lg font-mono"
                     />
                   </FormField>
 
@@ -919,7 +918,7 @@ export function AddBrainModal({
                         value={baseUrl}
                         disabled={busy}
                         onChange={(e) => setBaseUrl(e.target.value)}
-                        className="h-11 rounded-xl font-mono text-xs"
+                        className="h-11 rounded-lg font-mono text-xs"
                       />
                     </FormField>
                   )}
@@ -931,7 +930,7 @@ export function AddBrainModal({
             <button
               type="submit"
               disabled={busy || !apiKey.trim()}
-              className="action-primary flex w-full items-center justify-center gap-2 h-11 rounded-xl font-medium mt-4"
+              className="action-primary flex w-full items-center justify-center gap-2 h-11 rounded-lg font-medium mt-4"
             >
               {busy ? (
                 <>

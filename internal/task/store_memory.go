@@ -45,6 +45,9 @@ func (m *MemoryStore) CreateTask(ctx context.Context, t *Task) error {
 	if cp.ExecutionCategory == "" {
 		cp.ExecutionCategory = ExecutionCategoryCode
 	}
+	if cp.ProjectID == "" && len(cp.ProjectIDs) > 0 {
+		cp.ProjectID = strings.TrimSpace(cp.ProjectIDs[0])
+	}
 	if cp.CreatedAt.IsZero() {
 		cp.CreatedAt = time.Now().UTC()
 	}

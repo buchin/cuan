@@ -638,6 +638,7 @@ func (r *SQLProjectStudioRepository) CreateMessage(ctx context.Context, msg *Pro
 
 // GetMessageByID retrieves a project message by ID.
 func (r *SQLProjectStudioRepository) GetMessageByID(ctx context.Context, id string) (*ProjectMessage, error) {
+	id = strings.TrimPrefix(strings.TrimSpace(id), "msg_")
 	if !IsValidUUID(id) {
 		return nil, fmt.Errorf("%w: message id %s", ErrInvalidUUID, id)
 	}
@@ -1682,6 +1683,7 @@ func (m *MemoryProjectStudioRepository) CreateMessage(ctx context.Context, msg *
 
 // GetMessageByID retrieves a message by ID from memory.
 func (m *MemoryProjectStudioRepository) GetMessageByID(ctx context.Context, id string) (*ProjectMessage, error) {
+	id = strings.TrimPrefix(strings.TrimSpace(id), "msg_")
 	if !IsValidUUID(id) {
 		return nil, fmt.Errorf("%w: message id %s", ErrInvalidUUID, id)
 	}

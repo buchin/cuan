@@ -34,6 +34,9 @@ func (s *DBStore) CreateTask(ctx context.Context, t *Task) error {
 	if t.ExecutionCategory == "" {
 		t.ExecutionCategory = ExecutionCategoryCode
 	}
+	if t.ProjectID == "" && len(t.ProjectIDs) > 0 {
+		t.ProjectID = strings.TrimSpace(t.ProjectIDs[0])
+	}
 
 	query := `
 		INSERT INTO tasks (
@@ -286,6 +289,9 @@ func (s *DBStore) UpdateTask(ctx context.Context, t *Task) error {
 
 	if t.ExecutionCategory == "" {
 		t.ExecutionCategory = ExecutionCategoryCode
+	}
+	if t.ProjectID == "" && len(t.ProjectIDs) > 0 {
+		t.ProjectID = strings.TrimSpace(t.ProjectIDs[0])
 	}
 
 	t.UpdatedAt = time.Now().UTC().Truncate(time.Microsecond)

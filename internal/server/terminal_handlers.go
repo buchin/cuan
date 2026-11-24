@@ -555,8 +555,20 @@ func (s *Server) handleProjectTerminalWebSocket(w http.ResponseWriter, r *http.R
 			_ = agent.PrepareAntigravitySettings(home, workDir)
 			_ = agent.EnsureAntigravityOnboarding(home)
 			env = append(env, agent.AntigravityProfileEnvironment(home)...)
-			if brain != nil && brain.ModelID != "" {
-				env = append(env, "CUAN_AGENT_MODEL="+brain.ModelID)
+			if brain != nil {
+				if brain.ModelID != "" {
+					env = append(env, "CUAN_AGENT_MODEL="+brain.ModelID)
+				}
+				if brain.Provider != "" {
+					env = append(env, "CUAN_AGENT_PROVIDER="+brain.Provider)
+				}
+				harness := brain.Harness
+				if harness == "" {
+					harness = brain.Provider
+				}
+				if harness != "" {
+					env = append(env, "CUAN_AGENT_HARNESS="+harness)
+				}
 			}
 			if release != nil {
 				release()
@@ -1045,8 +1057,13 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 	}
 	profileHome, err := s.ownedAgentProfileHome(r.Context(), ownerID, registeredAgent)
 	if err != nil {
-		respondJSONError(w, http.StatusConflict, err.Error())
-		return
+		if isDedicatedTerminalTask {
+			profileHome = ""
+			err = nil
+		} else {
+			respondJSONError(w, http.StatusConflict, err.Error())
+			return
+		}
 	}
 	expectedBinary := "agy"
 	harness := db.NormalizeHarness(registeredAgent.Harness, registeredAgent.Provider)
@@ -1184,18 +1201,28 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 				}
 			}
 			if selected == nil {
-				if len(routes) == 0 {
-					msg := "No allowed account/model route is available. Check usage and fallback settings in Settings → Agents. The task has not started."
-					code := "provider_unavailable"
-					if needsVision {
-						msg = fmt.Sprintf("Task requires image/visual inspection, but no vision-capable model route is available for agent %s.", registeredAgent.Name)
-						code = "provider_vision_unsupported"
+				if isDedicatedTerminalTask {
+					selected = &inboxAccountRoute{
+						accountID: "",
+						home:      "",
+						model:     "",
+						provider:  "shell",
+						primary:   false,
 					}
-					respondJSON(w, 409, map[string]string{"error": msg, "code": code})
+				} else {
+					if len(routes) == 0 {
+						msg := "No allowed account/model route is available. Check usage and fallback settings in Settings → Agents. The task has not started."
+						code := "provider_unavailable"
+						if needsVision {
+							msg = fmt.Sprintf("Task requires image/visual inspection, but no vision-capable model route is available for agent %s.", registeredAgent.Name)
+							code = "provider_vision_unsupported"
+						}
+						respondJSON(w, 409, map[string]string{"error": msg, "code": code})
+						return
+					}
+					respondJSON(w, 409, map[string]string{"error": "All allowed AI account session slots are in use. The task has not started. Try again when a session finishes.", "code": "provider_capacity"})
 					return
 				}
-				respondJSON(w, 409, map[string]string{"error": "All allowed AI account session slots are in use. The task has not started. Try again when a session finishes.", "code": "provider_capacity"})
-				return
 			}
 		}
 		profileHome = selected.home

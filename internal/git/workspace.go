@@ -149,7 +149,9 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 	baseGitDir := filepath.Join(cfg.BaseRepoDir, ".git")
 	if cfg.BaseRepoDir != "" {
 		if fi, err := os.Stat(baseGitDir); err == nil && (fi.IsDir() || fi.Mode().IsRegular()) {
-			cloneCmd := exec.CommandContext(ctx, c.gitBinary, "clone", "--local", cfg.BaseRepoDir, workspacePath)
+			_ = os.RemoveAll(workspacePath)
+			cloneCmd := exec.CommandContext(ctx, c.gitBinary, "-c", "core.hooksPath=/dev/null", "clone", "--local", cfg.BaseRepoDir, workspacePath)
+			cloneCmd.Dir = cfg.BaseRepoDir
 			cloneCmd.Env = verificationGitEnvironment()
 			if out, err := cloneCmd.CombinedOutput(); err != nil {
 				_ = os.RemoveAll(workspacePath)
@@ -161,7 +163,9 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 	// If workspace wasn't cloned from BaseRepoDir, clone from RemoteURL or init
 	if _, err := os.Stat(gitDir); os.IsNotExist(err) {
 		if cfg.RemoteURL != "" {
-			cloneCmd := exec.CommandContext(ctx, c.gitBinary, "clone", "--quiet", cfg.RemoteURL, workspacePath)
+			_ = os.RemoveAll(workspacePath)
+			cloneCmd := exec.CommandContext(ctx, c.gitBinary, "-c", "core.hooksPath=/dev/null", "clone", "--quiet", cfg.RemoteURL, workspacePath)
+			cloneCmd.Dir = workspacesBase
 			cloneCmd.Env = verificationGitEnvironment()
 			if out, err := cloneCmd.CombinedOutput(); err != nil {
 				_ = os.RemoveAll(workspacePath)
@@ -171,6 +175,7 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 			// Fallback: init empty repo with default branch
 			_ = os.MkdirAll(workspacePath, 0755)
 			initCmd := exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "init", "-b", defaultBranch)
+			initCmd.Dir = workspacePath
 			initCmd.Env = verificationGitEnvironment()
 			if out, err := initCmd.CombinedOutput(); err != nil {
 				_ = os.RemoveAll(workspacePath)
@@ -295,6 +300,7 @@ func (c *Client) checkoutRetainedTaskBranch(ctx context.Context, dir, branch, ba
 	}
 	if out, err := executeGitWithRetry(ctx, func() *exec.Cmd {
 		cmd := exec.CommandContext(ctx, c.gitBinary, args...)
+		cmd.Dir = dir
 		cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
 		return cmd
 	}, 2, 250*time.Millisecond); err != nil {
