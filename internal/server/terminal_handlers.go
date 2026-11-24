@@ -209,6 +209,7 @@ func (s *Server) handleTaskTerminalWebSocket(w http.ResponseWriter, r *http.Requ
 				q := r.URL.Query()
 				q.Set("project_id", targetProjID)
 				q.Set("id", targetProjID)
+				q.Set("task_id", sessionKey)
 				if strings.HasPrefix(q.Get("session_id"), "att_") || q.Get("session_id") == "live" {
 					q.Del("session_id")
 				}

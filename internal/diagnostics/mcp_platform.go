@@ -406,6 +406,11 @@ func redactTaskSummary(t *TaskSummary) {
 
 // CreateTaskDraft proposes or creates a new task draft for user approval or queueing.
 func CreateTaskDraft(ctx context.Context, projectID, title, instructions, priority string, dodChecklist []string) (any, error) {
+	return CreateTaskDraftWithRoom(ctx, projectID, title, instructions, priority, "", dodChecklist)
+}
+
+// CreateTaskDraftWithRoom proposes or creates a new task draft with an optional source room binding.
+func CreateTaskDraftWithRoom(ctx context.Context, projectID, title, instructions, priority, roomID string, dodChecklist []string) (any, error) {
 	if err := taskSessionOwnerWriteError(); err != nil {
 		return nil, err
 	}
@@ -422,8 +427,9 @@ func CreateTaskDraft(ctx context.Context, projectID, title, instructions, priori
 		priority = "normal"
 	}
 	projectID = strings.TrimSpace(projectID)
+	roomID = strings.TrimSpace(roomID)
 	if client := GetCuanClient(); client != nil && client.IsConfigured() {
-		created, err := client.CreateTask(ctx, projectID, title, instructions, priority, dodChecklist)
+		created, err := client.CreateTaskWithRoom(ctx, projectID, title, instructions, priority, roomID, dodChecklist)
 		if err != nil {
 			return nil, err
 		}
@@ -457,12 +463,22 @@ func CreateTaskDraft(ctx context.Context, projectID, title, instructions, priori
 	dodJSON, _ := json.Marshal(dodChecklist)
 
 	if db != nil && realProjectID != "" {
-		_, err := db.ExecContext(ctx,
-			"INSERT INTO tasks (id, project_id, title, instructions, status, priority, dod_checklist, created_at, updated_at) VALUES ($1, $2, $3, $4, 'backlog', $5, $6, NOW(), NOW())",
-			taskID, realProjectID, title, instructions, priority, dodJSON,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("insert task: %w", err)
+		if roomID != "" {
+			_, err := db.ExecContext(ctx,
+				"INSERT INTO tasks (id, project_id, title, instructions, status, priority, dod_checklist, source_room_id, created_at, updated_at) VALUES ($1, $2, $3, $4, 'backlog', $5, $6, $7, NOW(), NOW())",
+				taskID, realProjectID, title, instructions, priority, dodJSON, roomID,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("insert task: %w", err)
+			}
+		} else {
+			_, err := db.ExecContext(ctx,
+				"INSERT INTO tasks (id, project_id, title, instructions, status, priority, dod_checklist, created_at, updated_at) VALUES ($1, $2, $3, $4, 'backlog', $5, $6, NOW(), NOW())",
+				taskID, realProjectID, title, instructions, priority, dodJSON,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("insert task: %w", err)
+			}
 		}
 	}
 

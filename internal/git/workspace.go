@@ -150,7 +150,9 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 	if cfg.BaseRepoDir != "" {
 		if fi, err := os.Stat(baseGitDir); err == nil && (fi.IsDir() || fi.Mode().IsRegular()) {
 			cloneCmd := exec.CommandContext(ctx, c.gitBinary, "clone", "--local", cfg.BaseRepoDir, workspacePath)
+			cloneCmd.Env = verificationGitEnvironment()
 			if out, err := cloneCmd.CombinedOutput(); err != nil {
+				_ = os.RemoveAll(workspacePath)
 				return nil, fmt.Errorf("local clone from base repo failed: %s", string(out))
 			}
 		}
@@ -160,14 +162,18 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 	if _, err := os.Stat(gitDir); os.IsNotExist(err) {
 		if cfg.RemoteURL != "" {
 			cloneCmd := exec.CommandContext(ctx, c.gitBinary, "clone", "--quiet", cfg.RemoteURL, workspacePath)
+			cloneCmd.Env = verificationGitEnvironment()
 			if out, err := cloneCmd.CombinedOutput(); err != nil {
+				_ = os.RemoveAll(workspacePath)
 				return nil, fmt.Errorf("remote clone failed: %s", string(out))
 			}
 		} else {
 			// Fallback: init empty repo with default branch
 			_ = os.MkdirAll(workspacePath, 0755)
 			initCmd := exec.CommandContext(ctx, c.gitBinary, "-C", workspacePath, "init", "-b", defaultBranch)
+			initCmd.Env = verificationGitEnvironment()
 			if out, err := initCmd.CombinedOutput(); err != nil {
+				_ = os.RemoveAll(workspacePath)
 				return nil, fmt.Errorf("git init failed: %s", string(out))
 			}
 		}

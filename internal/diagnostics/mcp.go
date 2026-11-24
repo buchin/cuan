@@ -299,6 +299,10 @@ var nativeMCPTools = []mcpToolDefinition{
 					"items":       map[string]any{"type": "string"},
 					"description": "Definition of Done acceptance checklist",
 				},
+				"room_id": map[string]any{
+					"type":        "string",
+					"description": "Optional conversation room ID to link this task to the active inbox conversation",
+				},
 			},
 			"required": []string{"project_id", "title", "instructions"},
 		},
@@ -1048,6 +1052,7 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 			title, _ := callParams.Arguments["title"].(string)
 			instructions, _ := callParams.Arguments["instructions"].(string)
 			priority, _ := callParams.Arguments["priority"].(string)
+			roomID, _ := callParams.Arguments["room_id"].(string)
 			var dodList []string
 			if rawDoD, ok := callParams.Arguments["dod_checklist"].([]any); ok {
 				for _, item := range rawDoD {
@@ -1056,7 +1061,7 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 					}
 				}
 			}
-			toolResult, toolErr = CreateTaskDraft(ctx, projectID, title, instructions, priority, dodList)
+			toolResult, toolErr = CreateTaskDraftWithRoom(ctx, projectID, title, instructions, priority, roomID, dodList)
 		case "list_inbox_conversations":
 			projectID, _ := callParams.Arguments["project_id"].(string)
 			limit := 20

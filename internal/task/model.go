@@ -204,8 +204,8 @@ type TaskDetailResponse struct {
 type CreateTaskRequest struct {
 	RequestID         string    `json:"request_id,omitempty"`
 	Status            string    `json:"status,omitempty"`
-	SourceRoomID      string    `json:"-"`
-	SourceMessageID   string    `json:"-"`
+	SourceRoomID      string    `json:"source_room_id,omitempty"`
+	SourceMessageID   string    `json:"source_message_id,omitempty"`
 	ProjectID         string    `json:"project_id"`
 	ProjectIDs        []string  `json:"project_ids,omitempty"`
 	Title             string    `json:"title"`
@@ -223,6 +223,7 @@ type CreateTaskRequest struct {
 
 type UpdateTaskRequest struct {
 	ExpectedUpdatedAt *time.Time `json:"expected_updated_at,omitempty"`
+	SourceRoomID      *string    `json:"source_room_id,omitempty"`
 	ProjectIDs        *[]string  `json:"project_ids,omitempty"`
 	Title             *string    `json:"title,omitempty"`
 	Summary           *string    `json:"summary,omitempty"`

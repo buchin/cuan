@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
-	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
 )
@@ -88,45 +87,40 @@ func (s *Server) handleRunnerAttemptCompleted(ctx context.Context, taskID, attem
 			targetRoomID = launch.RoomID
 		}
 	}
+	if targetRoomID == "" && s.projectStudioRepo != nil {
+		if recentMap, err := s.projectStudioRepo.ListRecentMessages(ctx, 20); err == nil {
+			taskPattern := "/tasks/" + detail.ID
+			for rID, msgs := range recentMap {
+				for _, m := range msgs {
+					if strings.Contains(m.Content, taskPattern) {
+						targetRoomID = rID
+						break
+					}
+				}
+				if targetRoomID != "" {
+					break
+				}
+			}
+		}
+	}
 	// Background or system tasks without a dedicated chat room must NOT hijack
 	// unrelated user conversations.
 	if targetRoomID == "" {
 		log.Printf("[ScrumEngine] Task %s is not bound to a chat room; skipping room notification", taskID)
-		if detail.Status == task.TaskStatusDone {
-			return
-		}
-		if status == string(task.AttemptStatusSucceeded) && s.projectSvc != nil && detail.ProjectID != "" {
-			if proj, err := s.projectSvc.Get(ctx, detail.ProjectID); err == nil && proj != nil {
-				settings := project.SettingsFromMetadata(proj.Metadata)
-				if settings.IsAutoDeployEnabled() {
-					s.autoApplyAndDeployTask(ctx, detail.ID, detail.ProjectID)
-				}
-			}
-		}
 		return
 	}
 
-	if detail.SourceRoomID == "" {
+	if detail.SourceRoomID == "" && targetRoomID != "" {
 		detail.SourceRoomID = targetRoomID
+		if s.taskSvc != nil {
+			_, _ = s.taskSvc.UpdateTask(ctx, detail.ID, "coordinator", task.UpdateTaskRequest{SourceRoomID: &targetRoomID})
+		}
 	}
 
 	// If task is already done, ensure the completion summary report is delivered
 	if detail.Status == task.TaskStatusDone {
 		s.ensureTaskCompletionDelivered(ctx, detail, targetRoomID)
 		return
-	}
-
-	// Trigger auto-apply and deploy if project has auto_deploy enabled and attempt succeeded
-	if status == string(task.AttemptStatusSucceeded) && s.projectSvc != nil && detail.ProjectID != "" {
-		if proj, err := s.projectSvc.Get(ctx, detail.ProjectID); err == nil && proj != nil {
-			settings := project.SettingsFromMetadata(proj.Metadata)
-			if settings.IsAutoDeployEnabled() {
-				s.autoApplyAndDeployTask(ctx, detail.ID, detail.ProjectID)
-				if refreshed, err := s.taskSvc.GetTaskDetail(ctx, taskID); err == nil && refreshed != nil {
-					detail = refreshed
-				}
-			}
-		}
 	}
 
 	// Trigger autonomous task review in the room

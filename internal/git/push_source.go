@@ -1,8 +1,10 @@
 package git
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os/exec"
 	"strings"
 )
@@ -34,7 +36,10 @@ func (c *Client) PushExecutionSource(ctx context.Context, path, repoURL, branch,
 	}
 	current, err := c.snapshotGit(ctx, path, "symbolic-ref", "--short", "HEAD")
 	if err != nil || strings.TrimSpace(string(current)) != branch {
-		return "", errors.New("task publication branch changed")
+		headCommit, headErr := c.snapshotGit(ctx, path, "rev-parse", "HEAD")
+		if headErr != nil || strings.TrimSpace(string(headCommit)) != source {
+			return "", errors.New("task publication branch changed")
+		}
 	}
 	if err := c.VerifySnapshotCommit(ctx, path, source, source); err != nil {
 		return "", err
@@ -73,7 +78,13 @@ func (c *Client) PushExecutionSource(ctx context.Context, path, repoURL, branch,
 	args = append(args, "--", c.repoURL(owner, repo), source+":"+ref)
 	command := exec.CommandContext(ctx, c.gitBinary, args...)
 	command.Env = repositoryEnvironment(token)
+	var errBuf bytes.Buffer
+	command.Stderr = &errBuf
 	if err := command.Run(); err != nil {
+		errMsg := strings.TrimSpace(errBuf.String())
+		if errMsg != "" {
+			return "", fmt.Errorf("exact source push not confirmed: %w (output: %s)", err, errMsg)
+		}
 		return "", errors.New("exact source push not confirmed; reconcile remote state before retrying")
 	}
 	return source, nil

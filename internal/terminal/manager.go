@@ -183,6 +183,18 @@ func (m *Manager) GetOrCreateSession(ctx context.Context, taskID string, mode Mo
 	if sess, exists := m.sessions[taskID]; exists && !sess.IsClosed() {
 		return sess, nil
 	}
+	if m.taskAliases != nil {
+		if targetKey, ok := m.taskAliases[taskID]; ok {
+			if aliasedSess, ok := m.sessions[targetKey]; ok && !aliasedSess.IsClosed() {
+				return aliasedSess, nil
+			}
+		}
+	}
+	if !strings.HasPrefix(taskID, "project-term-") {
+		if projSess, ok := m.sessions[ProjectSessionKey(taskID)]; ok && !projSess.IsClosed() {
+			return projSess, nil
+		}
+	}
 
 	// 2. Prepare new session
 	if cols == 0 {

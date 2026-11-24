@@ -575,11 +575,19 @@ func (c *CuanClient) GetTask(ctx context.Context, taskID string) (map[string]any
 // CreateTask delegates guidance snapshots and task identity to the Owner API.
 // An uncertain response must be reconciled before retrying this mutation.
 func (c *CuanClient) CreateTask(ctx context.Context, projectID, title, instructions, priority string, checklist []string) (map[string]any, error) {
+	return c.CreateTaskWithRoom(ctx, projectID, title, instructions, priority, "", checklist)
+}
+
+// CreateTaskWithRoom delegates guidance snapshots, task identity and room binding to the Owner API.
+func (c *CuanClient) CreateTaskWithRoom(ctx context.Context, projectID, title, instructions, priority, roomID string, checklist []string) (map[string]any, error) {
 	items := make([]map[string]any, 0, len(checklist))
 	for _, text := range checklist {
 		items = append(items, map[string]any{"text": text, "completed": false})
 	}
 	payload := map[string]any{"project_id": projectID, "title": title, "instructions": instructions, "priority": priority, "dod_checklist": items}
+	if strings.TrimSpace(roomID) != "" {
+		payload["source_room_id"] = strings.TrimSpace(roomID)
+	}
 	resp, err := c.doRequest(ctx, http.MethodPost, "/api/v1/tasks", payload)
 	if err != nil {
 		return nil, fmt.Errorf("task creation could not be confirmed; inspect the task board before retrying")

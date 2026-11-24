@@ -598,6 +598,9 @@ func (s *Service) UpdateTask(ctx context.Context, id string, author string, req 
 		}
 		t.DoDChecklist = append([]DoDItem{}, (*req.DoDChecklist)...)
 	}
+	if req.SourceRoomID != nil {
+		t.SourceRoomID = strings.TrimSpace(*req.SourceRoomID)
+	}
 	if req.ProjectIDs != nil {
 		t.ProjectIDs = *req.ProjectIDs
 		t.ProjectID = ""

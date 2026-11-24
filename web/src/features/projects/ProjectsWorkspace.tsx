@@ -182,12 +182,13 @@ export function ProjectsWorkspace({
           ? project
           : projects.find((p) => p.id === projId)
       const projName = targetProj?.name || 'Workspace'
+      const terminalTitle = `Terminal · ${projName}`
 
       // 1. Reconnect to an existing dedicated project terminal task in memory if available
       let targetTask = tasks.find(
         (item) =>
           (item.project_id === projId || item.project_ids?.includes(projId)) &&
-          item.title.startsWith('Terminal ·') &&
+          item.title === terminalTitle &&
           (item.status as string) !== 'cancelled',
       )
 
@@ -196,11 +197,11 @@ export function ProjectsWorkspace({
         try {
           const res = await tasksApi.page({
             project_id: projId,
-            search: 'Terminal ·',
+            search: terminalTitle,
             page_size: 20,
           })
           targetTask = res.tasks.find((item) =>
-            item.title.startsWith('Terminal ·') &&
+            item.title === terminalTitle &&
             (item.status as string) !== 'cancelled',
           )
         } catch {}
@@ -223,31 +224,34 @@ export function ProjectsWorkspace({
 
       if (!targetTask) {
         targetTask = await tasksApi.create({
-          title: `Terminal · ${projName}`,
+          title: terminalTitle,
           project_ids: [projId],
           description: `Interactive terminal workspace session with AI agent for ${projName}.`,
           assignee_id: assignedAgentId,
         })
       }
 
-      const launchPayload = {
-        request_id: crypto.randomUUID(),
-        agent_id: assignedAgentId,
-        runner_id: 'local_terminal',
-      }
-      try {
-        localStorage.setItem('cuan_terminal_pin', 'true')
-        localStorage.setItem('cuan-task-launch:' + targetTask.id, JSON.stringify(launchPayload))
-      } catch {}
-
-      let targetSessionId = 'latest'
-      try {
-        const runRes = await tasksApi.runAgent(targetTask.id, launchPayload)
-        if (runRes.attempt?.id) {
-          targetSessionId = runRes.attempt.id
+      let targetSessionId = targetTask.latest_attempt?.id || 'latest'
+      const isTaskActive = targetTask.status === 'doing' || targetTask.latest_attempt?.status === 'running'
+      if (!isTaskActive) {
+        const launchPayload = {
+          request_id: crypto.randomUUID(),
+          agent_id: assignedAgentId,
+          runner_id: 'local_terminal',
         }
-      } catch (err) {
-        console.warn('Direct runAgent attempt fallback to session route:', err)
+        try {
+          localStorage.setItem('cuan_terminal_pin', 'true')
+          localStorage.setItem('cuan-task-launch:' + targetTask.id, JSON.stringify(launchPayload))
+        } catch {}
+
+        try {
+          const runRes = await tasksApi.runAgent(targetTask.id, launchPayload)
+          if (runRes.attempt?.id) {
+            targetSessionId = runRes.attempt.id
+          }
+        } catch (err) {
+          console.warn('Direct runAgent attempt fallback to session route:', err)
+        }
       }
 
       if (popout) {

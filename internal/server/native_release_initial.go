@@ -3,12 +3,13 @@ package server
 import (
 	"context"
 	"errors"
-	"github.com/buchin/cuan/internal/release"
+	"log"
 	"os"
 	"path/filepath"
 
 	"github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/project"
+	"github.com/buchin/cuan/internal/release"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -115,6 +116,7 @@ func (s *Server) ensureNativeReleasePreparation(ctx context.Context, taskID, att
 	stage = "source_push"
 	pushed, err := s.projectSvc.PushNativeReleaseSource(ctx, d.ProjectID, d.Instructions, intent.Repository, sourcePath, d.BranchName, intent.SourceCommit)
 	if err != nil || pushed != intent.SourceCommit {
+		log.Printf("[NativeRelease] task=%s attempt=%s stage=%s push failed: %v", taskID, attemptID, stage, err)
 		return nil, errors.New("native source push was not confirmed; reconcile saved source before retrying")
 	}
 	stage = "authorization"
