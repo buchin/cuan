@@ -131,6 +131,14 @@ export const projectsApi = {
       method: 'POST',
     })
   },
+
+  updateDeploymentConfig: async (id: string, data: { auto_deploy?: boolean; deploy_branch?: string; deploy_script?: string }): Promise<{ message: string; auto_deploy: boolean; deploy_branch: string; deploy_script: string }> => {
+    return apiFetch(`/api/v1/projects/${encodeURIComponent(id)}/deployment-config`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+  },
 }
 
 export interface ProjectDeploymentStep {
@@ -174,6 +182,9 @@ export interface ProjectDeploymentsResponse {
   live_sha?: string
   webhook_url?: string
   webhook_secret?: string
+  auto_deploy?: boolean
+  deploy_branch?: string
+  deploy_script?: string
 }
 
 export interface ProjectCommit {

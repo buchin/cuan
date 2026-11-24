@@ -108,6 +108,12 @@ with `--project` when needed. An unavailable API or missing creation receipt is 
 error, never a successful local draft. Inspect the task board after an uncertain
 response before retrying, since the server may already have saved the task.
 
+## Autonomous Deployment Lifecycle & Agent Scope Decoupling
+
+Agents in chat, tasks, or terminals MUST NEVER execute `./scripts/deploy.sh` or manage host releases manually:
+- The Definition of Done for any agent task is: implementation complete, local tests & visual fixtures verified (`./scripts/test.sh --fast`), and changes committed & pushed to Git.
+- Cuan's Webhook Engine and per-project Deployment Lane automatically detect pushed commits, verify `auto_deploy`, and execute the project's configured Deployment Script in isolation.
+
 ## MCP Server (`cuan-inspect` / `cuan mcp`)
 Configured in `~/.gemini/antigravity-cli/mcp_config.json`:
 - `create_inbox_conversation`: Create a room with an agent persona

@@ -61,4 +61,11 @@ Whenever inspecting or operating on Cuan (projects, tasks, inbox rooms, or talki
   - `cuan config show` / `cuan config set <key> <val>`
 - See [cuan-agent SKILL](docs/skills/cuan-agent/SKILL.md) for complete reference.
 
+## Autonomous Deployment Lane & Agent Scope Decoupling
+Deployment is fully decoupled from developer and verifier agent execution:
+1. **Zero Manual Deployments by Agents:** Agents in chat, tasks, or terminals MUST NEVER execute `./scripts/deploy.sh` or perform manual VPS SSH/rsync releases.
+2. **Backlog to Done Lifecycle:** An agent's Definition of Done ends at: implementing the solution, verifying tests and fixtures locally (`./scripts/test.sh --fast` or component fixtures), and committing & pushing to the approved Git branch.
+3. **Automated Pipeline Execution:** Once pushed, Cuan's Webhook Engine and dedicated FIFO Deployment Lane automatically pick up the commit, check `auto_deploy`, and execute the project's configured Deployment Script in isolation.
+
+
 

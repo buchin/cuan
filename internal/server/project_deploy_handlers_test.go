@@ -157,6 +157,7 @@ func TestProjectDeployWebhook_UnauthorizedAndSuccess(t *testing.T) {
 	r := chi.NewRouter()
 	r.Post("/api/v1/projects/{id}/webhooks/deploy", s.handleProjectDeployWebhook)
 	r.Get("/api/v1/projects/{id}/deployments", s.handleGetProjectDeployments)
+	r.Put("/api/v1/projects/{id}/deployment-config", s.handleUpdateProjectDeploymentConfig)
 
 	proj, err := s.projectSvc.Get(context.Background(), projID)
 	if err != nil {
@@ -251,5 +252,28 @@ func TestProjectDeployWebhook_UnauthorizedAndSuccess(t *testing.T) {
 	}
 	if !strings.Contains(getResp.WebhookURL, "/webhooks/deploy") {
 		t.Errorf("expected valid webhook URL, got %s", getResp.WebhookURL)
+	}
+
+	// 6. Test updating deployment configuration (auto_deploy = false & custom deploy script)
+	cfgPayload := `{"auto_deploy":false,"deploy_branch":"main","deploy_script":"./scripts/deploy.sh --branch main"}`
+	reqCfg := httptest.NewRequest("PUT", "/api/v1/projects/"+projID+"/deployment-config", bytes.NewReader([]byte(cfgPayload)))
+	recCfg := httptest.NewRecorder()
+	r.ServeHTTP(recCfg, reqCfg)
+	if recCfg.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK updating deployment config, got %d: %s", recCfg.Code, recCfg.Body.String())
+	}
+
+	// 7. Verify Webhook push is ignored when auto_deploy is false
+	reqDisabled := httptest.NewRequest("POST", "/api/v1/projects/"+projID+"/webhooks/deploy", bytes.NewReader([]byte(`{"ref":"refs/heads/main","after":"4444555566667777888899990000111122223333"}`)))
+	reqDisabled.Header.Set("X-Cuan-Deploy-Secret", secret)
+	recDisabled := httptest.NewRecorder()
+	r.ServeHTTP(recDisabled, reqDisabled)
+	if recDisabled.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for disabled auto deploy, got %d: %s", recDisabled.Code, recDisabled.Body.String())
+	}
+	var disabledResp map[string]interface{}
+	_ = json.NewDecoder(recDisabled.Body).Decode(&disabledResp)
+	if disabledResp["status"] != "ignored" {
+		t.Errorf("expected status 'ignored' when auto deploy is disabled, got %v", disabledResp["status"])
 	}
 }

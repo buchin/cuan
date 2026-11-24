@@ -237,11 +237,24 @@ const server = await createServer({
             project_name: sampleProject.name,
             branch: 'dev',
             domain: 'https://cuan.work',
-            webhook_url: 'https://cuan.work/api/v1/projects/' + sampleProject.id + '/webhooks/deploy',
+            webhook_url: 'https://app.cuan.work/api/v1/projects/' + sampleProject.id + '/webhooks/deploy',
             webhook_secret: 'whsec_8f93e7104b2c15a894762e49c7160352',
+            auto_deploy: true,
+            deploy_branch: 'dev',
+            deploy_script: './scripts/deploy.sh --branch dev',
             deployments: sampleDeployments,
             total: sampleDeployments.length,
             live_sha: sampleDeployments[1].commit_sha
+          }))
+          return
+        }
+        if (req.url.includes('/api/v1/projects/') && req.url.includes('/deployment-config')) {
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({
+            message: 'Deployment configuration updated successfully',
+            auto_deploy: true,
+            deploy_branch: 'dev',
+            deploy_script: './scripts/deploy.sh --branch dev'
           }))
           return
         }
@@ -307,9 +320,19 @@ try {
   await pageDesktop.waitForSelector('[data-slide-drawer], dialog[open]', { timeout: 8000 })
   await pageDesktop.waitForTimeout(600)
 
-  // Verify webhook inputs are populated
+  // Verify webhook inputs, auto-deploy toggle, and deploy script are populated
   const webhookUrlInput = pageDesktop.locator('input[value*="webhooks/deploy"]')
   assert.ok(await webhookUrlInput.isVisible(), 'Webhook payload URL input should be visible')
+
+  const autoDeployToggle = pageDesktop.locator('#auto-deploy-toggle')
+  assert.ok(await autoDeployToggle.isVisible(), 'Auto deploy toggle should be visible')
+  assert.equal(await autoDeployToggle.isChecked(), true, 'Auto deploy should be checked by default')
+
+  const deployScriptArea = pageDesktop.locator('textarea')
+  assert.ok(await deployScriptArea.isVisible(), 'Deployment script textarea should be visible')
+
+  const saveBtn = pageDesktop.locator('#save-deployment-config-btn')
+  assert.ok(await saveBtn.isVisible(), 'Save deployment config button should be visible')
 
   const webhookShotPath = path.join(output, 'project-deployments-webhook-drawer.png')
   await pageDesktop.screenshot({ path: webhookShotPath, fullPage: true })

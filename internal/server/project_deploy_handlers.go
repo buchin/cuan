@@ -59,6 +59,16 @@ type ProjectDeploymentsResponse struct {
 	LiveSHA       string                  `json:"live_sha,omitempty"`
 	WebhookURL    string                  `json:"webhook_url,omitempty"`
 	WebhookSecret string                  `json:"webhook_secret,omitempty"`
+	AutoDeploy    bool                    `json:"auto_deploy"`
+	DeployBranch  string                  `json:"deploy_branch,omitempty"`
+	DeployScript  string                  `json:"deploy_script,omitempty"`
+}
+
+// UpdateProjectDeploymentConfigRequest defines the JSON payload for updating project deployment configuration.
+type UpdateProjectDeploymentConfigRequest struct {
+	AutoDeploy   *bool  `json:"auto_deploy,omitempty"`
+	DeployBranch string `json:"deploy_branch,omitempty"`
+	DeployScript string `json:"deploy_script,omitempty"`
 }
 
 // TriggerDeploymentRequestBody defines the optional JSON body for triggering a deployment.
@@ -598,7 +608,11 @@ func (s *Server) handleGetProjectDeployments(w http.ResponseWriter, r *http.Requ
 
 	domain := s.resolveProjectDomain(r.Context(), proj)
 
-	branch := proj.DefaultBranch
+	settings := project.SettingsFromMetadata(proj.Metadata)
+	branch := settings.DeployBranch
+	if branch == "" {
+		branch = proj.DefaultBranch
+	}
 	if branch == "" {
 		branch = "dev"
 	}
@@ -616,6 +630,9 @@ func (s *Server) handleGetProjectDeployments(w http.ResponseWriter, r *http.Requ
 		LiveSHA:       liveSHA,
 		WebhookURL:    webhookURL,
 		WebhookSecret: webhookSecret,
+		AutoDeploy:    settings.IsAutoDeployEnabled(),
+		DeployBranch:  settings.DeployBranch,
+		DeployScript:  settings.DeployScript,
 	})
 }
 
@@ -726,22 +743,36 @@ func (s *Server) handleProjectDeployWebhook(w http.ResponseWriter, r *http.Reque
 	var payload GitWebhookPushPayload
 	_ = json.Unmarshal(body, &payload)
 
-	defaultBranch := proj.DefaultBranch
-	if defaultBranch == "" {
-		defaultBranch = "dev"
+	settings := project.SettingsFromMetadata(proj.Metadata)
+
+	targetBranch := settings.DeployBranch
+	if targetBranch == "" {
+		targetBranch = proj.DefaultBranch
+	}
+	if targetBranch == "" {
+		targetBranch = "dev"
 	}
 
 	// Filter branch if ref was specified
-	branch := defaultBranch
+	branch := targetBranch
 	if payload.Ref != "" {
 		branch = strings.TrimPrefix(payload.Ref, "refs/heads/")
-		if branch != defaultBranch {
+		if branch != targetBranch {
 			respondJSON(w, http.StatusOK, map[string]interface{}{
 				"status":  "ignored",
-				"message": fmt.Sprintf("Push to branch '%s' ignored; active deployment branch is '%s'", branch, defaultBranch),
+				"message": fmt.Sprintf("Push to branch '%s' ignored; active deployment branch is '%s'", branch, targetBranch),
 			})
 			return
 		}
+	}
+
+	// Check if Auto Deploy is enabled
+	if !settings.IsAutoDeployEnabled() {
+		respondJSON(w, http.StatusOK, map[string]interface{}{
+			"status":  "ignored",
+			"message": "Auto deploy is disabled for this project",
+		})
+		return
 	}
 
 	commitSHA := payload.After
@@ -774,6 +805,67 @@ func (s *Server) handleProjectDeployWebhook(w http.ResponseWriter, r *http.Reque
 	respondJSON(w, http.StatusCreated, map[string]interface{}{
 		"deployment": toDeploymentItem(dep),
 		"message":    msg,
+	})
+}
+
+// handleUpdateProjectDeploymentConfig updates deployment settings (auto_deploy, deploy_branch, deploy_script) for a project.
+// PUT /api/v1/projects/{id}/deployment-config
+func (s *Server) handleUpdateProjectDeploymentConfig(w http.ResponseWriter, r *http.Request) {
+	projectID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if projectID == "" {
+		respondJSONError(w, http.StatusBadRequest, "project id is required")
+		return
+	}
+
+	proj, _, err := s.resolveProjectRepoDir(r.Context(), projectID)
+	if err != nil {
+		if errors.Is(err, project.ErrProjectNotFound) {
+			respondJSONError(w, http.StatusNotFound, "project not found")
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to resolve project: %v", err))
+		return
+	}
+
+	var reqBody UpdateProjectDeploymentConfigRequest
+	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	settings := project.SettingsFromMetadata(proj.Metadata)
+	if reqBody.AutoDeploy != nil {
+		settings.AutoDeploy = reqBody.AutoDeploy
+	}
+	if reqBody.DeployBranch != "" {
+		settings.DeployBranch = strings.TrimSpace(reqBody.DeployBranch)
+	}
+	settings.DeployScript = strings.TrimSpace(reqBody.DeployScript)
+
+	if s.projectSvc != nil {
+		updateReq := project.UpdateSettingsRequest{
+			Name:              proj.Name,
+			Goal:              settings.Goal,
+			Instructions:      settings.Instructions,
+			RepoURL:           proj.RepoURL,
+			DefaultBranch:     proj.DefaultBranch,
+			DeployBranch:      settings.DeployBranch,
+			DeployScript:      settings.DeployScript,
+			AutoDeploy:        settings.AutoDeploy,
+			Environment:       settings.Environment,
+			ExpectedUpdatedAt: proj.UpdatedAt,
+		}
+		if _, err := s.projectSvc.UpdateSettings(r.Context(), proj.ID, updateReq); err != nil {
+			respondJSONError(w, http.StatusBadRequest, fmt.Sprintf("failed to update deployment settings: %v", err))
+			return
+		}
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"message":       "Deployment configuration updated successfully",
+		"auto_deploy":   settings.IsAutoDeployEnabled(),
+		"deploy_branch": settings.DeployBranch,
+		"deploy_script": settings.DeployScript,
 	})
 }
 

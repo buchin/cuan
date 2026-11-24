@@ -16,7 +16,8 @@ import {
   Ban,
   Clock,
   Webhook,
-  ShieldCheck
+  ShieldCheck,
+  Sliders
 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { SlideDrawer } from '../../components/layout/SlideDrawer'
@@ -42,6 +43,11 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
   const [cancelingId, setCancelingId] = useState<string | null>(null)
   const [selectedDepId, setSelectedDepId] = useState<string | null>(null)
   const [isWebhookOpen, setIsWebhookOpen] = useState(false)
+  const [autoDeploy, setAutoDeploy] = useState(true)
+  const [deployBranch, setDeployBranch] = useState('dev')
+  const [deployScript, setDeployScript] = useState('')
+  const [savingConfig, setSavingConfig] = useState(false)
+  const [savedSuccess, setSavedSuccess] = useState(false)
   const [copiedSha, setCopiedSha] = useState(false)
   const [copiedUrl, setCopiedUrl] = useState(false)
   const [copiedSecret, setCopiedSecret] = useState(false)
@@ -57,6 +63,11 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
     try {
       const res = await projectsApi.getDeployments(project.id, 50)
       setData(res)
+      if (res) {
+        setAutoDeploy(res.auto_deploy !== false)
+        setDeployBranch(res.deploy_branch || res.branch || 'dev')
+        setDeployScript(res.deploy_script || '')
+      }
     } catch (e: any) {
       setError(e?.message || t('Gagal memuat riwayat deployment proyek.'))
     } finally {
@@ -143,6 +154,25 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
     navigator.clipboard.writeText(data.webhook_secret)
     setCopiedSecret(true)
     setTimeout(() => setCopiedSecret(false), 2000)
+  }
+
+  const handleSaveConfig = async () => {
+    if (savingConfig) return
+    setSavingConfig(true)
+    try {
+      await projectsApi.updateDeploymentConfig(project.id, {
+        auto_deploy: autoDeploy,
+        deploy_branch: deployBranch,
+        deploy_script: deployScript,
+      })
+      setSavedSuccess(true)
+      setTimeout(() => setSavedSuccess(false), 2500)
+      await loadDeployments(true)
+    } catch (e: any) {
+      alert(e?.message || t('Gagal menyimpan konfigurasi deployment.'))
+    } finally {
+      setSavingConfig(false)
+    }
   }
 
   const renderStatusIcon = (status: string, size = 'md') => {
@@ -247,10 +277,10 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
             onClick={() => setIsWebhookOpen(true)}
             id="deployments-webhook-btn"
             className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-border/60 bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
-            title={t('Git Webhook Deployment Integration')}
+            title={t('Pengaturan Deployment, Script & Webhook')}
           >
-            <Webhook className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="hidden sm:inline">{t('Webhook')}</span>
+            <Sliders className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="hidden sm:inline">{t('Pengaturan')}</span>
           </button>
 
           <button
@@ -481,19 +511,19 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
         )}
       </SlideDrawer>
 
-      {/* SlideDrawer: Webhook Deployment Setup */}
+      {/* SlideDrawer: Webhook & Deployment Settings */}
       <SlideDrawer
         isOpen={isWebhookOpen}
         onClose={() => setIsWebhookOpen(false)}
         title={
           <div className="flex items-center gap-2">
-            <Webhook className="h-5 w-5 text-sky-500" />
+            <Sliders className="h-5 w-5 text-sky-500" />
             <span className="font-semibold text-foreground">
-              {t('Git Webhook Deployment')}
+              {t('Pengaturan Deployment Proyek')}
             </span>
           </div>
         }
-        description={t('Pemicu deployment otomatis melalui GitHub, GitLab, atau Git provider saat ada push.')}
+        description={t('Konfigurasi auto-deploy, branch rilis, script deployment per-proyek, dan webhook.')}
         size="md"
       >
         <div className="space-y-6 pb-6 text-sm">
@@ -504,14 +534,101 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
               <span>{t('Deployment Lane Terisolasi & Antre (FIFO)')}</span>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              {t('Setiap proyek memiliki antrean deployment independen. Saat ada push baru ke branch ')}
-              <span className="font-mono font-medium text-foreground">{data?.branch || 'dev'}</span>
-              {t(', deployment akan otomatis masuk ke antrean (lane) tanpa tabrakan build.')}
+              {t('Setiap proyek memiliki antrean build independen. Saat ada push atau rilis baru, pipeline akan mengeksekusi script deployment proyek ini di latar belakang tanpa tabrakan.')}
             </p>
           </div>
 
-          {/* Webhook Configuration Fields */}
+          {/* Configuration Form: Auto Deploy, Target Branch, Deployment Script */}
           <div className="space-y-4">
+            {/* Auto Deploy Toggle */}
+            <div className="rounded-xl border border-border/40 bg-muted/20 p-4 space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-0.5">
+                  <label htmlFor="auto-deploy-toggle" className="text-xs font-semibold text-foreground cursor-pointer">
+                    {t('Otomatis Deploy saat Push (Auto Deploy)')}
+                  </label>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    {t('Saat aktif, push ke branch rilis via webhook akan otomatis memicu antrean build dan deployment tanpa perlu perintah manual.')}
+                  </p>
+                </div>
+                <input
+                  id="auto-deploy-toggle"
+                  type="checkbox"
+                  checked={autoDeploy}
+                  onChange={(e) => setAutoDeploy(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-border text-sky-600 focus:ring-sky-500 cursor-pointer"
+                />
+              </div>
+            </div>
+
+            {/* Target Branch */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-foreground flex items-center justify-between">
+                <span>{t('Branch Rilis (Deployment Branch)')}</span>
+                <span className="text-[11px] text-muted-foreground font-mono">Git Ref</span>
+              </label>
+              <input
+                type="text"
+                value={deployBranch}
+                onChange={(e) => setDeployBranch(e.target.value)}
+                placeholder="dev"
+                className="w-full rounded-lg border border-border/50 bg-background px-3 py-2 font-mono text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-sky-500"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                {t('Webhook hanya akan memproses push yang ditujukan ke branch ini.')}
+              </p>
+            </div>
+
+            {/* Deployment Script */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-foreground flex items-center justify-between">
+                <span>{t('Script Deployment (Build & Release Hook)')}</span>
+                <span className="text-[11px] text-muted-foreground font-mono">bash</span>
+              </label>
+              <textarea
+                rows={5}
+                value={deployScript}
+                onChange={(e) => setDeployScript(e.target.value)}
+                placeholder={"# Contoh perintah rilis:\n./scripts/deploy.sh --branch dev"}
+                className="w-full rounded-lg border border-border/50 bg-neutral-950 p-3 font-mono text-xs leading-relaxed text-neutral-200 focus:outline-none focus:ring-1 focus:ring-sky-500 shadow-inner"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                {t('Script bash yang dieksekusi di runner deployment lane. Setiap proyek bebas memiliki alur build/rilis sendiri.')}
+              </p>
+            </div>
+
+            {/* Save Button */}
+            <div className="flex items-center justify-end gap-2.5 pt-1">
+              {savedSuccess && (
+                <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-medium">
+                  <Check className="h-3.5 w-3.5" />
+                  {t('Pengaturan tersimpan!')}
+                </span>
+              )}
+              <button
+                type="button"
+                disabled={savingConfig}
+                onClick={handleSaveConfig}
+                id="save-deployment-config-btn"
+                className="inline-flex min-h-[34px] items-center gap-1.5 rounded-lg bg-sky-600 px-3.5 py-1.5 text-xs font-medium text-white shadow-xs hover:bg-sky-500 disabled:opacity-50 transition-colors cursor-pointer"
+              >
+                {savingConfig ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Check className="h-3.5 w-3.5" />
+                )}
+                <span>{t('Simpan Pengaturan')}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Webhook Configuration Fields */}
+          <div className="space-y-4 pt-4 border-t border-border/30">
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <Webhook className="h-3.5 w-3.5 text-sky-500" />
+              <span>{t('Integrasi Git Webhook')}</span>
+            </h4>
+
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-foreground flex items-center justify-between">
                 <span>{t('Payload URL')}</span>
