@@ -3,7 +3,7 @@ import { ListRowContent } from '../../components/layout/ListControls'
 import { ItemActions } from '../../components/ui/ItemActions'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bot, Plus, RefreshCw, Terminal } from 'lucide-react'
+import { Bot, Play, Plus, RefreshCw, Terminal } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { useAuth } from '../../context/AuthContext'
 import { aiProvidersApi, type AIProviderDTO } from '../../api/aiProviders'
@@ -11,6 +11,7 @@ import { accountsApi, type ProviderAccount } from '../../api/accounts'
 import { agentsApi, type Agent } from '../../api/agents'
 import { tasksApi } from '../../api/tasks'
 import { projectsApi } from '../../api/projects'
+import type { Project } from '../../api/types'
 import { AddBrainModal } from './AddBrainModal'
 import { AccountModelPicker } from './AccountModelPicker'
 import { AccountUsageDetails } from './AccountUsageDetails'
@@ -83,15 +84,29 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
   const [checking, setChecking] = useState(false)
   const [disconnectOpen, setDisconnectOpen] = useState(false)
   const [terminalLaunching, setTerminalLaunching] = useState<string | null>(null)
+  const [projectPickerBrain, setProjectPickerBrain] = useState<Brain | null>(null)
+  const [availableProjects, setAvailableProjects] = useState<Project[]>([])
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('')
   const navigate = useNavigate()
 
-  const openTerminalForBrain = useCallback(async (brain: Brain) => {
+  const launchTerminalForBrain = useCallback(async (brain: Brain, projId: string) => {
     if (terminalLaunching) return
     setTerminalLaunching(brain.id)
     setError('')
     try {
       const brainLabel = brain.label || brain.id
-      const taskTitle = `Terminal · ${brainLabel}`
+      let targetProject: Project | null = null
+      try {
+        if (availableProjects.length > 0) {
+          targetProject = availableProjects.find(p => p.id === projId) || null
+        } else {
+          const list = await projectsApi.list()
+          targetProject = list.find(p => p.id === projId) || null
+        }
+      } catch {}
+
+      const projSuffix = targetProject && targetProject.name.toLowerCase() !== 'cuan' ? ` · ${targetProject.name}` : ''
+      const taskTitle = `Terminal · ${brainLabel}${projSuffix}`
       let targetTask = null
       try {
         const res = await tasksApi.page({ search: taskTitle, page_size: 10 })
@@ -102,14 +117,6 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
 
       const assignedAgentId = brain.account?.agent_id || primary?.id || 'agent_cuan'
       const accountId = brain.account?.id || (brain.id.startsWith('byok_') ? '' : brain.id)
-
-      let targetProject = null
-      try {
-        const projectList = await projectsApi.list()
-        targetProject = projectList.find(p => !p.is_archived && p.name.toLowerCase() === 'cuan') || projectList.find(p => !p.is_archived) || null
-      } catch {}
-
-      const projId = targetProject?.id || 'default'
 
       if (!targetTask) {
         targetTask = await tasksApi.create({
@@ -152,8 +159,31 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
       setError(t('Could not start terminal session for this brain. Try again.'))
     } finally {
       setTerminalLaunching(null)
+      setProjectPickerBrain(null)
     }
-  }, [terminalLaunching, primary?.id, navigate, t])
+  }, [terminalLaunching, availableProjects, primary?.id, navigate, t])
+
+  const openTerminalForBrain = useCallback(async (brain: Brain) => {
+    if (terminalLaunching) return
+    setError('')
+    try {
+      const projectList = await projectsApi.list()
+      const activeProjects = projectList.filter(p => !p.is_archived)
+
+      if (activeProjects.length <= 1) {
+        const targetProjId = activeProjects[0]?.id || 'default'
+        void launchTerminalForBrain(brain, targetProjId)
+        return
+      }
+
+      setAvailableProjects(activeProjects)
+      const defaultProj = activeProjects.find(p => p.name.toLowerCase() === 'cuan') || activeProjects[0]
+      setSelectedProjectId(defaultProj.id)
+      setProjectPickerBrain(brain)
+    } catch {
+      void launchTerminalForBrain(brain, 'default')
+    }
+  }, [terminalLaunching, launchTerminalForBrain])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -345,6 +375,63 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
     </SlideDrawer>
     <ActionDialog open={disconnectOpen} onClose={() => { if (!busy) setDisconnectOpen(false) }} title={t('Disconnect brain')} busy={busy}>
       <div className="space-y-4"><p className="text-sm leading-6 text-muted-foreground">{t('Disconnect this AI brain? Saved conversations and work will be preserved.')}</p><p className="break-all text-sm font-medium">{selected?.account?.email || selected?.label}</p>{drawerError && <p role="alert" className="text-sm text-destructive">{drawerError}</p>}<div className="flex justify-end gap-2"><button type="button" className="action-secondary" disabled={busy} onClick={() => setDisconnectOpen(false)}>{t('Cancel')}</button><button type="button" className="action-primary" disabled={busy} onClick={() => void disconnect()}>{t(busy ? 'Saving…' : 'Disconnect brain')}</button></div></div>
+    </ActionDialog>
+    <ActionDialog
+      open={!!projectPickerBrain}
+      onClose={() => { if (!terminalLaunching) setProjectPickerBrain(null) }}
+      title={t('Test AI brain')}
+      busy={!!terminalLaunching}
+    >
+      <div className="space-y-4">
+        <p className="text-sm leading-6 text-muted-foreground">
+          {t('Select project workspace to test this AI brain:')}
+        </p>
+        <div className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-1">
+          <p className="text-xs text-muted-foreground">{t('Tested AI brain:')}</p>
+          <p className="text-sm font-medium text-foreground">{projectPickerBrain?.label || projectPickerBrain?.id}</p>
+        </div>
+        <div className="space-y-1.5">
+          <label htmlFor="brain-project-select" className="text-xs font-medium text-foreground">
+            {t('Project workspace')}
+          </label>
+          <select
+            id="brain-project-select"
+            className="field-control text-sm w-full"
+            value={selectedProjectId}
+            disabled={!!terminalLaunching}
+            onChange={(e) => setSelectedProjectId(e.target.value)}
+          >
+            {availableProjects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} {p.name.toLowerCase() === 'cuan' ? `(${t('Primary')})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <button
+            type="button"
+            className="action-secondary"
+            disabled={!!terminalLaunching}
+            onClick={() => setProjectPickerBrain(null)}
+          >
+            {t('Cancel')}
+          </button>
+          <button
+            type="button"
+            className="action-primary inline-flex items-center gap-1.5"
+            disabled={!!terminalLaunching || !selectedProjectId}
+            onClick={() => {
+              if (projectPickerBrain && selectedProjectId) {
+                void launchTerminalForBrain(projectPickerBrain, selectedProjectId)
+              }
+            }}
+          >
+            <Play className="h-3.5 w-3.5 fill-current" />
+            <span>{terminalLaunching ? t('Starting…') : t('Start terminal')}</span>
+          </button>
+        </div>
+      </div>
     </ActionDialog>
     <AddBrainModal open={addOpen} onClose={() => setAddOpen(false)} onBrainAdded={load} existingProviders={providers} />
   </div>

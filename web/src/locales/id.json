@@ -2336,5 +2336,11 @@
   "Stopping…": "Menghentikan…",
   "Keep running": "Tetap jalankan",
   "Stop the active process? Saved output and existing file changes are retained.": "Hentikan proses yang sedang berjalan? Output yang tersimpan dan perubahan file akan tetap dipertahankan.",
-  "Stop the active agent process? Existing output is retained. Changes already made by the agent are not rolled back.": "Hentikan proses agen yang sedang berjalan? Output yang ada akan dipertahankan dan perubahan file tidak akan dibatalkan."
+  "Stop the active agent process? Existing output is retained. Changes already made by the agent are not rolled back.": "Hentikan proses agen yang sedang berjalan? Output yang ada akan dipertahankan dan perubahan file tidak akan dibatalkan.",
+  "Test AI brain": "Uji Coba AI Brain",
+  "Select project workspace to test this AI brain:": "Pilih workspace proyek yang ingin digunakan untuk menguji AI Brain ini:",
+  "Tested AI brain:": "AI Brain yang diuji:",
+  "Project workspace": "Workspace Proyek",
+  "Start terminal": "Mulai Terminal",
+  "Primary": "Utama"
 }

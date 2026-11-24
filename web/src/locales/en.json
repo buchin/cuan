@@ -952,5 +952,11 @@
   "Ready for review": "Ready for review",
   "Siap ditinjau": "Ready for review",
   "Waiting for checks": "Waiting for checks",
-  "Files from this work session": "Files from this work session"
+  "Files from this work session": "Files from this work session",
+  "Test AI brain": "Test AI brain",
+  "Select project workspace to test this AI brain:": "Select project workspace to test this AI brain:",
+  "Tested AI brain:": "Tested AI brain:",
+  "Project workspace": "Project workspace",
+  "Start terminal": "Start terminal",
+  "Primary": "Primary"
 }
