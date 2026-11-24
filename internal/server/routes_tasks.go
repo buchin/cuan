@@ -422,11 +422,7 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		if updated != nil && updated.Status == task.TaskStatusDone {
 			s.DispatchTaskCompletedPush(r.Context(), updated)
 			if updated.SourceRoomID != "" && s.projectStudioRepo != nil {
-				if blocker, err := s.conversationResolutionBlocker(r.Context(), updated.SourceRoomID); err == nil && blocker == "" {
-					now := time.Now().UTC()
-					_ = s.projectStudioRepo.SetRoomResolved(r.Context(), updated.SourceRoomID, &now)
-					s.publishInbox(updated.SourceRoomID)
-				}
+				s.publishInbox(updated.SourceRoomID)
 			}
 		}
 	}

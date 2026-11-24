@@ -613,13 +613,11 @@ func (s *Server) autoResolveCompletedConversations(ctx context.Context) {
 			hasTasks = len(legacy) > 0
 		}
 
-		roomCutoff := cutoff // default 24h for customer chats without tasks
 		if hasTasks {
-			// For completed tasks: 15-minute grace period after completion/read
-			roomCutoff = time.Now().UTC().Add(-15 * time.Minute)
+			// All tasks must have completed > 24 hours ago
 			allTasksOld := true
 			for _, t := range tasks {
-				if t.UpdatedAt.After(roomCutoff) {
+				if t.UpdatedAt.After(cutoff) {
 					allTasksOld = false
 					break
 				}
@@ -629,7 +627,7 @@ func (s *Server) autoResolveCompletedConversations(ctx context.Context) {
 			}
 		} else {
 			// Fast path for non-task chats: check 24h cutoff
-			if latestMsg.CreatedAt.After(roomCutoff) {
+			if latestMsg.CreatedAt.After(cutoff) {
 				continue
 			}
 			// Normal chat without tasks:
@@ -678,20 +676,18 @@ func (s *Server) autoResolveCompletedConversations(ctx context.Context) {
 				}
 			}
 
-			// If the completion message has never been explicitly marked with a read receipt:
+			// If the completion message has never been read, keep it in Inbox!
 			if readAt == nil {
 				// If customer live chat and answered by system/agent > 24h ago with no visitor replies:
 				if !hasTasks && latestMsg.CreatedAt.Before(cutoff) {
-					readAt = &latestMsg.CreatedAt
-				} else if hasTasks && latestMsg.CreatedAt.Before(roomCutoff) {
 					readAt = &latestMsg.CreatedAt
 				} else {
 					continue
 				}
 			}
 
-			// Grace period must elapse AFTER the message was read
-			if readAt.After(roomCutoff) {
+			// 24-hour grace period must elapse AFTER the message was read
+			if readAt.After(cutoff) {
 				continue
 			}
 		}
@@ -829,10 +825,6 @@ func (s *Server) reconcileVerifiedPublicationTasks(ctx context.Context) {
 					_ = s.PostTaskCompletionMessage(ctx, updated)
 					s.DispatchTaskCompletedPush(ctx, updated)
 					if detail.SourceRoomID != "" {
-						if blocker, err := s.conversationResolutionBlocker(ctx, detail.SourceRoomID); err == nil && blocker == "" {
-							now := time.Now().UTC()
-							_ = s.projectStudioRepo.SetRoomResolved(ctx, detail.SourceRoomID, &now)
-						}
 						s.publishInbox(detail.SourceRoomID)
 					}
 					continue
@@ -875,10 +867,6 @@ func (s *Server) reconcileVerifiedPublicationTasks(ctx context.Context) {
 				_ = s.PostTaskCompletionMessage(ctx, updated)
 				s.DispatchTaskCompletedPush(ctx, updated)
 				if detail.SourceRoomID != "" {
-					if blocker, err := s.conversationResolutionBlocker(ctx, detail.SourceRoomID); err == nil && blocker == "" {
-						now := time.Now().UTC()
-						_ = s.projectStudioRepo.SetRoomResolved(ctx, detail.SourceRoomID, &now)
-					}
 					s.publishInbox(detail.SourceRoomID)
 				}
 			}

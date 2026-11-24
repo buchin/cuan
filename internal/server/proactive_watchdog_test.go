@@ -470,6 +470,25 @@ func TestAutoResolveCompletedConversations(t *testing.T) {
 		t.Fatalf("expected room not resolved yet within 24h grace period, got resolved_at=%v", checkRoom.ResolvedAt)
 	}
 
+	// 1a. Even if read 20 minutes ago (previously prematurely resolved by 15m cutoff): should NOT auto-resolve
+	read20m := time.Now().UTC().Add(-20 * time.Minute)
+	if err := repo.AcknowledgeMessages(ctx, room.ID, []string{msgRecent.ID}, true); err != nil {
+		t.Fatal(err)
+	}
+	if receipts, err := repo.MessageReceipts(ctx, room.ID); err == nil {
+		if rec, ok := receipts[msgRecent.ID]; ok && rec.ReadConfirmedAt != nil {
+			*rec.ReadConfirmedAt = read20m
+		}
+	}
+	srv.autoResolveCompletedConversations(ctx)
+	checkRoom, err = repo.GetRoomByID(ctx, room.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if checkRoom.ResolvedAt != nil {
+		t.Fatalf("expected room not resolved after 20 minutes (must wait full 24h grace period), got resolved_at=%v", checkRoom.ResolvedAt)
+	}
+
 	// 2. Old completed task (> 24h ago):
 	oldTime := time.Now().UTC().Add(-26 * time.Hour)
 	roomOld := &db.ProjectRoom{

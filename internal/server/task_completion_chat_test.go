@@ -29,6 +29,14 @@ func TestTaskCompletionChatHook_PostsClosingMessageOnTransitionToDone(t *testing
 	userMsgID := db.GenerateUUID()
 	now := time.Now().UTC()
 
+	if err := studioRepo.CreateRoom(ctx, &db.ProjectRoom{
+		ID:        roomID,
+		ProjectID: "proj_test",
+		Title:     "Room Test",
+	}); err != nil {
+		t.Fatalf("failed to create room: %v", err)
+	}
+
 	// Initial chat message from user
 	if err := studioRepo.CreateMessage(ctx, &db.ProjectMessage{
 		ID:         userMsgID,
@@ -113,6 +121,15 @@ func TestTaskCompletionChatHook_PostsClosingMessageOnTransitionToDone(t *testing
 	}
 	if !strings.Contains(closingMsg.Content, "/tasks/"+created.ID) {
 		t.Errorf("expected content to include task link, got %q", closingMsg.Content)
+	}
+
+	// Room must remain active / unresolved immediately upon task completion
+	checkRoom, err := studioRepo.GetRoomByID(ctx, roomID)
+	if err != nil {
+		t.Fatalf("failed to get room: %v", err)
+	}
+	if checkRoom.ResolvedAt != nil {
+		t.Fatalf("expected room to remain active/unresolved immediately upon task completion, got resolved_at=%v", checkRoom.ResolvedAt)
 	}
 }
 
