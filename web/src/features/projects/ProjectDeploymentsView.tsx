@@ -84,17 +84,25 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
     void loadDeployments()
   }, [project.id])
 
-  // Auto-refresh when any deployment is currently building or queued in lane
+  // Auto-refresh: fast 2.5s polling when any deployment is building/queued,
+  // plus calm 8s background polling & window focus listener so new git pushes appear automatically without page refresh
   const isAnyActive = useMemo(() => {
     return data?.deployments.some((d) => d.status === 'building' || d.status === 'queued')
   }, [data])
 
   useEffect(() => {
-    if (!isAnyActive) return
+    const intervalMs = isAnyActive ? 2500 : 8000
     const timer = setInterval(() => {
       void loadDeployments(true)
-    }, 2500)
-    return () => clearInterval(timer)
+    }, intervalMs)
+
+    const onFocus = () => void loadDeployments(true)
+    window.addEventListener('focus', onFocus)
+
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('focus', onFocus)
+    }
   }, [isAnyActive, project.id])
 
   const handleTriggerDeploy = async () => {

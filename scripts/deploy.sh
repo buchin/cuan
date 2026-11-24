@@ -146,15 +146,21 @@ touch /tmp/rescue.txt || true
 
 {
   echo "=== REFLOG ==="
+  orig_pwd="$(pwd)"
+  real_repo="/opt/cuan/data/projects/proj_4978b0b914eaaf0d588df037977fb652"
+  if [ -d "$real_repo/.git" ]; then
+    echo "Using real repo at $real_repo"
+    cd "$real_repo"
+  fi
   git reflog -n 30 2>/dev/null || true
 
-  for rel in /opt/cuan/releases/a559de4* /opt/cuan/releases/fb5ea70* /opt/cuan/releases/aa62643* /opt/cuan/releases/1ce6be6* /opt/cuan/releases/7ff4675*; do
-    if [ -d "$rel" ]; then
-      echo "FOUND RELEASE DIR: $rel"
-      if [ -f "$rel/source-commits.pack" ]; then
-        echo "Unpacking $rel/source-commits.pack into git objects..."
-        git unpack-objects < "$rel/source-commits.pack" 2>/dev/null || true
-      fi
+  echo "=== RELEASES LISTING ==="
+  ls -la /opt/cuan/releases/ 2>/dev/null || true
+
+  for rel in /opt/cuan/releases/*; do
+    if [ -d "$rel" ] && [ -f "$rel/source-commits.pack" ]; then
+      echo "Unpacking $rel/source-commits.pack into git objects..."
+      git unpack-objects < "$rel/source-commits.pack" 2>/dev/null || true
     fi
   done
 
@@ -170,6 +176,7 @@ touch /tmp/rescue.txt || true
       echo "Commit $target_sha not found."
     fi
   done
+  cd "$orig_pwd"
 } | tee -a /tmp/rescue.txt | sudo -n tee "$rescue_log" 2>/dev/null || true
 
 echo '::cuan-release-stage::dependencies'
