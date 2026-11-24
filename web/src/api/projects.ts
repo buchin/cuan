@@ -95,4 +95,57 @@ export const projectsApi = {
       method: 'POST',
     })
   },
+
+  getGitLog: async (id: string, limit = 50, branch?: string): Promise<ProjectGitLogResponse> => {
+    const params = new URLSearchParams()
+    if (limit) params.set('limit', String(limit))
+    if (branch) params.set('branch', branch)
+    const qs = params.toString() ? `?${params.toString()}` : ''
+    return apiFetch<ProjectGitLogResponse>(`/api/v1/projects/${encodeURIComponent(id)}/git-log${qs}`)
+  },
+
+  getCommitDetail: async (id: string, sha: string): Promise<ProjectCommitDetail> => {
+    return apiFetch<ProjectCommitDetail>(`/api/v1/projects/${encodeURIComponent(id)}/commits/${encodeURIComponent(sha)}`)
+  },
+}
+
+export interface ProjectCommit {
+  sha: string
+  short_sha: string
+  author_name: string
+  author_email: string
+  date: string
+  relative_date: string
+  message: string
+  task_id?: string
+  task_ref?: string
+}
+
+export interface ProjectGitLogResponse {
+  project_id: string
+  branch: string
+  commits: ProjectCommit[]
+  total: number
+}
+
+export interface CommitFileStat {
+  path: string
+  insertions: number
+  deletions: number
+}
+
+export interface ProjectCommitDetail {
+  sha: string
+  short_sha: string
+  author_name: string
+  author_email: string
+  date: string
+  relative_date: string
+  message: string
+  body: string
+  stats_summary: string
+  files: CommitFileStat[]
+  patch_preview?: string
+  task_id?: string
+  task_ref?: string
 }

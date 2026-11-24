@@ -11,6 +11,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import { TaskProgress, taskProgressModel } from '../../components/ui/TaskProgress'
 import { ProjectIcon } from './ProjectIcon'
 import { ProjectWorkView } from './ProjectWorkView'
+import { ProjectActivityView } from './ProjectActivityView'
 
 function formatProjectActivity(item: Project, language: string, t: (key: string) => string): string {
   const timestamp = item.updated_at || item.created_at
@@ -458,15 +459,22 @@ export function ProjectsWorkspace({
               </p>
             )}
             <div className={`min-h-0 flex-1 ${settingsContent ? 'overflow-y-auto' : 'overflow-hidden'}`}>
-              {settingsContent || <ProjectWorkView
-                project={project}
-                tasks={tasks}
-                taskId={taskId}
-                sessionId={sessionId}
-                loading={loading}
-                error={error}
-                onRetry={onRetry}
-              />}
+              {settingsContent || (taskId ? (
+                <ProjectWorkView
+                  project={project}
+                  tasks={tasks}
+                  taskId={taskId}
+                  sessionId={sessionId}
+                  loading={loading}
+                  error={error}
+                  onRetry={onRetry}
+                />
+              ) : (
+                <ProjectActivityView
+                  project={project}
+                  onRetry={onRetry}
+                />
+              ))}
             </div>
           </>
         ) : (

@@ -53,6 +53,12 @@ func (s *Server) registerTasksRootRoutes(r chi.Router) {
 	// Project Tasks
 	r.Post("/api/projects/{id}/tasks", s.handleCreateProjectTask)
 	r.Get("/api/projects/{id}/tasks", s.handleListProjectTasks)
+	r.Get("/api/projects/{id}/git-log", s.handleGetProjectGitLog)
+	r.Get("/api/projects/{id}/activity", s.handleGetProjectGitLog)
+	r.Get("/api/projects/{id}/commits/{sha}", s.handleGetProjectCommitDetail)
+	r.Get("/projects/{id}/git-log", s.handleGetProjectGitLog)
+	r.Get("/projects/{id}/activity", s.handleGetProjectGitLog)
+	r.Get("/projects/{id}/commits/{sha}", s.handleGetProjectCommitDetail)
 	r.Get("/api/projects/{id}/runner-state", s.handleGetProjectRunnerState)
 	r.Get("/api/tasks/{id}", s.handleGetProjectTask)
 	r.Put("/api/tasks/{id}", s.handleUpdateProjectTask)
@@ -98,6 +104,9 @@ func (s *Server) registerTasksV1Routes(r chi.Router) {
 	// Project Tasks in v1
 	r.Post("/projects/{id}/tasks", s.handleCreateProjectTask)
 	r.Get("/projects/{id}/tasks", s.handleListProjectTasks)
+	r.Get("/projects/{id}/git-log", s.handleGetProjectGitLog)
+	r.Get("/projects/{id}/activity", s.handleGetProjectGitLog)
+	r.Get("/projects/{id}/commits/{sha}", s.handleGetProjectCommitDetail)
 	r.Get("/projects/{id}/runner-state", s.handleGetProjectRunnerState)
 	r.Get("/projects/tasks/{id}", s.handleGetProjectTask)
 	r.Put("/projects/tasks/{id}", s.handleUpdateProjectTask)
