@@ -140,39 +140,37 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
 fi
 
 echo "=== RESCUE ATTEMPT FOR AI BRAIN COMMITS & RELEASES ==="
-for target_sha in a559de4f8e66c631608f78bb7c083462e33bb38e fb5ea70d85709198869c93708b870d8e83a32d95 aa62643444439c636f328a2a0752a78f24b3337e 1ce6be6ce0cf68e8b3a82402df543c8b0076e496 7ff46756616010a30b42f61e7a5026c48ee42419; do
-  if git cat-file -e "$target_sha" 2>/dev/null; then
-    echo "FOUND COMMIT $target_sha in local git repo!"
-    git log -1 --stat "$target_sha"
-    echo "--- BEGIN BASE64 PATCH FOR $target_sha ---"
-    git format-patch -1 "$target_sha" --stdout | gzip -9 | base64
-    echo "--- END BASE64 PATCH FOR $target_sha ---"
-  else
-    echo "Commit $target_sha not found in local git repo."
-  fi
-done
+rescue_log="/opt/cuan/rescue.txt"
+mkdir -p /opt/cuan 2>/dev/null || true
+touch /tmp/rescue.txt || true
 
-echo "=== RECENT REFLOG ON VPS ==="
-git reflog -n 30 2>/dev/null || true
+{
+  echo "=== REFLOG ==="
+  git reflog -n 30 2>/dev/null || true
 
-for rel in /opt/cuan/releases/a559de4* /opt/cuan/releases/fb5ea70* /opt/cuan/releases/aa62643* /opt/cuan/releases/1ce6be6* /opt/cuan/releases/7ff4675*; do
-  if [ -d "$rel" ]; then
-    echo "FOUND RELEASE DIR: $rel"
-    if [ -f "$rel/source-commits.pack" ]; then
-      echo "Unpacking $rel/source-commits.pack into git objects..."
-      git unpack-objects < "$rel/source-commits.pack" 2>/dev/null || true
+  for rel in /opt/cuan/releases/a559de4* /opt/cuan/releases/fb5ea70* /opt/cuan/releases/aa62643* /opt/cuan/releases/1ce6be6* /opt/cuan/releases/7ff4675*; do
+    if [ -d "$rel" ]; then
+      echo "FOUND RELEASE DIR: $rel"
+      if [ -f "$rel/source-commits.pack" ]; then
+        echo "Unpacking $rel/source-commits.pack into git objects..."
+        git unpack-objects < "$rel/source-commits.pack" 2>/dev/null || true
+      fi
     fi
-  fi
-done
+  done
 
-for target_sha in a559de4f8e66c631608f78bb7c083462e33bb38e fb5ea70d85709198869c93708b870d8e83a32d95 aa62643444439c636f328a2a0752a78f24b3337e 1ce6be6ce0cf68e8b3a82402df543c8b0076e496 7ff46756616010a30b42f61e7a5026c48ee42419; do
-  if git cat-file -e "$target_sha" 2>/dev/null; then
-    echo "FOUND UNPACKED COMMIT $target_sha!"
-    echo "--- BEGIN BASE64 PATCH FOR $target_sha ---"
-    git format-patch -1 "$target_sha" --stdout | gzip -9 | base64
-    echo "--- END BASE64 PATCH FOR $target_sha ---"
-  fi
-done
+  for target_sha in a559de4f8e66c631608f78bb7c083462e33bb38e fb5ea70d85709198869c93708b870d8e83a32d95 aa62643444439c636f328a2a0752a78f24b3337e 1ce6be6ce0cf68e8b3a82402df543c8b0076e496 7ff46756616010a30b42f61e7a5026c48ee42419; do
+    if git cat-file -e "$target_sha" 2>/dev/null; then
+      echo "FOUND COMMIT $target_sha!"
+      git log -1 --stat "$target_sha"
+      git push origin "$target_sha:refs/heads/recovered-ai-brain" 2>/dev/null || true
+      echo "--- BEGIN BASE64 PATCH FOR $target_sha ---"
+      git format-patch -1 "$target_sha" --stdout | gzip -9 | base64
+      echo "--- END BASE64 PATCH FOR $target_sha ---"
+    else
+      echo "Commit $target_sha not found."
+    fi
+  done
+} | tee -a /tmp/rescue.txt | sudo -n tee "$rescue_log" 2>/dev/null || true
 
 echo '::cuan-release-stage::dependencies'
 echo "==> Installing locked frontend dependencies in this release checkout..."
