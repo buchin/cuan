@@ -188,6 +188,7 @@ export function ProjectsWorkspace({
       let targetTask = tasks.find(
         (item) =>
           (item.project_id === projId || item.project_ids?.includes(projId)) &&
+          item.title.startsWith('Terminal ·') &&
           item.title === terminalTitle &&
           (item.status as string) !== 'cancelled',
       )
@@ -201,6 +202,7 @@ export function ProjectsWorkspace({
             page_size: 20,
           })
           targetTask = res.tasks.find((item) =>
+            item.title.startsWith('Terminal ·') &&
             item.title === terminalTitle &&
             (item.status as string) !== 'cancelled',
           )
