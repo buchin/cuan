@@ -649,6 +649,48 @@
 }
 .composer-tasks .composer-tasks-count { border-radius: 999px; }
 
+/* Linear timeline connecting line between tasks (Things 3 & Bear Notes standards) */
+[data-timeline-connector] {
+  background-color: oklch(var(--muted-foreground) / 0.3) !important;
+  width: 2px !important;
+}
+.dark [data-timeline-connector] {
+  background-color: oklch(var(--muted-foreground) / 0.4) !important;
+}
+
+/* Compact markdown typography in task linear timeline */
+.task-timeline-content .chat-markdown {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.task-timeline-content .chat-markdown > :first-child {
+  margin-top: 0;
+}
+.task-timeline-content .chat-markdown > :last-child {
+  margin-bottom: 0;
+}
+.task-timeline-content .chat-markdown h1,
+.task-timeline-content .chat-markdown h2,
+.task-timeline-content .chat-markdown h3,
+.task-timeline-content .chat-markdown h4 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin: 0.5rem 0 0.25rem 0;
+  color: oklch(var(--foreground));
+}
+.task-timeline-content .chat-markdown p,
+.task-timeline-content .chat-markdown ul,
+.task-timeline-content .chat-markdown ol {
+  margin: 0.35rem 0;
+}
+.task-timeline-content .chat-markdown :not(pre) > code {
+  font-size: 0.75rem;
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.25rem;
+  background: oklch(var(--muted));
+  color: oklch(var(--foreground));
+}
+
 /* Affordance tombol subtle pill pada aksi ComposerTasks sesuai Bear/Things 3 */
 .composer-tasks [data-card-actions],
 [data-slide-drawer] [data-card-actions] {

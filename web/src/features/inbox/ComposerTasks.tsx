@@ -5,7 +5,8 @@ import type { Task } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
 import { StatusDot } from '../../components/ui/StatusDot'
 import { SlideDrawer } from '../../components/ui/SlideDrawer'
-import { workStatus, workDisplayStatus, taskExecutionActive, taskLiveActivityText, taskSummaryText, TASK_STATUS_THEMES } from '../tasks/task-ui'
+import { CollapsibleChatText } from './CollapsibleChatText'
+import { workStatus, workDisplayStatus, taskExecutionActive, taskLiveActivityText, TASK_STATUS_THEMES } from '../tasks/task-ui'
 import { tasksApi } from '../../api/tasks'
 import { CardActions } from './CardActions'
 import { TaskDuration } from '../tasks/TaskDuration'
@@ -162,9 +163,12 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
             {ordered.map((task, index) => {
               const work = workStatus(task)
               const status = workDisplayStatus(task)
-              const progress = work === 'Needs attention' ? task.review_finding || ''
-                : ['Completed', 'Answered'].includes(work) ? taskSummaryText(task)
-                : taskLiveActivityText(task, '') || taskSummaryText(task)
+              const rawSummary = (task.complete_note || task.summary || '').trim()
+              const progress = work === 'Needs attention'
+                ? (task.review_finding || rawSummary)
+                : ['Completed', 'Answered'].includes(work)
+                  ? rawSummary
+                  : (taskLiveActivityText(task, '') || rawSummary)
               return (
                 <li
                   key={task.id}
@@ -176,10 +180,10 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
                     <span
                       data-timeline-connector
                       aria-hidden
-                      className="absolute left-[7px] top-[26px] -bottom-[24px] w-px bg-border/60"
+                      className="absolute left-[7px] top-[22px] -bottom-[24px] w-0.5 bg-muted-foreground/30 dark:bg-muted-foreground/40 pointer-events-none"
                     />
                   )}
-                  <span className="absolute left-0 top-0.5 flex h-4 w-4 items-center justify-center">
+                  <span className="absolute left-0 top-0.5 flex h-4 w-4 items-center justify-center bg-card z-1">
                     {status === 'Completed' ? (
                       <CheckCircle2 className="h-4 w-4 shrink-0 text-[color:var(--status-success)]" aria-label={t(status)} />
                     ) : taskExecutionActive(task) ? (
@@ -205,9 +209,14 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
                     </div>
                     <TaskDuration task={task} className="text-xs text-muted-foreground block" />
                     {progress && (
-                      <p className="text-sm leading-relaxed text-muted-foreground break-words">
-                        {progress}
-                      </p>
+                      <div className="task-timeline-content text-xs sm:text-sm text-muted-foreground break-words pt-0.5">
+                        <CollapsibleChatText
+                          content={progress}
+                          maxLines={6}
+                          hideTaskCard
+                          markdownClassName="task-timeline-markdown"
+                        />
+                      </div>
                     )}
                     <CardActions className="px-0 pt-1 text-xs">
                       <button
