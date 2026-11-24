@@ -1116,7 +1116,12 @@ func (s *Server) processNextQueuedDeployment(projectID, repoDir string, proj *pr
 	go s.runProjectDeploymentPipeline(next.ID, projectID, repoDir, proj, next.Branch, next.CommitSHA)
 }
 
-// runProjectDeploymentPipeline executes the 5 sequential deployment steps.
+// runProjectDeploymentPipeline executes the 5 sequential deployment steps:
+// 1. Source Checkout (remote fetch, checkout branch, reset --hard to ref, clean untracked)
+// 2. Compile & Build (custom deploy script or repo script with native-sync or multi-layer stack detector)
+// 3. Database Migration (Laravel artisan migrate, schema verification, or embedded script migration)
+// 4. Atomic Service Switch (zero-downtime release activation and distribution verification)
+// 5. Health Verification (HTTP probe against publication health URL or canonical domain)
 func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, proj *project.ProjectResponse, branch, commitSHA string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
