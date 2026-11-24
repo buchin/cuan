@@ -77,6 +77,8 @@ func (s *Server) registerTasksRootRoutes(r chi.Router) {
 	r.Get("/api/projects/tasks/{id}/terminal", s.handleTaskTerminalWebSocket)
 	r.Delete("/api/projects/tasks/{id}/terminal", s.handleCloseTaskTerminalSession)
 	r.Get("/api/terminal/sessions", s.handleGetTerminalSessionsStatus)
+	r.Get("/api/terminal/active", s.handleGetActiveTerminalStatus)
+	r.Delete("/api/terminal/active", s.handleResetActiveTerminalStatus)
 
 	// Project Terminal Engine
 	r.Get("/api/projects/{id}/terminal", s.handleProjectTerminalWebSocket)
@@ -115,6 +117,8 @@ func (s *Server) registerTasksV1Routes(r chi.Router) {
 	r.Get("/projects/tasks/{id}/terminal", s.handleTaskTerminalWebSocket)
 	r.Delete("/projects/tasks/{id}/terminal", s.handleCloseTaskTerminalSession)
 	r.Get("/terminal/sessions", s.handleGetTerminalSessionsStatus)
+	r.Get("/terminal/active", s.handleGetActiveTerminalStatus)
+	r.Delete("/terminal/active", s.handleResetActiveTerminalStatus)
 
 	// Project Terminal Engine in v1
 	r.Get("/projects/{id}/terminal", s.handleProjectTerminalWebSocket)
@@ -390,6 +394,17 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Status != nil {
+		if updated != nil && (updated.Status == task.TaskStatusDone || updated.Status == task.TaskStatusReview || updated.Status == task.TaskStatusBlocked || updated.Status == "cancelled" || updated.Status == "failed") {
+			if s.terminalManager != nil {
+				_ = s.terminalManager.CloseSession(id)
+				if updated.ProjectID != "" {
+					_ = s.terminalManager.ResetProjectSession(updated.ProjectID)
+				}
+			}
+			if s.taskSvc != nil {
+				_ = s.taskSvc.FinishTaskLaunches(r.Context(), id, "stopped")
+			}
+		}
 		s.kickTaskLaunches()
 		if updated != nil && updated.Status == task.TaskStatusDone {
 			s.DispatchTaskCompletedPush(r.Context(), updated)
