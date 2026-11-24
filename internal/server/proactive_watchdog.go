@@ -882,4 +882,44 @@ func (s *Server) reconcileVerifiedPublicationTasks(ctx context.Context) {
 			}
 		}
 	}
+
+	// 3. Reconcile done tasks to guarantee completion delivery notifications are published
+	if doneTasks, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{Status: task.TaskStatusDone}); err == nil {
+		if len(doneTasks) > 10 {
+			doneTasks = doneTasks[:10]
+		}
+		for _, dItem := range doneTasks {
+			if dItem == nil || dItem.ID == "" {
+				continue
+			}
+			detail, err := s.taskSvc.GetTaskDetail(ctx, dItem.ID)
+			if err != nil || detail == nil {
+				continue
+			}
+			targetRoom := detail.SourceRoomID
+			if targetRoom == "" && s.projectStudioRepo != nil {
+				if recentMap, err := s.projectStudioRepo.ListRecentMessages(ctx, 20); err == nil {
+					taskPattern := "/tasks/" + detail.ID
+					for rID, msgs := range recentMap {
+						for _, m := range msgs {
+							if strings.Contains(m.Content, taskPattern) {
+								targetRoom = rID
+								break
+							}
+						}
+						if targetRoom != "" {
+							break
+						}
+					}
+				}
+				if targetRoom != "" {
+					detail.SourceRoomID = targetRoom
+					_, _ = s.taskSvc.UpdateTask(ctx, detail.ID, "coordinator", task.UpdateTaskRequest{SourceRoomID: &targetRoom})
+				}
+			}
+			if targetRoom != "" {
+				s.ensureTaskCompletionDelivered(ctx, detail, targetRoom)
+			}
+		}
+	}
 }
