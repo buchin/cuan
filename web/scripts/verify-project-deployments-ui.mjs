@@ -23,6 +23,41 @@ const sampleProject = {
 
 const sampleDeployments = [
   {
+    id: 'dep_fail',
+    project_id: sampleProject.id,
+    commit_sha: 'e4f5a6b7c8d9e01234567890abcdef1234567890',
+    short_sha: 'e4f5a6b',
+    commit_message: 'feat(auth): add OAuth provider config',
+    branch: 'dev',
+    status: 'failed',
+    trigger_source: 'webhook',
+    trigger_author: 'buchin',
+    duration_seconds: 15,
+    duration: '15s',
+    started_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+    completed_at: new Date(Date.now() - 3600000 * 2 + 15000).toISOString(),
+    created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+    relative_time: '2 hours ago',
+    steps: [
+      {
+        id: 'step-1',
+        name: 'Source Checkout',
+        status: 'success',
+        duration: '2s',
+        summary: 'Branch dev fetched and checked out at e4f5a6b',
+        log: 'git checkout dev\nHEAD is now at e4f5a6b'
+      },
+      {
+        id: 'step-2',
+        name: 'Compile & Build',
+        status: 'failed',
+        duration: '13s',
+        summary: 'Build pipeline failed: Cannot find module @auth/core',
+        log: 'npm run build\n\nsrc/auth/provider.ts:4:23 - error TS2307: Cannot find module \'@auth/core\' or its corresponding type declarations.\n\nFound 1 error in src/auth/provider.ts:4'
+      }
+    ]
+  },
+  {
     id: 'dep_00',
     project_id: sampleProject.id,
     commit_sha: 'a1b2c3d4e5f67890abcdef1234567890abcdef12',
@@ -244,7 +279,7 @@ const server = await createServer({
             deploy_script: './scripts/deploy.sh --branch dev',
             deployments: sampleDeployments,
             total: sampleDeployments.length,
-            live_sha: sampleDeployments[1].commit_sha
+            live_sha: sampleCommits[0].sha
           }))
           return
         }
@@ -342,8 +377,8 @@ try {
   await pageDesktop.keyboard.press('Escape')
   await pageDesktop.waitForTimeout(400)
 
-  // 3. Click deployment row with steps to open SlideDrawer Timeline
-  await pageDesktop.locator('[data-deployment-row="true"]').nth(1).click()
+  // 3. Click deployment row with steps to open SlideDrawer Timeline (dep_01 has steps)
+  await pageDesktop.locator('[data-deployment-row="true"]').nth(2).click()
   await pageDesktop.waitForSelector('[data-slide-drawer], dialog[open]', { timeout: 8000 })
   await pageDesktop.waitForTimeout(600)
 
@@ -358,6 +393,18 @@ try {
   console.log(`Saved timeline drawer screenshot to: ${drawerShotPath}`)
 
   // Close drawer
+  await pageDesktop.keyboard.press('Escape')
+  await pageDesktop.waitForTimeout(400)
+
+  // 3b. Click failed deployment row to verify escalation banner & button
+  await pageDesktop.locator('[data-deployment-row="true"]').first().click()
+  await pageDesktop.waitForSelector('#escalate-failed-deploy-btn', { timeout: 8000 })
+  assert.ok(await pageDesktop.locator('#escalate-failed-deploy-btn').isVisible(), 'Escalate failed deploy button should be visible')
+
+  const failDrawerShotPath = path.join(output, 'project-deployments-failed-drawer.png')
+  await pageDesktop.screenshot({ path: failDrawerShotPath, fullPage: true })
+  console.log(`Saved failed deployment drawer screenshot to: ${failDrawerShotPath}`)
+
   await pageDesktop.keyboard.press('Escape')
   await pageDesktop.waitForTimeout(400)
 

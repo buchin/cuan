@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   CheckCircle2,
   XCircle,
@@ -17,7 +18,8 @@ import {
   Clock,
   Webhook,
   ShieldCheck,
-  Sliders
+  Sliders,
+  Sparkles
 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { SlideDrawer } from '../../components/layout/SlideDrawer'
@@ -25,8 +27,10 @@ import { AccordionTimeline, AccordionTimelineItem } from '../../components/ui/Ac
 import { StatusDot } from '../../components/ui/StatusDot'
 import {
   projectsApi,
-  ProjectDeploymentsResponse
+  ProjectDeploymentsResponse,
+  ProjectDeploymentItem
 } from '../../api/projects'
+import { inboxApi } from '../../api/inbox'
 import type { Project } from '../../api/types'
 
 interface ProjectDeploymentsViewProps {
@@ -36,12 +40,14 @@ interface ProjectDeploymentsViewProps {
 
 export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps) {
   const { t } = useLanguage()
+  const navigate = useNavigate()
   const [data, setData] = useState<ProjectDeploymentsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [triggering, setTriggering] = useState(false)
   const [cancelingId, setCancelingId] = useState<string | null>(null)
   const [selectedDepId, setSelectedDepId] = useState<string | null>(null)
+  const [escalatingId, setEscalatingId] = useState<string | null>(null)
   const [isWebhookOpen, setIsWebhookOpen] = useState(false)
   const [autoDeploy, setAutoDeploy] = useState(true)
   const [deployBranch, setDeployBranch] = useState('dev')
@@ -172,6 +178,29 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
       alert(e?.message || t('Gagal menyimpan konfigurasi deployment.'))
     } finally {
       setSavingConfig(false)
+    }
+  }
+
+  const handleEscalateToAgent = async (dep: ProjectDeploymentItem) => {
+    setEscalatingId(dep.id)
+    try {
+      const failedStep = dep.steps?.find((s) => s.status === 'failed') || dep.steps?.[1]
+      const title = `Perbaikan Deployment #${dep.short_sha}`
+      const errorSnippet = (failedStep?.log || dep.error_message || failedStep?.summary || '').trim()
+      const prompt = `Deployment rilis #${dep.short_sha} untuk commit "${dep.commit_message || 'manual'}" gagal pada tahap "${failedStep?.name || 'Build'}".\n\nRingkasan:\n${failedStep?.summary || 'Build pipeline failed.'}\n\n${errorSnippet ? `Log Diagnostik:\n\`\`\`\n${errorSnippet.slice(-1500)}\n\`\`\`\n\n` : ''}Mohon bantu analisis akar masalahnya (RCA) dan perbaiki agar rilis berikutnya dapat berjalan lancar.`
+
+      const res = await inboxApi.create({
+        title,
+        message: prompt,
+        project_id: project.id,
+      })
+      if (res?.thread?.id) {
+        navigate(`/inbox/${encodeURIComponent(res.thread.id)}`)
+      }
+    } catch (err: any) {
+      console.error('Failed to escalate deployment to agent:', err)
+    } finally {
+      setEscalatingId(null)
     }
   }
 
@@ -404,6 +433,26 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
                     </span>
                   )}
 
+                  {dep.status === 'failed' && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        void handleEscalateToAgent(dep)
+                      }}
+                      disabled={escalatingId === dep.id}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 px-2.5 py-1 text-xs font-medium text-sky-600 dark:text-sky-400 transition-colors cursor-pointer"
+                      title={t('Minta Agent bantu perbaiki kegagalan rilis ini')}
+                    >
+                      {escalatingId === dep.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-3 w-3" />
+                      )}
+                      <span>{t('Perbaiki via Agent')}</span>
+                    </button>
+                  )}
+
                   <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
                 </div>
               </div>
@@ -429,6 +478,37 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
       >
         {selectedDeployment && (
           <div className="space-y-6 pb-6 text-sm">
+            {/* Escalation Banner if Deployment Failed */}
+            {selectedDeployment.status === 'failed' && (
+              <div className="rounded-xl border border-destructive/25 bg-destructive/5 p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-destructive">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      <span>{t('Deployment Mengalami Kendala')}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      {t('Pipeline terhenti pada tahap build/rilis. Eskalasikan log error ini ke Agent untuk dianalisis dan diperbaiki langsung di Inbox.')}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleEscalateToAgent(selectedDeployment)}
+                    disabled={escalatingId === selectedDeployment.id}
+                    id="escalate-failed-deploy-btn"
+                    className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 dark:bg-sky-500 dark:hover:bg-sky-400 px-3.5 py-2 text-xs font-medium text-white shadow-xs disabled:opacity-50 transition-colors cursor-pointer"
+                  >
+                    {escalatingId === selectedDeployment.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-3.5 w-3.5" />
+                    )}
+                    <span>{t('Perbaiki Bersama Agent')}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Meta Card */}
             <div className="rounded-xl border border-border/40 bg-muted/30 p-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
