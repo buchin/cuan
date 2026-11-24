@@ -156,6 +156,7 @@ func (s *Server) ReconcileZombies(ctx context.Context) error {
 		}
 	}
 
+	s.evaluateIdleRunnerQueues(ctx)
 	s.kickTaskLaunches()
 	return nil
 }

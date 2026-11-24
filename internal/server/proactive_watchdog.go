@@ -78,6 +78,7 @@ func (s *Server) RunProactiveWatchdogCycle(ctx context.Context) {
 	if s.taskSvc != nil {
 		_ = s.taskSvc.ReconcileOrphanLaunches(ctx, time.Now().UTC())
 	}
+	s.evaluateIdleRunnerQueues(ctx)
 	s.kickTaskLaunches()
 
 	// 4. Background Watchdog Git Sync saat Idle:

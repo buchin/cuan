@@ -288,6 +288,85 @@ func (s *Server) handleGetTerminalSessionsStatus(w http.ResponseWriter, r *http.
 	})
 }
 
+// handleGetActiveTerminalStatus returns status of active project terminal runners and sessions.
+// GET /api/terminal/active or GET /api/v1/terminal/active
+// Optional query parameter: ?project_id=... (or ?id=...)
+func (s *Server) handleGetActiveTerminalStatus(w http.ResponseWriter, r *http.Request) {
+	if s.terminalManager == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "terminal manager is not configured")
+		return
+	}
+
+	projectID := strings.TrimSpace(r.URL.Query().Get("project_id"))
+	if projectID == "" {
+		projectID = strings.TrimSpace(r.URL.Query().Get("id"))
+	}
+
+	if projectID != "" {
+		active := s.terminalManager.GetProjectActiveRunner(projectID)
+		if active == nil {
+			respondJSON(w, http.StatusOK, map[string]interface{}{
+				"active":     false,
+				"project_id": projectID,
+			})
+			return
+		}
+		respondJSON(w, http.StatusOK, map[string]interface{}{
+			"active":        true,
+			"project_id":    active.ProjectID,
+			"task_id":       active.TaskID,
+			"pid":           active.PID,
+			"created_at":    active.CreatedAt.Format(time.RFC3339),
+			"last_activity": active.LastActivity.Format(time.RFC3339),
+			"recent_output": active.RecentOutput,
+		})
+		return
+	}
+
+	activeRunners := s.terminalManager.ActiveProjectRunners()
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"active":   len(activeRunners) > 0,
+		"count":    len(activeRunners),
+		"runners":  activeRunners,
+		"sessions": activeRunners,
+	})
+}
+
+// handleResetActiveTerminalStatus cleanly terminates and resets active terminal sessions for a project or all projects.
+// DELETE /api/terminal/active or DELETE /api/v1/terminal/active
+// Optional query parameter: ?project_id=... (or ?id=...)
+func (s *Server) handleResetActiveTerminalStatus(w http.ResponseWriter, r *http.Request) {
+	if s.terminalManager == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "terminal manager is not configured")
+		return
+	}
+
+	projectID := strings.TrimSpace(r.URL.Query().Get("project_id"))
+	if projectID == "" {
+		projectID = strings.TrimSpace(r.URL.Query().Get("id"))
+	}
+
+	if projectID != "" {
+		_ = terminal.TerminateProjectWorker(projectID)
+		_ = s.terminalManager.CloseProjectSession(projectID)
+		if s.taskSvc != nil {
+			_ = s.taskSvc.FinishTaskLaunches(r.Context(), projectID, "stopped")
+		}
+		s.kickTaskLaunches()
+		respondJSON(w, http.StatusOK, map[string]interface{}{
+			"status":     "reset",
+			"project_id": projectID,
+		})
+		return
+	}
+
+	_ = s.terminalManager.CloseAll()
+	s.kickTaskLaunches()
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status": "reset_all",
+	})
+}
+
 // handleCloseTaskTerminalSession terminates an active terminal session for a task.
 // DELETE /api/tasks/{id}/terminal or DELETE /api/v1/tasks/{id}/terminal
 func (s *Server) handleCloseTaskTerminalSession(w http.ResponseWriter, r *http.Request) {
@@ -327,6 +406,7 @@ func (s *Server) handleCloseTaskTerminalSession(w http.ResponseWriter, r *http.R
 	if s.terminalManager != nil {
 		_ = s.terminalManager.CloseSession(taskID)
 	}
+	s.kickTaskLaunches()
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"status":  "closed",
@@ -624,6 +704,7 @@ func (s *Server) handleCloseProjectTerminalSession(w http.ResponseWriter, r *htt
 
 	_ = terminal.TerminateProjectWorker(rawProjID)
 	_ = s.terminalManager.CloseProjectSession(rawProjID)
+	s.kickTaskLaunches()
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"status":     "closed",
 		"project_id": rawProjID,
@@ -828,6 +909,9 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		status := task.TaskStatusQueued
 		if s.taskSvc != nil {
 			_, _ = s.taskSvc.UpdateTask(r.Context(), taskID, "runner", task.UpdateTaskRequest{Status: &status})
+			if candidate, cErr := s.ensureTaskLaunchCandidate(r.Context(), taskID, payload.RequestID, ownerID, payload.AgentID, payload.Revision); cErr == nil && candidate != nil {
+				_, _ = s.taskSvc.SaveLaunch(r.Context(), *candidate)
+			}
 		}
 		if s.projectStudioRepo != nil {
 			_ = s.projectStudioRepo.UpdateTaskStatus(r.Context(), taskID, "queued")

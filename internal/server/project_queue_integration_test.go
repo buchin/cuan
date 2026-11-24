@@ -119,10 +119,13 @@ func TestProjectLevelTaskQueueAndLock(t *testing.T) {
 	// Let session and launches settle
 	time.Sleep(100 * time.Millisecond)
 
-	// 5. Now Task 2 can be executed serially
-	run2After := call("POST", "/api/v1/tasks/"+task2.ID+"/run-agent", `{"request_id":"`+db.GenerateUUID()+`","agent_id":"agent_lifecycle"}`)
-	if run2After.Code != http.StatusOK {
-		t.Fatalf("expected task 2 to succeed after task 1 finished, got %d: %s", run2After.Code, run2After.Body.String())
+	// 5. Now Task 2 runs serially (auto-claimed or manual trigger)
+	detail2Current, _ := s.taskSvc.GetTaskDetail(ctx, task2.ID)
+	if detail2Current.LatestAttempt == nil {
+		run2After := call("POST", "/api/v1/tasks/"+task2.ID+"/run-agent", `{"request_id":"`+db.GenerateUUID()+`","agent_id":"agent_lifecycle"}`)
+		if run2After.Code != http.StatusOK && run2After.Code != http.StatusConflict {
+			t.Fatalf("expected task 2 to start after task 1 finished, got %d: %s", run2After.Code, run2After.Body.String())
+		}
 	}
 
 	// Wait for Task 2 to finish
@@ -179,5 +182,154 @@ func TestProjectReconcileSelfHealing(t *testing.T) {
 	}
 	if body["status"] != "reconciled" || body["project_id"] != projectID {
 		t.Fatalf("unexpected response: %v", body)
+	}
+}
+
+func TestProjectLevelTaskQueueAutoClaimOnIdle(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping project queue auto-claim test in short mode")
+	}
+	s, _, call, _ := inboxFixture(t)
+	prepareTaskReporter(t, s)
+
+	ctx := context.Background()
+	projectID := "proj_concurrency_auto_claim_1"
+
+	projDir := t.TempDir()
+	store := project.NewMemoryStore()
+	store.CreateProject(ctx, &project.Project{
+		ID:        projectID,
+		Name:      "Auto Claim Test Project",
+		LocalPath: projDir,
+	})
+	s.projectSvc = project.NewService(store, nil, "", t.TempDir())
+
+	// 1. Create two tasks on the same project
+	t1Payload := `{"request_id":"` + db.GenerateUUID() + `","project_id":"` + projectID + `","title":"Task 1","instructions":"Instructions 1"}`
+	res1 := call("POST", "/api/v1/tasks", t1Payload)
+	if res1.Code != http.StatusCreated {
+		t.Fatalf("create task 1 failed: %d %s", res1.Code, res1.Body.String())
+	}
+	var task1 task.Task
+	_ = json.Unmarshal(res1.Body.Bytes(), &task1)
+
+	t2Payload := `{"request_id":"` + db.GenerateUUID() + `","project_id":"` + projectID + `","title":"Task 2","instructions":"Instructions 2"}`
+	res2 := call("POST", "/api/v1/tasks", t2Payload)
+	if res2.Code != http.StatusCreated {
+		t.Fatalf("create task 2 failed: %d %s", res2.Code, res2.Body.String())
+	}
+	var task2 task.Task
+	_ = json.Unmarshal(res2.Body.Bytes(), &task2)
+
+	// 2. Start Task 1
+	run1 := call("POST", "/api/v1/tasks/"+task1.ID+"/run-agent", `{"request_id":"`+db.GenerateUUID()+`","agent_id":"agent_lifecycle"}`)
+	if run1.Code != http.StatusOK {
+		t.Fatalf("start task 1 failed: %d %s", run1.Code, run1.Body.String())
+	}
+
+	// Verify project lock is active
+	if !s.isProjectActive(ctx, projectID, "") {
+		t.Fatalf("expected project to be active while task 1 is running")
+	}
+
+	// Check /api/v1/terminal/active reports active for projectID
+	termResActive := call("GET", "/api/v1/terminal/active?project_id="+projectID, "")
+	if termResActive.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK from terminal/active, got %d: %s", termResActive.Code, termResActive.Body.String())
+	}
+	var termActiveMap map[string]interface{}
+	_ = json.Unmarshal(termResActive.Body.Bytes(), &termActiveMap)
+	if termActiveMap["active"] != true {
+		t.Fatalf("expected terminal active=true while task 1 runs, got: %v", termActiveMap)
+	}
+
+	// 3. Attempt to run Task 2 concurrently while Task 1 is running
+	run2 := call("POST", "/api/v1/tasks/"+task2.ID+"/run-agent", `{"request_id":"`+db.GenerateUUID()+`","agent_id":"agent_lifecycle"}`)
+	if run2.Code != http.StatusConflict {
+		t.Fatalf("expected 409 Conflict for concurrent project task, got %d: %s", run2.Code, run2.Body.String())
+	}
+
+	// Verify Task 2 is queued
+	detail2, err := s.taskSvc.GetTaskDetail(ctx, task2.ID)
+	if err != nil {
+		t.Fatalf("get task 2 detail failed: %v", err)
+	}
+	if detail2.Status != task.TaskStatusQueued {
+		t.Fatalf("expected task 2 status to be queued, got %s", detail2.Status)
+	}
+
+	// 4. Wait for Task 1 to finish
+	waitWorkspaceTask(t, s, task1.ID, "succeeded")
+
+	// Verify that once Task 1 finishes, runner lock for Task 1 is released
+	if s.isProjectActive(ctx, projectID, task2.ID) {
+		t.Fatalf("expected project lock for task 1 to be released after task 1 finished")
+	}
+
+	// 5. Trigger idle evaluation (or watchdog cycle)
+	s.evaluateIdleRunnerQueues(ctx)
+
+	// 6. Verify Task 2 automatically started without manual run-agent call!
+	// Poll waitWorkspaceTask for Task 2 to reach succeeded
+	waitWorkspaceTask(t, s, task2.ID, "succeeded")
+
+	// Verify Task 2 completed successfully
+	detail2After, err := s.taskSvc.GetTaskDetail(ctx, task2.ID)
+	if err != nil {
+		t.Fatalf("get task 2 detail failed: %v", err)
+	}
+	if detail2After.LatestAttempt == nil || detail2After.LatestAttempt.Status != task.AttemptStatusSucceeded {
+		t.Fatalf("expected task 2 attempt to succeed, got: %+v", detail2After.LatestAttempt)
+	}
+
+	// 7. Verify /api/v1/terminal/active after both tasks complete returns active: false
+	termResIdle := call("GET", "/api/v1/terminal/active?project_id="+projectID, "")
+	if termResIdle.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK from terminal/active, got %d", termResIdle.Code)
+	}
+	var termIdleMap map[string]interface{}
+	_ = json.Unmarshal(termResIdle.Body.Bytes(), &termIdleMap)
+	if termIdleMap["active"] != false {
+		t.Fatalf("expected terminal active=false when runner is idle, got: %v", termIdleMap)
+	}
+}
+
+func TestProjectTerminalActiveEndpointAndReset(t *testing.T) {
+	s, _, call, _ := inboxFixture(t)
+	prepareTaskReporter(t, s)
+
+	projectID := "proj_term_reset_test"
+
+	// 1. Initial idle check
+	res := call("GET", "/api/v1/terminal/active?project_id="+projectID, "")
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d: %s", res.Code, res.Body.String())
+	}
+	var body map[string]interface{}
+	_ = json.Unmarshal(res.Body.Bytes(), &body)
+	if body["active"] != false {
+		t.Fatalf("expected active=false for idle project, got: %v", body)
+	}
+
+	// 2. Global active terminal status
+	resAll := call("GET", "/api/v1/terminal/active", "")
+	if resAll.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d: %s", resAll.Code, resAll.Body.String())
+	}
+	var bodyAll map[string]interface{}
+	_ = json.Unmarshal(resAll.Body.Bytes(), &bodyAll)
+	if bodyAll["active"] != false || bodyAll["count"] != float64(0) {
+		t.Fatalf("expected active=false and count=0, got: %v", bodyAll)
+	}
+
+	// 3. Reset project terminal session via DELETE
+	resDel := call("DELETE", "/api/v1/terminal/active?project_id="+projectID, "")
+	if resDel.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK from DELETE, got %d: %s", resDel.Code, resDel.Body.String())
+	}
+	var bodyDel map[string]interface{}
+	_ = json.Unmarshal(resDel.Body.Bytes(), &bodyDel)
+	if bodyDel["status"] != "reset" || bodyDel["project_id"] != projectID {
+		t.Fatalf("expected status=reset, got: %v", bodyDel)
 	}
 }
