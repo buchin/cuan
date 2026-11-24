@@ -61,6 +61,7 @@ func (s *Server) registerDeployerRoutes(r chi.Router) {
 	r.Post("/api/projects/{id}/deployments", s.handleTriggerProjectDeployment)
 	r.Get("/api/projects/{id}/deployments/{dep_id}", s.handleGetProjectDeploymentDetail)
 	r.Post("/api/projects/{id}/deployments/{dep_id}/cancel", s.handleCancelProjectDeployment)
+	r.Post("/api/projects/{id}/webhooks/deploy", s.handleProjectDeployWebhook)
 }
 
 // registerDeployerV1Routes mounts deployer, BYOS, and domain endpoints inside /api/v1 router.
@@ -88,6 +89,7 @@ func (s *Server) registerDeployerV1Routes(r chi.Router) {
 	r.Post("/projects/{id}/deployments", s.handleTriggerProjectDeployment)
 	r.Get("/projects/{id}/deployments/{dep_id}", s.handleGetProjectDeploymentDetail)
 	r.Post("/projects/{id}/deployments/{dep_id}/cancel", s.handleCancelProjectDeployment)
+	r.Post("/projects/{id}/webhooks/deploy", s.handleProjectDeployWebhook)
 
 	// Studio Deployments route group in /api/v1
 	r.Route("/deployments", func(dr chi.Router) {

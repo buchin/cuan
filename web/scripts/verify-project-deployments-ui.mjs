@@ -23,6 +23,24 @@ const sampleProject = {
 
 const sampleDeployments = [
   {
+    id: 'dep_00',
+    project_id: sampleProject.id,
+    commit_sha: 'a1b2c3d4e5f67890abcdef1234567890abcdef12',
+    short_sha: 'a1b2c3d',
+    commit_message: 'feat(deploy): add dedicated deployment lane and webhook ingestion',
+    branch: 'dev',
+    status: 'queued',
+    trigger_source: 'webhook',
+    trigger_author: 'github-actions',
+    duration_seconds: 0,
+    duration: '',
+    started_at: '',
+    completed_at: '',
+    created_at: new Date(Date.now() - 60000).toISOString(),
+    relative_time: '1 minute ago',
+    steps: []
+  },
+  {
     id: 'dep_01',
     project_id: sampleProject.id,
     commit_sha: 'd381fe0123456789abcdef1234567890abcdef12',
@@ -217,11 +235,13 @@ const server = await createServer({
           res.end(JSON.stringify({
             project_id: sampleProject.id,
             project_name: sampleProject.name,
-            branch: 'main',
+            branch: 'dev',
             domain: 'https://cuan.work',
+            webhook_url: 'https://cuan.work/api/v1/projects/' + sampleProject.id + '/webhooks/deploy',
+            webhook_secret: 'whsec_8f93e7104b2c15a894762e49c7160352',
             deployments: sampleDeployments,
             total: sampleDeployments.length,
-            live_sha: sampleDeployments[0].commit_sha
+            live_sha: sampleDeployments[1].commit_sha
           }))
           return
         }
@@ -277,13 +297,30 @@ try {
   const rowCount = await pageDesktop.locator('.group').count()
   assert.ok(rowCount >= 4, `expected at least 4 deployment rows, got ${rowCount}`)
 
-  // Capture Desktop Deployments List
+  // Capture Desktop Deployments List (with queued lane item & webhook badge)
   const listShotPath = path.join(output, 'project-deployments-desktop-1440.png')
   await pageDesktop.screenshot({ path: listShotPath, fullPage: true })
   console.log(`Saved desktop deployments list screenshot to: ${listShotPath}`)
 
-  // 2. Click first deployment row to open SlideDrawer Timeline
-  await pageDesktop.locator('[data-deployment-row="true"]').first().click()
+  // 2. Open Webhook SlideDrawer
+  await pageDesktop.locator('#deployments-webhook-btn').click()
+  await pageDesktop.waitForSelector('[data-slide-drawer], dialog[open]', { timeout: 8000 })
+  await pageDesktop.waitForTimeout(600)
+
+  // Verify webhook inputs are populated
+  const webhookUrlInput = pageDesktop.locator('input[value*="webhooks/deploy"]')
+  assert.ok(await webhookUrlInput.isVisible(), 'Webhook payload URL input should be visible')
+
+  const webhookShotPath = path.join(output, 'project-deployments-webhook-drawer.png')
+  await pageDesktop.screenshot({ path: webhookShotPath, fullPage: true })
+  console.log(`Saved webhook drawer screenshot to: ${webhookShotPath}`)
+
+  // Close webhook drawer
+  await pageDesktop.keyboard.press('Escape')
+  await pageDesktop.waitForTimeout(400)
+
+  // 3. Click deployment row with steps to open SlideDrawer Timeline
+  await pageDesktop.locator('[data-deployment-row="true"]').nth(1).click()
   await pageDesktop.waitForSelector('[data-slide-drawer], dialog[open]', { timeout: 8000 })
   await pageDesktop.waitForTimeout(600)
 

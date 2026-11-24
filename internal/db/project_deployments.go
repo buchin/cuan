@@ -13,6 +13,7 @@ import (
 
 // Constants for ProjectDeployment status
 const (
+	DeploymentStatusQueued   = "queued"
 	DeploymentStatusBuilding = "building"
 	DeploymentStatusSuccess  = "success"
 	DeploymentStatusFailed   = "failed"
@@ -34,6 +35,7 @@ const (
 	TriggerSourceAutoDeploy = "auto_deploy"
 	TriggerSourceGitPush    = "git_push"
 	TriggerSourceCLI        = "cli"
+	TriggerSourceWebhook    = "webhook"
 )
 
 var (
@@ -105,6 +107,9 @@ type ProjectDeploymentRepository interface {
 	GetByID(ctx context.Context, id string) (*ProjectDeployment, error)
 	ListByProjectID(ctx context.Context, projectID string, limit int) ([]*ProjectDeployment, error)
 	GetLatestSuccess(ctx context.Context, projectID string) (*ProjectDeployment, error)
+	GetActiveBuilding(ctx context.Context, projectID string) (*ProjectDeployment, error)
+	GetNextQueued(ctx context.Context, projectID string) (*ProjectDeployment, error)
+	CancelQueuedForProject(ctx context.Context, projectID string, exceptID string) error
 	Update(ctx context.Context, dep *ProjectDeployment) error
 	Delete(ctx context.Context, id string) error
 }
@@ -334,6 +339,44 @@ func (r *SQLProjectDeploymentRepository) GetLatestSuccess(ctx context.Context, p
 	return r.scanOne(r.db.QueryRowContext(ctx, query, projectID))
 }
 
+func (r *SQLProjectDeploymentRepository) GetActiveBuilding(ctx context.Context, projectID string) (*ProjectDeployment, error) {
+	query := `
+		SELECT id, project_id, commit_sha, short_sha, commit_message,
+		       branch, status, trigger_source, trigger_author,
+		       duration_seconds, started_at, completed_at,
+		       steps_json, error_message, created_at, updated_at
+		FROM project_deployments
+		WHERE project_id = $1 AND status = 'building'
+		ORDER BY created_at DESC
+		LIMIT 1
+	`
+	return r.scanOne(r.db.QueryRowContext(ctx, query, projectID))
+}
+
+func (r *SQLProjectDeploymentRepository) GetNextQueued(ctx context.Context, projectID string) (*ProjectDeployment, error) {
+	query := `
+		SELECT id, project_id, commit_sha, short_sha, commit_message,
+		       branch, status, trigger_source, trigger_author,
+		       duration_seconds, started_at, completed_at,
+		       steps_json, error_message, created_at, updated_at
+		FROM project_deployments
+		WHERE project_id = $1 AND status = 'queued'
+		ORDER BY created_at ASC
+		LIMIT 1
+	`
+	return r.scanOne(r.db.QueryRowContext(ctx, query, projectID))
+}
+
+func (r *SQLProjectDeploymentRepository) CancelQueuedForProject(ctx context.Context, projectID string, exceptID string) error {
+	query := `
+		UPDATE project_deployments
+		SET status = 'canceled', error_message = 'Superseded by newer deployment', completed_at = NOW(), updated_at = NOW()
+		WHERE project_id = $1 AND status = 'queued' AND id != $2
+	`
+	_, err := r.db.ExecContext(ctx, query, projectID, exceptID)
+	return err
+}
+
 func (r *SQLProjectDeploymentRepository) Update(ctx context.Context, dep *ProjectDeployment) error {
 	if dep == nil {
 		return errors.New("deployment cannot be nil")
@@ -531,6 +574,52 @@ func (m *MemoryProjectDeploymentRepository) GetLatestSuccess(ctx context.Context
 		return nil, ErrProjectDeploymentNotFound
 	}
 	return m.cloneDeployment(latest), nil
+}
+
+func (m *MemoryProjectDeploymentRepository) GetActiveBuilding(ctx context.Context, projectID string) (*ProjectDeployment, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	for _, dep := range m.deployments {
+		if dep.ProjectID == projectID && dep.Status == DeploymentStatusBuilding {
+			return m.cloneDeployment(dep), nil
+		}
+	}
+	return nil, ErrProjectDeploymentNotFound
+}
+
+func (m *MemoryProjectDeploymentRepository) GetNextQueued(ctx context.Context, projectID string) (*ProjectDeployment, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var oldest *ProjectDeployment
+	for _, dep := range m.deployments {
+		if dep.ProjectID == projectID && dep.Status == DeploymentStatusQueued {
+			if oldest == nil || dep.CreatedAt.Before(oldest.CreatedAt) {
+				oldest = dep
+			}
+		}
+	}
+	if oldest == nil {
+		return nil, ErrProjectDeploymentNotFound
+	}
+	return m.cloneDeployment(oldest), nil
+}
+
+func (m *MemoryProjectDeploymentRepository) CancelQueuedForProject(ctx context.Context, projectID string, exceptID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	now := time.Now().UTC()
+	for _, dep := range m.deployments {
+		if dep.ProjectID == projectID && dep.Status == DeploymentStatusQueued && dep.ID != exceptID {
+			dep.Status = DeploymentStatusCanceled
+			dep.ErrorMessage = "Superseded by newer deployment"
+			dep.CompletedAt = &now
+			dep.UpdatedAt = now
+		}
+	}
+	return nil
 }
 
 func (m *MemoryProjectDeploymentRepository) Update(ctx context.Context, dep *ProjectDeployment) error {

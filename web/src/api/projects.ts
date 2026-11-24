@@ -151,8 +151,8 @@ export interface ProjectDeploymentItem {
   short_sha: string
   commit_message: string
   branch: string
-  status: 'building' | 'success' | 'failed' | 'canceled'
-  trigger_source: 'manual' | 'auto_deploy' | 'git_push' | 'cli'
+  status: 'queued' | 'building' | 'success' | 'failed' | 'canceled'
+  trigger_source: 'manual' | 'auto_deploy' | 'git_push' | 'cli' | 'webhook'
   trigger_author: string
   duration_seconds: number
   duration: string
@@ -172,6 +172,8 @@ export interface ProjectDeploymentsResponse {
   deployments: ProjectDeploymentItem[]
   total: number
   live_sha?: string
+  webhook_url?: string
+  webhook_secret?: string
 }
 
 export interface ProjectCommit {

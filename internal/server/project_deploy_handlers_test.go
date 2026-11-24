@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -147,5 +148,108 @@ func TestProjectDeployHandlers_TriggerAndGetDetail(t *testing.T) {
 
 	if recCancel.Code != http.StatusOK {
 		t.Fatalf("expected 200 OK on cancel, got %d: %s", recCancel.Code, recCancel.Body.String())
+	}
+}
+
+func TestProjectDeployWebhook_UnauthorizedAndSuccess(t *testing.T) {
+	s, projID := setupTestDeployServer(t)
+
+	r := chi.NewRouter()
+	r.Post("/api/v1/projects/{id}/webhooks/deploy", s.handleProjectDeployWebhook)
+	r.Get("/api/v1/projects/{id}/deployments", s.handleGetProjectDeployments)
+
+	proj, err := s.projectSvc.Get(context.Background(), projID)
+	if err != nil {
+		t.Fatalf("failed to get project: %v", err)
+	}
+	secret := s.resolveProjectDeployWebhookSecret(proj)
+
+	// 1. Missing secret -> 401
+	payload := `{"ref":"refs/heads/main","after":"1111222233334444555566667777888899990000","head_commit":{"id":"1111222233334444555566667777888899990000","message":"feat: add queue","author":{"name":"Buchin"}}}`
+	reqUnauth := httptest.NewRequest("POST", "/api/v1/projects/"+projID+"/webhooks/deploy", bytes.NewBufferString(payload))
+	recUnauth := httptest.NewRecorder()
+	r.ServeHTTP(recUnauth, reqUnauth)
+	if recUnauth.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 Unauthorized without secret, got %d", recUnauth.Code)
+	}
+
+	// 2. Unmatched branch -> 200 ignored
+	wrongBranchPayload := `{"ref":"refs/heads/feature/awesome","after":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`
+	reqWrong := httptest.NewRequest("POST", "/api/v1/projects/"+projID+"/webhooks/deploy?secret="+secret, bytes.NewBufferString(wrongBranchPayload))
+	recWrong := httptest.NewRecorder()
+	r.ServeHTTP(recWrong, reqWrong)
+	if recWrong.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on ignored branch, got %d", recWrong.Code)
+	}
+	var ignoredResp map[string]interface{}
+	_ = json.NewDecoder(recWrong.Body).Decode(&ignoredResp)
+	if ignoredResp["status"] != "ignored" {
+		t.Errorf("expected status 'ignored', got %v", ignoredResp["status"])
+	}
+
+	// 3. Valid secret with matching branch -> 201 Created & building
+	reqValid := httptest.NewRequest("POST", "/api/v1/projects/"+projID+"/webhooks/deploy?secret="+secret, bytes.NewBufferString(payload))
+	recValid := httptest.NewRecorder()
+	r.ServeHTTP(recValid, reqValid)
+	if recValid.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created on valid webhook, got %d: %s", recValid.Code, recValid.Body.String())
+	}
+	var createdResp struct {
+		Deployment ProjectDeploymentItem `json:"deployment"`
+		Message    string                `json:"message"`
+	}
+	if err := json.NewDecoder(recValid.Body).Decode(&createdResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if createdResp.Deployment.Status != cuanDB.DeploymentStatusBuilding {
+		t.Errorf("expected initial deployment status building, got %s", createdResp.Deployment.Status)
+	}
+	if createdResp.Deployment.TriggerSource != cuanDB.TriggerSourceWebhook {
+		t.Errorf("expected trigger source webhook, got %s", createdResp.Deployment.TriggerSource)
+	}
+
+	// 4. Second push while first is building -> enqueued as queued
+	payload2 := `{"ref":"refs/heads/main","after":"2222333344445555666677778888999900001111","head_commit":{"id":"2222333344445555666677778888999900001111","message":"feat: second push","author":{"name":"Buchin"}}}`
+	reqSecond := httptest.NewRequest("POST", "/api/v1/projects/"+projID+"/webhooks/deploy?secret="+secret, bytes.NewBufferString(payload2))
+	recSecond := httptest.NewRecorder()
+	r.ServeHTTP(recSecond, reqSecond)
+	if recSecond.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created on second push, got %d: %s", recSecond.Code, recSecond.Body.String())
+	}
+	var secondResp struct {
+		Deployment ProjectDeploymentItem `json:"deployment"`
+		Message    string                `json:"message"`
+	}
+	if err := json.NewDecoder(recSecond.Body).Decode(&secondResp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if secondResp.Deployment.Status != cuanDB.DeploymentStatusQueued {
+		t.Errorf("expected second deployment status queued, got %s", secondResp.Deployment.Status)
+	}
+
+	// 5. GitHub HMAC Signature validation
+	payload3 := `{"ref":"refs/heads/main","after":"3333444455556666777788889999000011112222"}`
+	bodyBytes := []byte(payload3)
+	sig := "sha256=" + computeHmacHex([]byte(secret), bodyBytes)
+
+	reqHMAC := httptest.NewRequest("POST", "/api/v1/projects/"+projID+"/webhooks/deploy", bytes.NewReader(bodyBytes))
+	reqHMAC.Header.Set("X-Hub-Signature-256", sig)
+	recHMAC := httptest.NewRecorder()
+	r.ServeHTTP(recHMAC, reqHMAC)
+	if recHMAC.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created with valid GitHub HMAC, got %d: %s", recHMAC.Code, recHMAC.Body.String())
+	}
+
+	// Verify webhook URL and secret in GET deployments response
+	reqGet := httptest.NewRequest("GET", "/api/v1/projects/"+projID+"/deployments", nil)
+	recGet := httptest.NewRecorder()
+	r.ServeHTTP(recGet, reqGet)
+	var getResp ProjectDeploymentsResponse
+	_ = json.NewDecoder(recGet.Body).Decode(&getResp)
+	if getResp.WebhookSecret == "" {
+		t.Error("expected non-empty webhook secret in deployments response")
+	}
+	if !strings.Contains(getResp.WebhookURL, "/webhooks/deploy") {
+		t.Errorf("expected valid webhook URL, got %s", getResp.WebhookURL)
 	}
 }

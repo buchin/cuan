@@ -13,7 +13,10 @@ import {
   Check,
   RefreshCw,
   AlertCircle,
-  Ban
+  Ban,
+  Clock,
+  Webhook,
+  ShieldCheck
 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { SlideDrawer } from '../../components/layout/SlideDrawer'
@@ -38,7 +41,10 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
   const [triggering, setTriggering] = useState(false)
   const [cancelingId, setCancelingId] = useState<string | null>(null)
   const [selectedDepId, setSelectedDepId] = useState<string | null>(null)
+  const [isWebhookOpen, setIsWebhookOpen] = useState(false)
   const [copiedSha, setCopiedSha] = useState(false)
+  const [copiedUrl, setCopiedUrl] = useState(false)
+  const [copiedSecret, setCopiedSecret] = useState(false)
 
   const selectedDeployment = useMemo(() => {
     if (!selectedDepId || !data) return null
@@ -62,18 +68,18 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
     void loadDeployments()
   }, [project.id])
 
-  // Auto-refresh when any deployment is currently building
-  const isAnyBuilding = useMemo(() => {
-    return data?.deployments.some((d) => d.status === 'building')
+  // Auto-refresh when any deployment is currently building or queued in lane
+  const isAnyActive = useMemo(() => {
+    return data?.deployments.some((d) => d.status === 'building' || d.status === 'queued')
   }, [data])
 
   useEffect(() => {
-    if (!isAnyBuilding) return
+    if (!isAnyActive) return
     const timer = setInterval(() => {
       void loadDeployments(true)
     }, 2500)
     return () => clearInterval(timer)
-  }, [isAnyBuilding, project.id])
+  }, [isAnyActive, project.id])
 
   const handleTriggerDeploy = async () => {
     if (triggering) return
@@ -125,6 +131,20 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
     setTimeout(() => setCopiedSha(false), 2000)
   }
 
+  const handleCopyUrl = () => {
+    if (!data?.webhook_url) return
+    navigator.clipboard.writeText(data.webhook_url)
+    setCopiedUrl(true)
+    setTimeout(() => setCopiedUrl(false), 2000)
+  }
+
+  const handleCopySecret = () => {
+    if (!data?.webhook_secret) return
+    navigator.clipboard.writeText(data.webhook_secret)
+    setCopiedSecret(true)
+    setTimeout(() => setCopiedSecret(false), 2000)
+  }
+
   const renderStatusIcon = (status: string, size = 'md') => {
     const dim = size === 'sm' ? 'h-4 w-4' : 'h-5 w-5'
     switch (status) {
@@ -144,6 +164,12 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
         return (
           <div className="flex items-center justify-center rounded-full bg-rose-500/10 p-0.5 text-rose-600 dark:text-rose-400">
             <XCircle className={dim} />
+          </div>
+        )
+      case 'queued':
+        return (
+          <div className="flex items-center justify-center rounded-full bg-amber-500/10 p-0.5 text-amber-600 dark:text-amber-400" title={t('Queued in lane')}>
+            <Clock className={dim} />
           </div>
         )
       case 'canceled':
@@ -214,8 +240,19 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
           )}
         </div>
 
-        {/* Action Buttons: Deploy & Visit */}
-        <div className="flex items-center gap-2.5">
+        {/* Action Buttons: Webhook, Deploy & Visit */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsWebhookOpen(true)}
+            id="deployments-webhook-btn"
+            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-border/60 bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
+            title={t('Git Webhook Deployment Integration')}
+          >
+            <Webhook className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="hidden sm:inline">{t('Webhook')}</span>
+          </button>
+
           <button
             type="button"
             disabled={triggering}
@@ -310,6 +347,8 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
                     <span>
                       {dep.status === 'canceled'
                         ? t('Canceled deploy from')
+                        : dep.status === 'queued'
+                        ? t('Queued deploy from')
                         : dep.status === 'building'
                         ? t('Deploying from')
                         : t('Deployed from')}
@@ -320,6 +359,12 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
                     <span>{dep.relative_time}</span>
                     {dep.trigger_author && (
                       <span>by {dep.trigger_author}</span>
+                    )}
+                    {dep.trigger_source === 'webhook' && (
+                      <span className="inline-flex items-center gap-1 rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground border border-border/30">
+                        <Webhook className="h-2.5 w-2.5" />
+                        webhook
+                      </span>
                     )}
                   </div>
 
@@ -378,7 +423,7 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
                   </button>
                 </div>
 
-                {selectedDeployment.status === 'building' && (
+                {(selectedDeployment.status === 'building' || selectedDeployment.status === 'queued') && (
                   <button
                     type="button"
                     disabled={cancelingId === selectedDeployment.id}
@@ -386,7 +431,7 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
                     className="inline-flex items-center gap-1.5 rounded-lg border border-destructive/30 bg-destructive/10 px-2.5 py-1 text-xs font-medium text-destructive hover:bg-destructive/20 transition-colors cursor-pointer"
                   >
                     <Ban className="h-3.5 w-3.5" />
-                    <span>{t('Cancel deploy')}</span>
+                    <span>{selectedDeployment.status === 'queued' ? t('Cancel queue') : t('Cancel deploy')}</span>
                   </button>
                 )}
               </div>
@@ -434,6 +479,142 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
             </div>
           </div>
         )}
+      </SlideDrawer>
+
+      {/* SlideDrawer: Webhook Deployment Setup */}
+      <SlideDrawer
+        isOpen={isWebhookOpen}
+        onClose={() => setIsWebhookOpen(false)}
+        title={
+          <div className="flex items-center gap-2">
+            <Webhook className="h-5 w-5 text-sky-500" />
+            <span className="font-semibold text-foreground">
+              {t('Git Webhook Deployment')}
+            </span>
+          </div>
+        }
+        description={t('Pemicu deployment otomatis melalui GitHub, GitLab, atau Git provider saat ada push.')}
+        size="md"
+      >
+        <div className="space-y-6 pb-6 text-sm">
+          {/* Explanation Banner */}
+          <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-4 space-y-2">
+            <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400 font-medium text-xs uppercase tracking-wider">
+              <ShieldCheck className="h-4 w-4" />
+              <span>{t('Deployment Lane Terisolasi & Antre (FIFO)')}</span>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {t('Setiap proyek memiliki antrean deployment independen. Saat ada push baru ke branch ')}
+              <span className="font-mono font-medium text-foreground">{data?.branch || 'dev'}</span>
+              {t(', deployment akan otomatis masuk ke antrean (lane) tanpa tabrakan build.')}
+            </p>
+          </div>
+
+          {/* Webhook Configuration Fields */}
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-foreground flex items-center justify-between">
+                <span>{t('Payload URL')}</span>
+                <span className="text-[11px] text-muted-foreground font-mono">POST</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={data?.webhook_url || ''}
+                  className="flex-1 rounded-lg border border-border/50 bg-muted/40 px-3 py-2 font-mono text-xs text-foreground focus:outline-none select-all"
+                />
+                <button
+                  type="button"
+                  onClick={handleCopyUrl}
+                  className="inline-flex min-h-[34px] items-center gap-1.5 rounded-lg border border-border/60 bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/60 transition-colors shrink-0 cursor-pointer"
+                >
+                  {copiedUrl ? (
+                    <Check className="h-3.5 w-3.5 text-emerald-600" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                  )}
+                  <span>{copiedUrl ? t('Tersalin') : t('Salin')}</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-foreground flex items-center justify-between">
+                <span>{t('Secret Token')}</span>
+                <span className="text-[11px] text-muted-foreground">{t('HMAC-SHA256')}</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={data?.webhook_secret || ''}
+                  className="flex-1 rounded-lg border border-border/50 bg-muted/40 px-3 py-2 font-mono text-xs text-foreground focus:outline-none select-all"
+                />
+                <button
+                  type="button"
+                  onClick={handleCopySecret}
+                  className="inline-flex min-h-[34px] items-center gap-1.5 rounded-lg border border-border/60 bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/60 transition-colors shrink-0 cursor-pointer"
+                >
+                  {copiedSecret ? (
+                    <Check className="h-3.5 w-3.5 text-emerald-600" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                  )}
+                  <span>{copiedSecret ? t('Tersalin') : t('Salin')}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Setup Guide */}
+          <div className="space-y-3 pt-2 border-t border-border/30">
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              {t('Langkah Pengaturan di GitHub')}
+            </h4>
+            <ol className="space-y-2.5 text-xs text-muted-foreground list-decimal list-inside leading-relaxed">
+              <li>
+                {t('Buka repository GitHub Anda > ')}
+                <span className="font-medium text-foreground">Settings</span>
+                {t(' > ')}
+                <span className="font-medium text-foreground">Webhooks</span>
+                {t(' > ')}
+                <span className="font-medium text-foreground">Add webhook</span>.
+              </li>
+              <li>
+                {t('Masukkan ')}
+                <span className="font-medium text-foreground">Payload URL</span>
+                {t(' dengan URL di atas.')}
+              </li>
+              <li>
+                {t('Pilih ')}
+                <span className="font-medium text-foreground">Content type</span>
+                {t(' sebagai ')}
+                <code className="rounded bg-muted/60 px-1 py-0.5 font-mono text-[11px] text-foreground border border-border/30">
+                  application/json
+                </code>
+                .
+              </li>
+              <li>
+                {t('Masukkan ')}
+                <span className="font-medium text-foreground">Secret</span>
+                {t(' dengan token rahasia di atas.')}
+              </li>
+              <li>
+                {t('Pada ')}
+                <span className="font-medium text-foreground">Which events would you like to trigger this webhook?</span>
+                {t(', pilih ')}
+                <span className="font-medium text-foreground">Just the push event</span>.
+              </li>
+              <li>
+                {t('Pastikan ')}
+                <span className="font-medium text-foreground">Active</span>
+                {t(' tercentang, lalu klik ')}
+                <span className="font-medium text-foreground">Add webhook</span>.
+              </li>
+            </ol>
+          </div>
+        </div>
       </SlideDrawer>
     </div>
   )
