@@ -39,7 +39,7 @@ interface ProjectDeploymentsViewProps {
 }
 
 export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps) {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const navigate = useNavigate()
   const [data, setData] = useState<ProjectDeploymentsResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -202,6 +202,26 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
     } finally {
       setEscalatingId(null)
     }
+  }
+
+  const formatDeploymentTime = (dep: ProjectDeploymentItem) => {
+    const raw = dep.created_at || dep.started_at
+    if (!raw) return dep.relative_time || ''
+    const n = Date.parse(raw)
+    if (!Number.isFinite(n)) return dep.relative_time || ''
+    const seconds = Math.max(0, Math.round((Date.now() - n) / 1000))
+    if (language === 'id') {
+      if (seconds < 60) return 'Baru saja'
+      if (seconds < 3600) return `${Math.floor(seconds / 60)}m lalu`
+      if (seconds < 86400) return `${Math.floor(seconds / 3600)}j lalu`
+      if (seconds < 604800) return `${Math.floor(seconds / 86400)}h lalu`
+      return new Date(n).toLocaleDateString('id-ID', { month: 'short', day: 'numeric' })
+    }
+    if (seconds < 60) return 'Just now'
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
+    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`
+    return new Date(n).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
 
   const renderStatusIcon = (status: string, size = 'md') => {
@@ -401,9 +421,9 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
                 </div>
 
                 {/* Right: Deployed from branch relative time by author, duration */}
-                <div className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
-                  <div className="hidden md:flex items-center gap-1.5">
-                    <span>
+                <div className="flex shrink-0 items-center gap-2.5 text-xs text-muted-foreground">
+                  <div className="hidden lg:flex items-center gap-1.5 text-[11px]">
+                    <span className="text-muted-foreground/70">
                       {dep.status === 'canceled'
                         ? t('Canceled deploy from')
                         : dep.status === 'queued'
@@ -412,12 +432,11 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
                         ? t('Deploying from')
                         : t('Deployed from')}
                     </span>
-                    <span className="inline-flex items-center rounded bg-muted/80 px-1.5 py-0.5 font-mono text-[11px] text-foreground border border-border/40">
+                    <span className="inline-flex items-center rounded bg-muted/80 px-1.5 py-0.5 font-mono text-[10px] text-foreground border border-border/40">
                       {dep.branch}
                     </span>
-                    <span>{dep.relative_time}</span>
                     {dep.trigger_author && (
-                      <span>by {dep.trigger_author}</span>
+                      <span className="text-muted-foreground/80">by {dep.trigger_author}</span>
                     )}
                     {dep.trigger_source === 'webhook' && (
                       <span className="inline-flex items-center gap-1 rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground border border-border/30">
@@ -427,8 +446,17 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
                     )}
                   </div>
 
+                  {/* Deploy Relative Time - ALWAYS visible across all screen sizes */}
+                  <span className="text-xs text-muted-foreground whitespace-nowrap font-medium">
+                    {formatDeploymentTime(dep)}
+                  </span>
+
+                  {/* Duration Pill - secondary detail */}
                   {dep.duration && (
-                    <span className="inline-flex items-center rounded-full bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                    <span
+                      className="hidden sm:inline-flex items-center rounded-md bg-muted/50 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground/80 border border-border/30"
+                      title={t('Durasi eksekusi pipeline')}
+                    >
                       {dep.duration}
                     </span>
                   )}
@@ -441,7 +469,7 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
                         void handleEscalateToAgent(dep)
                       }}
                       disabled={escalatingId === dep.id}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 px-2.5 py-1 text-xs font-medium text-sky-600 dark:text-sky-400 transition-colors cursor-pointer"
+                      className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 px-2.5 py-1 text-xs font-medium text-sky-600 dark:text-sky-400 transition-colors cursor-pointer"
                       title={t('Minta Agent bantu perbaiki kegagalan rilis ini')}
                     >
                       {escalatingId === dep.id ? (
@@ -453,7 +481,7 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
                     </button>
                   )}
 
-                  <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
+                  <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0" />
                 </div>
               </div>
             ))}
