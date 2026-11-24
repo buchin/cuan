@@ -204,6 +204,16 @@ func fileExists(path string) bool {
 	return err == nil && !fi.IsDir()
 }
 
+func dirExists(path string) bool {
+	fi, err := os.Stat(path)
+	return err == nil && fi.IsDir()
+}
+
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
 func generateStandardDeploymentSteps(branch, commitSHA, commitMsg, status string) []cuanDB.ProjectDeploymentStep {
 	shortSHA := commitSHA
 	if len(shortSHA) > 7 {
@@ -1133,7 +1143,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	checkoutSuccess := true
 	checkoutLog.WriteString(fmt.Sprintf("Branch: %s\nTarget commit: %s\n", branch, commitSHA))
 
-	if repoDir != "" && fileExists(filepath.Join(repoDir, ".git")) {
+	if repoDir != "" && pathExists(filepath.Join(repoDir, ".git")) {
 		// 1. Fetch latest changes from remote
 		fetchCmd := exec.CommandContext(ctx, "git", "fetch", "origin", branch)
 		fetchCmd.Dir = repoDir
@@ -1267,7 +1277,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 			ranDeployScript = true
 			buildLog.WriteString(fmt.Sprintf("Executing repository deployment script at %s\n", repoScript))
 			deployArgs := []string{repoScript}
-			if fileExists(filepath.Join(repoDir, "cmd", "server")) && fileExists("/opt/cuan/releases") {
+			if fileExists(filepath.Join(repoDir, "cmd", "server")) && dirExists("/opt/cuan/releases") {
 				deployArgs = append(deployArgs, "--local", "--native-sync", "--branch", branch, "--allow-divergent")
 			}
 			cmd := exec.CommandContext(ctx, "bash", deployArgs...)
@@ -1396,7 +1406,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 			migrationSuccess = false
 			migrationLog.WriteString(fmt.Sprintf("\nLaravel migration failed: %v\n", err))
 		}
-	} else if repoDir != "" && fileExists(filepath.Join(repoDir, "migrations")) {
+	} else if repoDir != "" && dirExists(filepath.Join(repoDir, "migrations")) {
 		migrationLog.WriteString("Found migrations directory. Schema verified up to date.\n")
 	} else {
 		migrationLog.WriteString("No database migration task required for this project.\n")
@@ -1436,11 +1446,11 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	} else {
 		distDir := ""
 		if repoDir != "" {
-			if fileExists(filepath.Join(repoDir, "web", "dist")) {
+			if dirExists(filepath.Join(repoDir, "web", "dist")) {
 				distDir = filepath.Join(repoDir, "web", "dist")
-			} else if fileExists(filepath.Join(repoDir, "dist")) {
+			} else if dirExists(filepath.Join(repoDir, "dist")) {
 				distDir = filepath.Join(repoDir, "dist")
-			} else if fileExists(filepath.Join(repoDir, "public")) {
+			} else if dirExists(filepath.Join(repoDir, "public")) {
 				distDir = filepath.Join(repoDir, "public")
 			}
 		}
