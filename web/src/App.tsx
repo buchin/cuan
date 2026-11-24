@@ -1267,7 +1267,7 @@ export function App() {
                 )}
               </section>
             ) : subParam && activeProject?.id === subParam ? (
-              pathSegments[2] !== 'tasks' && pathSegments[2] !== 'activity' ? (
+              pathSegments[2] !== 'tasks' && pathSegments[2] !== 'activity' && pathSegments[2] !== 'deployments' ? (
                 <ProjectsWorkspace
                   onNewProject={() => openNew('project')}
                   projects={projects}

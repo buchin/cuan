@@ -12,6 +12,7 @@ import { TaskProgress, taskProgressModel } from '../../components/ui/TaskProgres
 import { ProjectIcon } from './ProjectIcon'
 import { ProjectWorkView } from './ProjectWorkView'
 import { ProjectActivityView } from './ProjectActivityView'
+import { ProjectDeploymentsView } from './ProjectDeploymentsView'
 
 function formatProjectActivity(item: Project, language: string, t: (key: string) => string): string {
   const timestamp = item.updated_at || item.created_at
@@ -68,6 +69,8 @@ export function ProjectsWorkspace({
   const pathSegments = location.pathname.split('/').filter(Boolean)
   const repositoryView = pathSegments[2] === 'repository'
   const environmentView = pathSegments[2] === 'environment'
+  const deploymentsView = pathSegments[2] === 'deployments'
+  const activityView = pathSegments[2] === 'tasks' || pathSegments[2] === 'activity'
   const [query, setQuery] = useState('')
   const [archived, setArchived] = useState(!!project?.is_archived)
   useEffect(() => {
@@ -442,10 +445,11 @@ export function ProjectsWorkspace({
             </div>}
             {!taskId && <nav aria-label={t('Project navigation')} className="flex shrink-0 gap-5 border-b bg-transparent px-4 sm:px-5">
               {[
-                {label: 'Settings', path: 'settings', active: !!settingsContent && !repositoryView && !environmentView},
+                {label: 'Settings', path: 'settings', active: !!settingsContent && !repositoryView && !environmentView && !deploymentsView},
                 {label: 'Environment', path: 'environment', active: !!settingsContent && environmentView},
                 ...(project.id !== 'default' ? [{label: 'Repository', path: 'repository', active: !!settingsContent && repositoryView}] : []),
-                {label: 'Activity', path: 'tasks', active: !settingsContent}
+                {label: 'Activity', path: 'tasks', active: activityView || (!settingsContent && !deploymentsView)},
+                {label: 'Deployments', path: 'deployments', active: deploymentsView}
               ].map(item => <Link
                 key={item.path}
                 to={`/projects/${encodeURIComponent(project.id)}/${item.path}`}
@@ -459,7 +463,12 @@ export function ProjectsWorkspace({
               </p>
             )}
             <div className={`min-h-0 flex-1 ${settingsContent ? 'overflow-y-auto' : 'overflow-hidden'}`}>
-              {settingsContent || (taskId ? (
+              {settingsContent || (deploymentsView ? (
+                <ProjectDeploymentsView
+                  project={project}
+                  onRetry={onRetry}
+                />
+              ) : taskId ? (
                 <ProjectWorkView
                   project={project}
                   tasks={tasks}

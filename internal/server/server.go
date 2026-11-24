@@ -108,6 +108,7 @@ type Server struct {
 	roomEventBroker             *RoomEventBroker
 	terminalManager             *terminal.Manager
 	terminalHandler             *terminal.Handler
+	projectDeploymentRepo       cuanDB.ProjectDeploymentRepository
 	projectIntegrationRepo      cuanDB.ProjectIntegrationRepository
 	publisherEngine             *publisher.Engine
 	defaultAgentRoomsOnce       sync.Once
@@ -500,12 +501,15 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 
 	var projRepo cuanDB.ProjectRepository
 	var tpRepo cuanDB.TaskProjectRepository
+	var projDepRepo cuanDB.ProjectDeploymentRepository
 	if db != nil {
 		projRepo = cuanDB.NewSQLProjectRepository(db)
 		tpRepo = cuanDB.NewSQLTaskProjectRepository(db)
+		projDepRepo = cuanDB.NewSQLProjectDeploymentRepository(db)
 	} else {
 		projRepo = cuanDB.NewMemoryProjectRepository()
 		tpRepo = cuanDB.NewMemoryTaskProjectRepository()
+		projDepRepo = cuanDB.NewMemoryProjectDeploymentRepository()
 	}
 
 	sched := scheduler.New()
@@ -585,6 +589,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		inboxSlots:             make(chan struct{}, 4),
 		terminalManager:        termMgr,
 		terminalHandler:        termHandler,
+		projectDeploymentRepo:  projDepRepo,
 		projectIntegrationRepo: intRepo,
 		publisherEngine:        pubEngine,
 		scriptDeployRepo:       scriptDeployRepo,

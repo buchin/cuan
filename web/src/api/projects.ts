@@ -107,6 +107,71 @@ export const projectsApi = {
   getCommitDetail: async (id: string, sha: string): Promise<ProjectCommitDetail> => {
     return apiFetch<ProjectCommitDetail>(`/api/v1/projects/${encodeURIComponent(id)}/commits/${encodeURIComponent(sha)}`)
   },
+
+  getDeployments: async (id: string, limit = 50): Promise<ProjectDeploymentsResponse> => {
+    const params = new URLSearchParams()
+    if (limit) params.set('limit', String(limit))
+    const qs = params.toString() ? `?${params.toString()}` : ''
+    return apiFetch<ProjectDeploymentsResponse>(`/api/v1/projects/${encodeURIComponent(id)}/deployments${qs}`)
+  },
+
+  getDeploymentDetail: async (id: string, depId: string): Promise<{ deployment: ProjectDeploymentItem }> => {
+    return apiFetch<{ deployment: ProjectDeploymentItem }>(`/api/v1/projects/${encodeURIComponent(id)}/deployments/${encodeURIComponent(depId)}`)
+  },
+
+  triggerDeploy: async (id: string, data?: { branch?: string; commit_sha?: string }): Promise<{ deployment: ProjectDeploymentItem; message: string }> => {
+    return apiFetch<{ deployment: ProjectDeploymentItem; message: string }>(`/api/v1/projects/${encodeURIComponent(id)}/deployments`, {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
+    })
+  },
+
+  cancelDeploy: async (id: string, depId: string): Promise<{ deployment: ProjectDeploymentItem; message: string }> => {
+    return apiFetch<{ deployment: ProjectDeploymentItem; message: string }>(`/api/v1/projects/${encodeURIComponent(id)}/deployments/${encodeURIComponent(depId)}/cancel`, {
+      method: 'POST',
+    })
+  },
+}
+
+export interface ProjectDeploymentStep {
+  id: string
+  name: string
+  status: 'pending' | 'building' | 'success' | 'failed' | 'skipped'
+  duration?: string
+  started_at?: string
+  completed_at?: string
+  summary?: string
+  log?: string
+}
+
+export interface ProjectDeploymentItem {
+  id: string
+  project_id: string
+  commit_sha: string
+  short_sha: string
+  commit_message: string
+  branch: string
+  status: 'building' | 'success' | 'failed' | 'canceled'
+  trigger_source: 'manual' | 'auto_deploy' | 'git_push' | 'cli'
+  trigger_author: string
+  duration_seconds: number
+  duration: string
+  started_at: string
+  completed_at?: string
+  steps: ProjectDeploymentStep[]
+  error_message?: string
+  created_at: string
+  relative_time: string
+}
+
+export interface ProjectDeploymentsResponse {
+  project_id: string
+  project_name: string
+  branch: string
+  domain: string
+  deployments: ProjectDeploymentItem[]
+  total: number
+  live_sha?: string
 }
 
 export interface ProjectCommit {
