@@ -173,9 +173,6 @@ func (s *Server) handleTaskTerminalWebSocket(w http.ResponseWriter, r *http.Requ
 					if tDetail.LatestAttempt.Status != task.AttemptStatusRunning {
 						_, _ = s.taskSvc.UpdateAttemptStatus(r.Context(), tDetail.LatestAttempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning})
 					}
-				} else if tDetail.LatestAttempt != nil && terminal.ProjectSocketExists(targetProjID) {
-					activeAttID = tDetail.LatestAttempt.ID
-					_, _ = s.taskSvc.UpdateAttemptStatus(r.Context(), tDetail.LatestAttempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning})
 				} else {
 					if att, err := s.taskSvc.CreateAttempt(r.Context(), taskID, "runner", task.CreateAttemptRequest{
 						RunnerID:  "local_terminal",
@@ -1542,6 +1539,12 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 							_ = s.taskSvc.ReconcileLocalTask(ctx, taskID, attempt.ID)
 							return
 						}
+					}
+					if isDedicatedTerminalTask {
+						// Dedicated interactive terminals never transition to 'done' or auto-stopped on exit.
+						// Retain their exit in attempt history, but do not set task to 'done'.
+						_, _ = s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusSucceeded, ExitCode: &h.ExitCode, ErrorMessage: note})
+						return
 					}
 					if h.EndReason == "agent_report" || (ready && h.ExitCode == 0) {
 						updatedAttempt, e = s.taskSvc.FinishReportedAttempt(ctx, attempt.ID, h.ExitCode)

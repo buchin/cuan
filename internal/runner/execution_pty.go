@@ -383,6 +383,11 @@ func (r *Runner) executeWithPTY(
 	reportCheckTicker := time.NewTicker(2 * time.Second)
 	defer reportCheckTicker.Stop()
 
+	isDedicatedTerminal := (t != nil && (strings.HasPrefix(strings.TrimSpace(t.Title), "Terminal ·") || strings.HasPrefix(strings.TrimSpace(t.Title), "Terminal -") || strings.HasPrefix(strings.TrimSpace(t.Title), "Terminal:"))) ||
+		(claim.Task != nil && (strings.HasPrefix(strings.TrimSpace(claim.Task.Title), "Terminal ·") || strings.HasPrefix(strings.TrimSpace(claim.Task.Title), "Terminal -") || strings.HasPrefix(strings.TrimSpace(claim.Task.Title), "Terminal:"))) ||
+		(att != nil && att.RunnerID == "local_terminal") ||
+		(claim.Attempt != nil && claim.Attempt.RunnerID == "local_terminal")
+
 	doneChan := make(chan struct{})
 	go func() {
 		defer close(doneChan)
@@ -391,6 +396,10 @@ func (r *Runner) executeWithPTY(
 			case <-execCtx.Done():
 				return
 			case <-reportCheckTicker.C:
+				if isDedicatedTerminal {
+					// Interactive dedicated terminals (project/brain terminals) never auto-close on agent reports
+					continue
+				}
 				state := reportState()
 				if state == ReportStateInactiveConflict {
 					log.Printf("[Worker %s] Attempt %s is no longer active on server (HTTP 409 Conflict); terminating detached session.",

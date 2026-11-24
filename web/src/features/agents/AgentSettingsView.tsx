@@ -122,7 +122,7 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
         localStorage.setItem('cuan-task-launch:' + targetTask.id, JSON.stringify(launchPayload))
       } catch {}
 
-      const targetSessionId = targetTask.latest_attempt?.id || 'latest'
+      const targetSessionId = 'latest'
       navigate(`/tasks/${encodeURIComponent(targetTask.id)}/sessions/${encodeURIComponent(targetSessionId)}?terminal=open`, {
         state: {
           taskReturnTo: '/settings/agent',

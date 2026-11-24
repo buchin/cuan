@@ -676,3 +676,95 @@ func TestProjectTerminal_DedicatedTaskBrainTargetedLaunch(t *testing.T) {
 		t.Fatalf("expected status 'running', got %v", res["status"])
 	}
 }
+
+func TestProjectTerminal_AgentReportDoesNotCloseInteractiveSession(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	srv, _ := setupTestChatServer(t)
+
+	// Create project in store
+	projID := "proj_term_persistent_test"
+	err := srv.projectSvc.Store().CreateProject(context.Background(), &project.Project{
+		ID:        projID,
+		Name:      "Persistent Project",
+		LocalPath: t.TempDir(),
+	})
+	if err != nil {
+		t.Fatalf("failed to create project: %v", err)
+	}
+
+	// Create task directly in task store
+	createdTask, err := srv.taskSvc.CreateTask(context.Background(), "owner", task.CreateTaskRequest{
+		Title:        "Terminal · Persistent Project",
+		ProjectID:    projID,
+		ProjectIDs:   []string{projID},
+		Instructions: "Interactive terminal session",
+	})
+	if err != nil {
+		t.Fatalf("failed to create task: %v", err)
+	}
+
+	// Set task status to doing
+	doing := task.TaskStatusDoing
+	_, err = srv.taskSvc.UpdateTask(context.Background(), createdTask.ID, "owner", task.UpdateTaskRequest{
+		Status: &doing,
+	})
+	if err != nil {
+		t.Fatalf("failed to set task status to doing: %v", err)
+	}
+
+	// Create attempt
+	att, err := srv.taskSvc.CreateAttempt(context.Background(), createdTask.ID, "runner", task.CreateAttemptRequest{
+		RunnerID:  "local_terminal",
+		AgentName: "agent_cuan",
+	})
+	if err != nil {
+		t.Fatalf("failed to create attempt: %v", err)
+	}
+
+	// Start attempt
+	_, err = srv.taskSvc.UpdateAttemptStatus(context.Background(), att.ID, "runner", task.UpdateAttemptRequest{
+		Status: task.AttemptStatusRunning,
+	})
+	if err != nil {
+		t.Fatalf("failed to set attempt running: %v", err)
+	}
+
+	// Issue task agent grant
+	_, _, agentToken, cleanup, err := srv.issueTaskAgent(context.Background(), createdTask.ID, att.ID, "agent_cuan")
+	if err != nil {
+		t.Fatalf("issueTaskAgent failed: %v", err)
+	}
+	defer cleanup()
+
+	// Submit an agent report with state "done"
+	payload, _ := json.Marshal(map[string]any{
+		"state":         "done",
+		"summary":       "Finished inspection turn",
+		"complete_note": "Observed live health and state",
+		"dod_checklist": []map[string]any{
+			{"text": "Verify the result", "completed": true, "evidence": "Live output verified"},
+		},
+	})
+	req := httptest.NewRequest("POST", "/api/v1/task-agent/"+createdTask.ID, bytes.NewReader(payload))
+	req.Header.Set("Authorization", "Bearer "+agentToken)
+	w := httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("agent report failed with code %d: %s", w.Code, w.Body.String())
+	}
+
+	// ReconcileLocalTask should NOT change task status to done
+	err = srv.taskSvc.ReconcileLocalTask(context.Background(), createdTask.ID, att.ID)
+	if err != nil {
+		t.Fatalf("ReconcileLocalTask failed: %v", err)
+	}
+
+	detail, err := srv.taskSvc.GetTaskDetail(context.Background(), createdTask.ID)
+	if err != nil {
+		t.Fatalf("GetTaskDetail failed: %v", err)
+	}
+
+	if detail.Status == task.TaskStatusDone {
+		t.Fatalf("expected dedicated terminal task status to remain active (not 'done'), got %s", detail.Status)
+	}
+}

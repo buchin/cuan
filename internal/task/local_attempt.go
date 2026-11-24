@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 )
 
@@ -35,13 +36,18 @@ func (s *DBStore) ReconcileLocalTask(ctx context.Context, taskID, attemptID stri
 	if _, e = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "task:"+taskID); e != nil {
 		return e
 	}
-	var id, status string
-	e = tx.QueryRowContext(ctx, `SELECT id,status FROM task_attempts WHERE task_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1`, taskID).Scan(&id, &status)
+	var id, status, title string
+	e = tx.QueryRowContext(ctx, `SELECT a.id, a.status, t.title FROM task_attempts a JOIN tasks t ON t.id = a.task_id WHERE a.task_id=$1 ORDER BY a.created_at DESC, a.id DESC LIMIT 1`, taskID).Scan(&id, &status, &title)
 	if e == sql.ErrNoRows {
 		return nil
 	}
 	if e != nil {
 		return e
+	}
+	clean := strings.TrimSpace(title)
+	if strings.HasPrefix(clean, "Terminal ·") || strings.HasPrefix(clean, "Terminal -") || strings.HasPrefix(clean, "Terminal:") {
+		// Dedicated interactive terminals remain in 'doing' and never transition to 'done' or 'review' via ReconcileLocalTask
+		return tx.Commit()
 	}
 	if id != attemptID || status == "running" || status == "queued" {
 		return nil
@@ -100,6 +106,10 @@ func (s *MemoryStore) ReconcileLocalTask(ctx context.Context, taskID, attemptID 
 	t, ok := s.tasks[taskID]
 	if !ok {
 		return ErrTaskNotFound
+	}
+	clean := strings.TrimSpace(t.Title)
+	if strings.HasPrefix(clean, "Terminal ·") || strings.HasPrefix(clean, "Terminal -") || strings.HasPrefix(clean, "Terminal:") {
+		return nil
 	}
 	// A cancelled task may still have a later attempt run; an interrupted attempt
 	// must still be surfaced instead of silently leaving the task in an unblocked state.
