@@ -803,11 +803,26 @@ export function TaskTerminal({
         }
       }, 15000)
 
+      ws.onopen = () => {
+        if (!disposed && socket.current === ws) {
+          everConnected.current = true
+          isReconnecting.current = false
+          retryCount.current = 0
+          setConnection('connected')
+          setNotice('')
+          setError('')
+        }
+      }
+
       ws.onmessage = (event) => {
         if (disposed || socket.current !== ws || !term.current) return
         const t = term.current
 
         if (event.data instanceof ArrayBuffer) {
+          if (typeof everConnected !== 'undefined') everConnected.current = true
+          if (typeof isReconnecting !== 'undefined') isReconnecting.current = false
+          if (typeof retryCount !== 'undefined') retryCount.current = 0
+          if (typeof setConnection === 'function') setConnection('connected')
           const sequence = ++outputSequence
           const rawBytes = new Uint8Array(event.data)
           if (typeof writeQueueRef !== 'undefined' && writeQueueRef.current && typeof streamDecoderRef !== 'undefined' && streamDecoderRef.current) {
@@ -919,6 +934,8 @@ export function TaskTerminal({
             !raw.includes('", "data": "}{') &&
             !raw.includes('{"type":')
           ) {
+            if (typeof everConnected !== 'undefined') everConnected.current = true
+            if (typeof setConnection === 'function') setConnection('connected')
             term.current?.write(raw)
           }
         }

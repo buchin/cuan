@@ -188,7 +188,7 @@ export function TaskSessionPage({
       document.body.classList.remove('terminal-active')
     }
   }, [])
-  const attempt =
+  const resolvedAttempt =
     sessionId === 'latest'
       ? detail?.latest_attempt || detail?.attempts[0]
       : detail?.attempts.find((a) => a.id === sessionId)
@@ -198,8 +198,21 @@ export function TaskSessionPage({
     detail?.title?.startsWith('Terminal:') ||
     detail?.title?.startsWith('Terminal-') ||
     detail?.title?.includes('Terminal ·') ||
-    attempt?.runner_id === 'local_terminal'
+    resolvedAttempt?.runner_id === 'local_terminal'
   )
+  const attempt =
+    resolvedAttempt ||
+    (isDedicatedTerminal && detail
+      ? {
+          id: 'terminal-' + detail.id,
+          task_id: detail.id,
+          runner_id: 'local_terminal',
+          agent_name: detail.assignee_id || 'local_terminal',
+          status: 'running' as const,
+          attempt_number: 1,
+          created_at: detail.created_at || new Date().toISOString(),
+        }
+      : undefined)
   const isTerminalSessionCancelled = Boolean(
     isDedicatedTerminal
       ? (attempt && ['canceled', 'cancelled'].includes(attempt.status)) ||
@@ -266,12 +279,41 @@ export function TaskSessionPage({
     workspaceReturnTo: location.pathname + location.search,
   }
   useEffect(() => {
-    if (sessionId === 'latest' && attempt && !waitingLaunch)
+    if (sessionId === 'latest' && resolvedAttempt && !waitingLaunch)
       navigate(
-        basePath + '/sessions/' + encodeURIComponent(attempt.id) + suffix,
+        basePath + '/sessions/' + encodeURIComponent(resolvedAttempt.id) + suffix,
         { replace: true, state },
       )
-  }, [sessionId, attempt?.id, taskId, suffix, navigate, state, basePath, waitingLaunch])
+  }, [sessionId, resolvedAttempt?.id, taskId, suffix, navigate, state, basePath, waitingLaunch])
+
+  const launchAttemptRef = useRef(false)
+  useEffect(() => {
+    if (!isDedicatedTerminal || resolvedAttempt || launchAttemptRef.current || !detail) return
+    launchAttemptRef.current = true
+    let payload: any = null
+    try {
+      const stored = localStorage.getItem('cuan-task-launch:' + taskId)
+      if (stored) payload = JSON.parse(stored)
+    } catch {}
+    if (!payload || !payload.runner_id) {
+      payload = {
+        request_id: crypto.randomUUID(),
+        agent_id: detail.assignee_id || 'agent_cuan',
+        runner_id: 'local_terminal',
+      }
+    }
+    tasksApi.runAgent(taskId, payload).then((res) => {
+      try {
+        localStorage.removeItem('cuan-task-launch:' + taskId)
+      } catch {}
+      if (res.attempt?.id) {
+        navigate(basePath + '/sessions/' + encodeURIComponent(res.attempt.id) + suffix, { replace: true, state })
+      }
+      void refresh()
+    }).catch((e) => {
+      console.warn('Auto-start terminal attempt warning:', e)
+    })
+  }, [isDedicatedTerminal, resolvedAttempt, detail, taskId, basePath, suffix, state, navigate, refresh])
   useEffect(() => {
     setShowTerminal(pinTerminal || isDedicatedTerminal)
     setAccept(false)
@@ -380,7 +422,7 @@ export function TaskSessionPage({
       </div>
     )
   }
-  if ((!attempt || waitingLaunch) && sessionId === 'latest') return <TaskReadyPage task={detail} />
+  if ((!attempt || waitingLaunch) && sessionId === 'latest' && !isDedicatedTerminal) return <TaskReadyPage task={detail} />
   if (!attempt) {
     const isCompleted = detail.status === 'done'
     return (

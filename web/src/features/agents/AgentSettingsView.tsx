@@ -148,7 +148,16 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
         localStorage.setItem('cuan-task-launch:' + targetTask.id, JSON.stringify(launchPayload))
       } catch {}
 
-      const targetSessionId = 'latest'
+      let targetSessionId = 'latest'
+      try {
+        const runRes = await tasksApi.runAgent(targetTask.id, launchPayload)
+        if (runRes.attempt?.id) {
+          targetSessionId = runRes.attempt.id
+        }
+      } catch (e) {
+        console.warn('Direct runAgent attempt fallback to session route:', e)
+      }
+
       const accountParam = accountId ? `&account_id=${encodeURIComponent(accountId)}` : ''
       navigate(`/tasks/${encodeURIComponent(targetTask.id)}/sessions/${encodeURIComponent(targetSessionId)}?terminal=open${accountParam}`, {
         state: {

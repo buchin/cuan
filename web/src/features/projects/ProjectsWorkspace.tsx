@@ -226,19 +226,25 @@ export function ProjectsWorkspace({
         })
       }
 
+      const launchPayload = {
+        request_id: crypto.randomUUID(),
+        agent_id: assignedAgentId,
+        runner_id: 'local_terminal',
+      }
       try {
         localStorage.setItem('cuan_terminal_pin', 'true')
-        localStorage.setItem(
-          'cuan-task-launch:' + targetTask.id,
-          JSON.stringify({
-            request_id: crypto.randomUUID(),
-            agent_id: assignedAgentId,
-            runner_id: 'local_terminal',
-          }),
-        )
+        localStorage.setItem('cuan-task-launch:' + targetTask.id, JSON.stringify(launchPayload))
       } catch {}
 
-      const targetSessionId = 'latest'
+      let targetSessionId = 'latest'
+      try {
+        const runRes = await tasksApi.runAgent(targetTask.id, launchPayload)
+        if (runRes.attempt?.id) {
+          targetSessionId = runRes.attempt.id
+        }
+      } catch (err) {
+        console.warn('Direct runAgent attempt fallback to session route:', err)
+      }
 
       if (popout) {
         const popoutUrl = `/tasks/${encodeURIComponent(targetTask.id)}/sessions/${encodeURIComponent(targetSessionId)}?terminal=open&popout=true`
