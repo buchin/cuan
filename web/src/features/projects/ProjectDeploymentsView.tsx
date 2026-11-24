@@ -224,39 +224,19 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
   }
 
   const renderStatusIcon = (status: string, size = 'md') => {
-    const dim = size === 'sm' ? 'h-4 w-4' : 'h-5 w-5'
+    const dim = size === 'sm' ? 'h-4 w-4' : 'h-4.5 w-4.5 sm:h-5 sm:w-5'
     switch (status) {
       case 'success':
-        return (
-          <div className="flex items-center justify-center rounded-full bg-emerald-500/10 p-0.5 text-emerald-600 dark:text-emerald-400">
-            <CheckCircle2 className={dim} />
-          </div>
-        )
+        return <CheckCircle2 className={`${dim} text-emerald-600 dark:text-emerald-400 shrink-0`} />
       case 'building':
-        return (
-          <div className="flex items-center justify-center rounded-full bg-sky-500/10 p-0.5 text-sky-600 dark:text-sky-400">
-            <Loader2 className={`${dim} animate-spin`} />
-          </div>
-        )
+        return <Loader2 className={`${dim} animate-spin text-sky-600 dark:text-sky-400 shrink-0`} />
       case 'failed':
-        return (
-          <div className="flex items-center justify-center rounded-full bg-rose-500/10 p-0.5 text-rose-600 dark:text-rose-400">
-            <XCircle className={dim} />
-          </div>
-        )
+        return <XCircle className={`${dim} text-rose-600 dark:text-rose-400 shrink-0`} />
       case 'queued':
-        return (
-          <div className="flex items-center justify-center rounded-full bg-amber-500/10 p-0.5 text-amber-600 dark:text-amber-400" title={t('Queued in lane')}>
-            <Clock className={dim} />
-          </div>
-        )
+        return <Clock className={`${dim} text-amber-600 dark:text-amber-400 shrink-0`} aria-label={t('Queued in lane')} />
       case 'canceled':
       default:
-        return (
-          <div className="flex items-center justify-center rounded-full bg-muted p-0.5 text-muted-foreground">
-            <Slash className={dim} />
-          </div>
-        )
+        return <Slash className={`${dim} text-muted-foreground shrink-0`} />
     }
   }
 
