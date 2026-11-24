@@ -460,7 +460,7 @@ export function ProjectsWorkspace({
                 key={item.path}
                 to={`/projects/${encodeURIComponent(project.id)}/${item.path}`}
                 aria-current={item.active ? 'page' : undefined}
-                className={`inline-flex min-h-11 shrink-0 whitespace-nowrap items-center border-b-2 text-sm bg-transparent transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${item.active ? 'border-primary font-medium text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+                className={`inline-flex min-h-11 items-center border-b-2 text-sm bg-transparent transition-colors shrink-0 whitespace-nowrap focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${item.active ? 'border-primary font-medium text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
               >{t(item.label)}</Link>)}
             </nav>}
             {saveError && (

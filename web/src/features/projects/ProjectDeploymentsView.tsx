@@ -91,7 +91,7 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
   }, [data])
 
   useEffect(() => {
-    const intervalMs = isAnyActive ? 2500 : 8000
+    const intervalMs = isAnyActive ? 2500 : 3500
     const timer = setInterval(() => {
       void loadDeployments(true)
     }, intervalMs)

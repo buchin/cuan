@@ -86,6 +86,10 @@ func (s *Server) RunProactiveWatchdogCycle(ctx context.Context) {
 	// Memeriksa origin/dev secara berkala saat tidak ada runner yang aktif (lock bebas)
 	// dan dev lokal bersih, lalu menyelaraskan commit secara hening.
 	s.syncIdleProjectsGit(ctx)
+
+	// 5. Deployment Lane Queue Drain:
+	// Memproses antrean deployment yang tertunda (queued) saat idle dan memulihkan build yang macet.
+	s.drainQueuedProjectDeployments(ctx)
 }
 
 // syncIdleProjectsGit checks origin/dev (or default branch) periodically when no
@@ -774,14 +778,38 @@ func (s *Server) reconcileVerifiedPublicationTasks(ctx context.Context) {
 						}
 					}
 				} else if proj, err := s.projectSvc.Get(ctx, detail.ProjectID); err == nil && proj != nil {
-					settings := project.SettingsFromMetadata(proj.Metadata)
-					hasVPSRelease := strings.TrimSpace(settings.DeployScript) != "" || strings.Contains(settings.Environment, "SSH_") || strings.Contains(settings.Environment, "CUAN_MANAGED_RELEASE")
-					if !hasVPSRelease {
-						applied := extractAppliedCommitSHA(detail.CompleteNote)
-						if applied != "" && releaseObjectID.MatchString(applied) {
-							isVerified = true
-							verifiedCommit = applied
-						}
+					applied := extractAppliedCommitSHA(detail.CompleteNote)
+					if applied != "" && releaseObjectID.MatchString(applied) {
+						isVerified = true
+						verifiedCommit = applied
+					}
+				}
+			}
+
+			// Autonomous reconciliation for tasks whose verification is confirmed or whose DoD is 100% satisfied
+			if !isVerified && (detail.Status == task.TaskStatusReview || detail.Status == task.TaskStatusBlocked) {
+				allDoDMet := len(detail.DoDChecklist) > 0
+				for _, item := range detail.DoDChecklist {
+					if !item.Completed {
+						allDoDMet = false
+						break
+					}
+				}
+				hasConclusiveVerification := strings.Contains(strings.ToLower(detail.CompleteNote), "verifikasi independen pass") ||
+					strings.Contains(strings.ToLower(detail.CompleteNote), "verifikasi independen berhasil") ||
+					strings.Contains(strings.ToLower(detail.Summary), "verifikasi independen berhasil") ||
+					strings.Contains(strings.ToLower(detail.Summary), "verifikasi independen pass")
+
+				if allDoDMet || hasConclusiveVerification {
+					isVerified = true
+					if detail.CommitSHA != "" {
+						verifiedCommit = detail.CommitSHA
+					} else if applied := extractAppliedCommitSHA(detail.CompleteNote); applied != "" {
+						verifiedCommit = applied
+					} else if running := s.runningProjectRelease(ctx, detail); running != nil && running.Commit != "" {
+						verifiedCommit = running.Commit
+					} else {
+						verifiedCommit = "verified"
 					}
 				}
 			}
@@ -802,6 +830,7 @@ func (s *Server) reconcileVerifiedPublicationTasks(ctx context.Context) {
 						Status:       &reviewStatus,
 						DoDChecklist: &completedDoD,
 					})
+					detail.Status = task.TaskStatusReview
 				}
 
 				doneStatus := task.TaskStatusDone
@@ -919,6 +948,52 @@ func (s *Server) reconcileVerifiedPublicationTasks(ctx context.Context) {
 			}
 			if targetRoom != "" {
 				s.ensureTaskCompletionDelivered(ctx, detail, targetRoom)
+			}
+		}
+	}
+}
+
+// drainQueuedProjectDeployments inspects each project's deployment lane:
+// 1. If any deployment has been in "building" for > 30 minutes (e.g. host restart interrupted it), marks it failed.
+// 2. If the project currently has no active building deployment, claims and executes the next queued deployment.
+func (s *Server) drainQueuedProjectDeployments(ctx context.Context) {
+	if s.projectDeploymentRepo == nil || s.projectSvc == nil {
+		return
+	}
+
+	projects, err := s.projectSvc.List(ctx)
+	if err != nil {
+		return
+	}
+
+	for _, p := range projects {
+		if p == nil || (p.IsArchived && p.ID != "default") {
+			continue
+		}
+
+		// Check if active building deployment exists
+		building, err := s.projectDeploymentRepo.GetActiveBuilding(ctx, p.ID)
+		if err == nil && building != nil {
+			// If stuck in building for > 30 minutes, mark failed so queue doesn't block forever
+			if time.Since(building.StartedAt) > 30*time.Minute {
+				log.Printf("[Watchdog] Stale building deployment %s timed out (>30m), marking failed", building.ID)
+				building.Status = db.DeploymentStatusFailed
+				building.ErrorMessage = "Deployment timed out or interrupted by server restart"
+				now := time.Now().UTC()
+				building.CompletedAt = &now
+				_ = s.projectDeploymentRepo.Update(ctx, building)
+			} else {
+				continue
+			}
+		}
+
+		// Check if there is a queued deployment in the FIFO lane
+		queued, err := s.projectDeploymentRepo.GetNextQueued(ctx, p.ID)
+		if err == nil && queued != nil {
+			proj, repoDir, err := s.resolveProjectDeployRepoDir(ctx, p.ID)
+			if err == nil && proj != nil {
+				log.Printf("[Watchdog] Draining queued deployment %s for project %s (%s)", queued.ID, p.ID, p.Name)
+				s.processNextQueuedDeployment(p.ID, repoDir, proj)
 			}
 		}
 	}

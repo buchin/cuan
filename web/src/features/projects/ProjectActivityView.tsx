@@ -89,6 +89,15 @@ export function ProjectActivityView({ project }: ProjectActivityViewProps) {
 
   useEffect(() => {
     void loadLog()
+    const timer = setInterval(() => {
+      if (!document.hidden) void loadLog(true)
+    }, 6000)
+    const onFocus = () => void loadLog(true)
+    window.addEventListener('focus', onFocus)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('focus', onFocus)
+    }
   }, [project.id])
 
   // Fetch commit details when SlideDrawer opens

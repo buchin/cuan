@@ -3,9 +3,11 @@ import {
   NotificationsNavigation,
   NotificationsActions,
 } from './features/notifications/NotificationsView'
-import { useEffect, useState, useCallback, useMemo, lazy, Suspense } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef, lazy, Suspense } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
+import { useLanguage } from './context/LanguageContext'
+import { reloadApp } from './lib/reload'
 import { AppShell, AppTab } from './components/layout/AppShell'
 import { agentsApi, type Agent } from './api/agents'
 import { projectsApi } from './api/projects'
@@ -277,6 +279,42 @@ export function App() {
     if (rootSegment === 'team')
       navigate('/settings/team' + location.search, { replace: true })
   }, [rootSegment, location.search, navigate])
+
+  const { t } = useLanguage()
+  const [newReleaseAvailable, setNewReleaseAvailable] = useState(false)
+  const initialShaRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const checkLiveVersion = async () => {
+      if (document.hidden) return
+      try {
+        const res = await fetch('/healthz')
+        if (res.ok) {
+          const data = await res.json()
+          const currentSha = data.commit_sha
+          if (currentSha && typeof currentSha === 'string') {
+            if (!initialShaRef.current) {
+              initialShaRef.current = currentSha
+            } else if (initialShaRef.current !== currentSha) {
+              setNewReleaseAvailable(true)
+            }
+          }
+        }
+      } catch {
+        // quiet ignore
+      }
+    }
+
+    void checkLiveVersion()
+    const timer = setInterval(checkLiveVersion, 25000)
+    window.addEventListener('focus', checkLiveVersion)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('focus', checkLiveVersion)
+    }
+  }, [isAuthenticated])
 
   // Active selections
   const [activeProject, setActiveProject] = useState<Project | undefined>(
@@ -1384,6 +1422,24 @@ export function App() {
           onRunAgent={handleRunAgent}
         />
       </Suspense>
+
+      {newReleaseAvailable && (
+        <aside
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50 flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-secondary/95 backdrop-blur border border-border/40 shadow-sm text-xs text-foreground transition-all animate-in fade-in slide-in-from-bottom-2"
+        >
+          <span className="flex h-2 w-2 rounded-full bg-emerald-500" />
+          <span className="font-normal text-muted-foreground">{t('Versi baru aktif')}</span>
+          <button
+            type="button"
+            onClick={() => void reloadApp()}
+            className="px-2.5 py-0.5 rounded-full bg-foreground text-background font-medium hover:opacity-90 transition-opacity text-[11px]"
+          >
+            {t('Muat Ulang')}
+          </button>
+        </aside>
+      )}
     </>
   )
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/buchin/cuan/internal/config"
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -976,5 +977,109 @@ func TestReconcileVerifiedPublicationTasks(t *testing.T) {
 	}
 	if len(updatedAudit.DoDChecklist) == 0 || !updatedAudit.DoDChecklist[0].Completed {
 		t.Fatalf("expected DoD item to be marked completed")
+	}
+}
+
+func TestProactiveWatchdogReconcileVerifiedTaskWithConclusiveReport(t *testing.T) {
+	ctx := context.Background()
+	taskStore := task.NewMemoryStore()
+	taskSvc := task.NewService(taskStore, nil)
+	repo := db.NewMemoryProjectStudioRepository()
+
+	verifiedTask := &task.Task{
+		ID:                "msg_verified_conclusive",
+		ProjectID:         "proj_test",
+		Title:             "Implementasi Fitur Terverifikasi",
+		Status:            task.TaskStatusBlocked,
+		Priority:          task.PriorityNormal,
+		ExecutionCategory: task.ExecutionCategoryCode,
+		Summary:           "Verifikasi independen PASS: Fitur terbukti secara menyeluruh menyelesaikan masalah.",
+		CompleteNote:      "🚀 Perubahan telah berhasil diterapkan (Commit 40a82cd83f341610dd80b8be682964d229d74661).",
+		DoDChecklist: []task.DoDItem{
+			{ID: "dod_1", Text: "Fitur berfungsi", Completed: true},
+		},
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+	if err := taskStore.CreateTask(ctx, verifiedTask); err != nil {
+		t.Fatal(err)
+	}
+
+	zero := 0
+	attempt := &task.TaskAttempt{
+		ID:        "att_verified_1",
+		TaskID:    verifiedTask.ID,
+		Status:    task.AttemptStatusSucceeded,
+		ExitCode:  &zero,
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := taskStore.CreateAttempt(ctx, attempt); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := &Server{
+		taskSvc:           taskSvc,
+		projectStudioRepo: repo,
+	}
+
+	// Run reconciliation
+	srv.reconcileVerifiedPublicationTasks(ctx)
+
+	// Verify task transitioned to DONE
+	updated, err := taskStore.GetTask(ctx, verifiedTask.ID)
+	if err != nil || updated == nil {
+		t.Fatalf("failed to get task: %v", err)
+	}
+	if updated.Status != task.TaskStatusDone {
+		t.Fatalf("expected task status 'done', got: %s", updated.Status)
+	}
+}
+
+func TestProactiveWatchdogDrainQueuedDeploymentsHandlesStaleBuilding(t *testing.T) {
+	ctx := context.Background()
+	pStore := project.NewMemoryStore()
+	projSvc := project.NewService(pStore, nil, "", t.TempDir())
+	deployRepo := db.NewMemoryProjectDeploymentRepository()
+
+	p := &project.Project{
+		ID:   "proj_test_deploy",
+		Name: "Test Deploy Project",
+	}
+	if err := pStore.CreateProject(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a building deployment that started 35 minutes ago (stale)
+	staleTime := time.Now().UTC().Add(-35 * time.Minute)
+	staleDep := &db.ProjectDeployment{
+		ID:        "dep_stale_1",
+		ProjectID: p.ID,
+		Status:    db.DeploymentStatusBuilding,
+		Branch:    "dev",
+		CommitSHA: "abcdef0123456789abcdef0123456789abcdef01",
+		ShortSHA:  "abcdef0",
+		StartedAt: staleTime,
+		CreatedAt: staleTime,
+		UpdatedAt: staleTime,
+	}
+	if err := deployRepo.Create(ctx, staleDep); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := &Server{
+		projectSvc:            projSvc,
+		projectDeploymentRepo: deployRepo,
+	}
+
+	// Run drain
+	srv.drainQueuedProjectDeployments(ctx)
+
+	// Stale deployment should now be marked failed
+	updated, err := deployRepo.GetByID(ctx, staleDep.ID)
+	if err != nil || updated == nil {
+		t.Fatalf("failed to get deployment: %v", err)
+	}
+	if updated.Status != db.DeploymentStatusFailed {
+		t.Fatalf("expected stale deployment to be failed, got: %s", updated.Status)
 	}
 }

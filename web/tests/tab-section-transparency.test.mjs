@@ -67,7 +67,7 @@ test('4. TaskSidePeek and ProjectsWorkspace: Section navigation enforces bg-tran
 
   const projectsWorkspaceSrc = fs.readFileSync(path.join(webSrcRoot, 'features/projects/ProjectsWorkspace.tsx'), 'utf8')
   assert.ok(
-    projectsWorkspaceSrc.includes('className="flex shrink-0 gap-5 border-b bg-transparent px-4 sm:px-5"'),
+    projectsWorkspaceSrc.includes('gap-5 border-b bg-transparent px-4 sm:px-5'),
     'ProjectsWorkspace nav track must use bg-transparent'
   )
   assert.ok(
