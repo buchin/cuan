@@ -257,18 +257,6 @@ func applyChatProfileReadDeny(settings map[string]json.RawMessage, home string) 
 			changed = true
 		}
 	}
-	for _, toolRule := range []string{
-		"command(*)",
-		"write_file(*)",
-		"edit_file(*)",
-		"replace_file_content(*)",
-	} {
-		if !seen[toolRule] {
-			denied = append(denied, toolRule)
-			seen[toolRule] = true
-			changed = true
-		}
-	}
 	if !changed {
 		return false, nil
 	}
@@ -354,6 +342,10 @@ func prepareAntigravitySettings(home string, trustedWorkspaces ...string) error 
 		if applyDefaultReadOnlyPermissions(settings) {
 			changed = true
 		}
+		if sanitizeTaskExecutionPermissions(settings) {
+			changed = true
+		}
+	} else if settings["permissions"] != nil {
 		if sanitizeTaskExecutionPermissions(settings) {
 			changed = true
 		}

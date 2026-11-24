@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -343,12 +344,18 @@ func TestCLISettingsTaskExecutionClearsToolDenials(t *testing.T) {
 	home := t.TempDir()
 	ws := t.TempDir()
 
-	// 1. Simulate prior read-only chat turn which wrote deny rules to settings.json
-	if err := PrepareAntigravityReadOnlyPermissions(home); err != nil {
+	// 1. Simulate legacy deny rules written to settings.json
+	dir := AntigravityConfigDirPath(home)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(dir, "settings.json")
+	sensitiveRule := "read_file(" + filepath.Join(home, ".gemini") + ")"
+	initial := fmt.Sprintf(`{"permissions":{"deny":["%s","command(*)","write_file(*)","edit_file(*)"]}}`, sensitiveRule)
+	if err := os.WriteFile(p, []byte(initial), 0600); err != nil {
 		t.Fatal(err)
 	}
 
-	p := filepath.Join(AntigravityConfigDirPath(home), "settings.json")
 	raw, err := os.ReadFile(p)
 	if err != nil {
 		t.Fatal(err)
@@ -367,7 +374,7 @@ func TestCLISettingsTaskExecutionClearsToolDenials(t *testing.T) {
 		}
 	}
 	if !hasCommandDeny {
-		t.Fatalf("expected read-only permissions to deny command(*) or write_file(*), got: %v", denied)
+		t.Fatalf("expected legacy permissions to deny command(*) or write_file(*), got: %v", denied)
 	}
 
 	// 2. Prepare settings for task runner with trusted workspace

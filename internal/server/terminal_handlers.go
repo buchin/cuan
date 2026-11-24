@@ -551,6 +551,8 @@ func (s *Server) handleProjectTerminalWebSocket(w http.ResponseWriter, r *http.R
 			home, brain, release, err = agent.LeaseHealthyBrainForProject(ownerID, proj.ID, nil)
 		}
 		if err == nil && home != "" {
+			_ = agent.PrepareAntigravitySettings(home, workDir)
+			_ = agent.EnsureAntigravityOnboarding(home)
 			env = append(env, agent.AntigravityProfileEnvironment(home)...)
 			if brain != nil && brain.ModelID != "" {
 				env = append(env, "CUAN_AGENT_MODEL="+brain.ModelID)
@@ -787,6 +789,19 @@ func (s *Server) handleRotateProjectTerminalBrain(w http.ResponseWriter, r *http
 		return
 	}
 	defer release()
+
+	workDir := ""
+	if s.projectSvc != nil {
+		if proj, err := s.projectSvc.Get(r.Context(), rawProjID); err == nil && proj != nil {
+			if wd, e := s.projectSvc.ProjectTerminalWorkspace(r.Context(), proj.ID, proj); e == nil && wd != "" {
+				workDir = wd
+			} else {
+				workDir = proj.LocalPath
+			}
+		}
+	}
+	_ = agent.PrepareAntigravitySettings(home, workDir)
+	_ = agent.EnsureAntigravityOnboarding(home)
 
 	notice := fmt.Sprintf("\r\n\x1b[32m[cuan]\x1b[0m Rotated to healthy brain %s (%s). Terminal session remains active.\r\n", brain.ModelID, brain.ID)
 	sess.BroadcastBytes([]byte(notice))
