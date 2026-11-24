@@ -1126,28 +1126,36 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 			checkoutLog.WriteString(fmt.Sprintf("\nNote: git fetch origin %s: %v\n", branch, err))
 		}
 
-		// 2. Checkout target
-		targetRef := commitSHA
-		if targetRef == "" {
-			targetRef = "origin/" + branch
-		}
-		checkoutCmd := exec.CommandContext(ctx, "git", "checkout", "-f", targetRef)
+		// 2. Checkout the approved branch (avoid detached HEAD for deploy scripts)
+		checkoutCmd := exec.CommandContext(ctx, "git", "checkout", "-f", branch)
 		checkoutCmd.Dir = repoDir
 		out, err = checkoutCmd.CombinedOutput()
 		checkoutLog.Write(out)
 		if err != nil {
-			// Fallback: try checkout branch directly
-			fallbackCmd := exec.CommandContext(ctx, "git", "checkout", "-f", branch)
-			fallbackCmd.Dir = repoDir
-			out2, err2 := fallbackCmd.CombinedOutput()
-			checkoutLog.Write(out2)
-			if err2 != nil {
-				checkoutSuccess = false
-				checkoutLog.WriteString(fmt.Sprintf("\nCheckout error: %v\n", err2))
-			}
+			checkoutSuccess = false
+			checkoutLog.WriteString(fmt.Sprintf("\nCheckout branch error: %v\n", err))
 		}
 
-		// Update commit info if we checked out a symbolic ref
+		// 3. Reset to origin/<branch> or target commit to ensure exact synchronization
+		targetReset := "origin/" + branch
+		if commitSHA != "" {
+			targetReset = commitSHA
+		}
+		resetCmd := exec.CommandContext(ctx, "git", "reset", "--hard", targetReset)
+		resetCmd.Dir = repoDir
+		outReset, errReset := resetCmd.CombinedOutput()
+		checkoutLog.Write(outReset)
+		if errReset != nil {
+			checkoutSuccess = false
+			checkoutLog.WriteString(fmt.Sprintf("\nReset to %s error: %v\n", targetReset, errReset))
+		}
+
+		// 4. Clean untracked artifacts so working tree is clean
+		cleanCmd := exec.CommandContext(ctx, "git", "clean", "-fd")
+		cleanCmd.Dir = repoDir
+		_, _ = cleanCmd.CombinedOutput()
+
+		// Update commit info from HEAD
 		revParseCmd := exec.CommandContext(ctx, "git", "rev-parse", "HEAD")
 		revParseCmd.Dir = repoDir
 		if currentHead, err := revParseCmd.Output(); err == nil {
@@ -1227,7 +1235,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 			ranDeployScript = true
 			buildLog.WriteString(fmt.Sprintf("Executing repository deployment script at %s\n", repoScript))
 			deployArgs := []string{repoScript}
-			if fileExists("/opt/cuan/releases") {
+			if fileExists(filepath.Join(repoDir, "cmd", "server")) && fileExists("/opt/cuan/releases") {
 				deployArgs = append(deployArgs, "--local", "--native-sync", "--branch", branch)
 			}
 			cmd := exec.CommandContext(ctx, "bash", deployArgs...)
