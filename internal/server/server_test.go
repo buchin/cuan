@@ -337,3 +337,21 @@ func TestAuthFlow_UsernameLogin_PasswordChange_DefaultAdmin(t *testing.T) {
 		t.Fatalf("expected 200 for login with new password, got %d", rr.Code)
 	}
 }
+
+func TestDeployWebhookRoute_UnauthenticatedBypass(t *testing.T) {
+	cfg := &config.Config{Environment: "testing"}
+	memStore := auth.NewMemoryStore()
+	authSvc := auth.NewService(memStore)
+	srv := NewServer(cfg, nil, authSvc)
+
+	// Call webhook without session auth
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/projects/non-existent/webhooks/deploy", bytes.NewBufferString(`{}`))
+	rr := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rr, req)
+
+	// Must NOT return session auth error ("unauthorized: authentication required")
+	body := rr.Body.String()
+	if strings.Contains(body, "authentication required") {
+		t.Fatalf("expected webhook route to bypass session auth, got: %s", body)
+	}
+}

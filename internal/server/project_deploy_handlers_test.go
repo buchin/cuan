@@ -276,4 +276,21 @@ func TestProjectDeployWebhook_UnauthorizedAndSuccess(t *testing.T) {
 	if disabledResp["status"] != "ignored" {
 		t.Errorf("expected status 'ignored' when auto deploy is disabled, got %v", disabledResp["status"])
 	}
+
+	// 8. GitHub Ping event handling
+	pingPayload := []byte(`{"zen":"Speak like a human.","hook_id":12345}`)
+	pingSig := "sha256=" + computeHmacHex([]byte(secret), pingPayload)
+	reqPing := httptest.NewRequest("POST", "/api/v1/projects/"+projID+"/webhooks/deploy", bytes.NewReader(pingPayload))
+	reqPing.Header.Set("X-Hub-Signature-256", pingSig)
+	reqPing.Header.Set("X-Github-Event", "ping")
+	recPing := httptest.NewRecorder()
+	r.ServeHTTP(recPing, reqPing)
+	if recPing.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for GitHub ping event, got %d: %s", recPing.Code, recPing.Body.String())
+	}
+	var pingResp map[string]interface{}
+	_ = json.NewDecoder(recPing.Body).Decode(&pingResp)
+	if pingResp["event"] != "ping" || pingResp["status"] != "ok" {
+		t.Errorf("expected status 'ok' and event 'ping', got %+v", pingResp)
+	}
 }

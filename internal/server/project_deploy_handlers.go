@@ -740,6 +740,17 @@ func (s *Server) handleProjectDeployWebhook(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Handle GitHub ping / test events
+	if r.Header.Get("X-Github-Event") == "ping" {
+		respondJSON(w, http.StatusOK, map[string]interface{}{
+			"status":     "ok",
+			"event":      "ping",
+			"project_id": proj.ID,
+			"message":    "Webhook secret verified successfully (pong)",
+		})
+		return
+	}
+
 	var payload GitWebhookPushPayload
 	_ = json.Unmarshal(body, &payload)
 
