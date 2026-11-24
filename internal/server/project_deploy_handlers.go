@@ -532,8 +532,11 @@ func (s *Server) resolveProjectDeployWebhookSecret(proj *project.ProjectResponse
 }
 
 func (s *Server) resolveProjectDeployWebhookURL(proj *project.ProjectResponse) string {
+	if publicURL := strings.TrimSpace(os.Getenv("CUAN_PUBLIC_APP_URL")); publicURL != "" {
+		return fmt.Sprintf("%s/api/v1/projects/%s/webhooks/deploy", strings.TrimRight(publicURL, "/"), proj.ID)
+	}
 	domain := "app.cuan.work"
-	if s.cfg != nil && s.cfg.BaseDomain != "" {
+	if s.cfg != nil && s.cfg.BaseDomain != "" && !strings.Contains(s.cfg.BaseDomain, "dojo.cc") && s.cfg.BaseDomain != "localhost" {
 		domain = s.cfg.BaseDomain
 	}
 	scheme := "https"

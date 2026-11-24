@@ -160,6 +160,9 @@ func Load() *Config {
 	autoSyncReadme := getEnv("CUAN_AUTO_SYNC_README", "true") != "false"
 	syncGitCommit := getEnv("CUAN_SYNC_GIT_COMMIT", "false") == "true"
 	baseDomain := getEnv("BASE_DOMAIN", getEnv("CUAN_BASE_DOMAIN", "localhost"))
+	if strings.Contains(baseDomain, "dojo.cc") {
+		baseDomain = "app.cuan.work"
+	}
 	caddyAdminURL := getEnv("CADDY_ADMIN_URL", "http://localhost:2019")
 	appMode := strings.ToLower(strings.TrimSpace(getEnv("APP_MODE", "marketing")))
 	if appMode != "studio" {

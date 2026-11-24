@@ -24,7 +24,7 @@ cuan config show
 
 Set or update configuration:
 ```bash
-cuan config set api_url https://cuan.dojo.cc
+cuan config set api_url https://app.cuan.work
 cuan config set auth_token <TOKEN>
 ```
 
@@ -42,7 +42,7 @@ Interact directly with the Cuan public assistant without writing custom scripts:
 cuan chat new --title "Audit CI/CD pipeline"
 ```
 Connects directly to the active public assistant without requiring internal persona selection. Legacy aliases (e.g. `--agent @sm`) remain supported for backward compatibility.
-Returns room ID and web inbox URL (e.g. `https://cuan.dojo.cc/inbox/<room-id>`).
+Returns room ID and web inbox URL (e.g. `https://app.cuan.work/inbox/<room-id>`).
 
 ### 2. Send Message & Await Agent Reply
 ```bash
