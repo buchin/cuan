@@ -28,12 +28,16 @@ while [[ $# -gt 0 ]]; do
       native_sync=1
       shift
       ;;
+    --allow-divergent)
+      allow_divergent=1
+      shift
+      ;;
     --devnull)
       devnull_broadcast=1
       shift
       ;;
     --help)
-      echo 'Usage: scripts/deploy.sh [--branch APPROVED_BRANCH] [--frontend-only] [--local] [--native-sync] [--devnull] (clean tree; default dev). Requires DOJO_TERMAPI_VPS_* env when running remotely; auto-detects or uses --local when running directly on the production host.'
+      echo 'Usage: scripts/deploy.sh [--branch APPROVED_BRANCH] [--frontend-only] [--local] [--native-sync] [--allow-divergent] [--devnull] (clean tree; default dev). Requires DOJO_TERMAPI_VPS_* env when running remotely; auto-detects or uses --local when running directly on the production host.'
       exit 0
       ;;
     *)
@@ -266,8 +270,16 @@ if [[ "$is_local" == 1 ]]; then
     cp -a "$release_dir" "$HOME/.local/share/cuan-releases/"
   fi
   sudo -n rsync -a --delete "$release_dir/" "/opt/cuan/releases/$release_sha/"
-  sudo -n CUAN_DEPLOY_ALLOW_RESUME="${CUAN_DEPLOY_ALLOW_RESUME:-1}" CUAN_DEPLOY_EXCLUDE_TASK="${CUAN_DEPLOY_EXCLUDE_TASK:-${TASK_ID:-}}" CUAN_DEPLOY_EXCLUDE_ATTEMPT="${CUAN_DEPLOY_EXCLUDE_ATTEMPT:-}" CUAN_TASK_CAPABILITY_FILE="${CUAN_TASK_CAPABILITY_FILE:-}" python3 scripts/activate-release.py --release "$release_sha"
+  extra_activate_flags=""
+  if [[ "${allow_divergent:-0}" == 1 || "${CUAN_DEPLOY_ALLOW_DIVERGENT:-0}" == 1 ]]; then
+    extra_activate_flags="--allow-divergent"
+  fi
+  sudo -n CUAN_DEPLOY_ALLOW_RESUME="${CUAN_DEPLOY_ALLOW_RESUME:-1}" CUAN_DEPLOY_EXCLUDE_TASK="${CUAN_DEPLOY_EXCLUDE_TASK:-${TASK_ID:-}}" CUAN_DEPLOY_EXCLUDE_ATTEMPT="${CUAN_DEPLOY_EXCLUDE_ATTEMPT:-}" CUAN_TASK_CAPABILITY_FILE="${CUAN_TASK_CAPABILITY_FILE:-}" python3 scripts/activate-release.py --release "$release_sha" $extra_activate_flags
 else
+  extra_activate_flags=""
+  if [[ "${allow_divergent:-0}" == 1 || "${CUAN_DEPLOY_ALLOW_DIVERGENT:-0}" == 1 ]]; then
+    extra_activate_flags="--allow-divergent"
+  fi
   sshpass -e ssh "$release_host" "sudo -n mkdir -p /opt/cuan/releases/$release_sha && sudo -n chown -R $DOJO_TERMAPI_VPS_USERNAME:$DOJO_TERMAPI_VPS_USERNAME /opt/cuan/releases"
   sshpass -e ssh "$release_host" 'mkdir -p .local/share/cuan-releases .local/share/cuan-s25'
   sshpass -e scp -q scripts/prune-release-artifacts.py "${maintenance_tool_paths[@]}" scripts/install-runtime-cache-maintenance.py scripts/cuan-disk-guard.sh "$release_host:.local/share/cuan-s25/"
@@ -283,7 +295,7 @@ else
   sshpass -e rsync -az --partial --append-verify -e "sshpass -p '$DOJO_TERMAPI_VPS_PASSWORD' ssh -o StrictHostKeyChecking=no" "$release_dir/" "$release_host:.local/share/cuan-releases/$release_sha/"
   sshpass -e ssh "$release_host" "sudo -n rsync -a --delete /home/$DOJO_TERMAPI_VPS_USERNAME/.local/share/cuan-releases/$release_sha/ /opt/cuan/releases/$release_sha/"
   sshpass -e scp -q scripts/activate-release.py scripts/verify-authorized-release.py "$release_host:.local/share/cuan-s25/"
-  sshpass -e ssh "$release_host" "sudo -n CUAN_DEPLOY_ALLOW_RESUME=\"${CUAN_DEPLOY_ALLOW_RESUME:-1}\" CUAN_DEPLOY_EXCLUDE_TASK=\"${CUAN_DEPLOY_EXCLUDE_TASK:-${TASK_ID:-}}\" CUAN_DEPLOY_EXCLUDE_ATTEMPT=\"${CUAN_DEPLOY_EXCLUDE_ATTEMPT:-}\" CUAN_TASK_CAPABILITY_FILE=\"${CUAN_TASK_CAPABILITY_FILE:-}\" python3 .local/share/cuan-s25/activate-release.py --release $release_sha"
+  sshpass -e ssh "$release_host" "sudo -n CUAN_DEPLOY_ALLOW_RESUME=\"${CUAN_DEPLOY_ALLOW_RESUME:-1}\" CUAN_DEPLOY_EXCLUDE_TASK=\"${CUAN_DEPLOY_EXCLUDE_TASK:-${TASK_ID:-}}\" CUAN_DEPLOY_EXCLUDE_ATTEMPT=\"${CUAN_DEPLOY_EXCLUDE_ATTEMPT:-}\" CUAN_TASK_CAPABILITY_FILE=\"${CUAN_TASK_CAPABILITY_FILE:-}\" python3 .local/share/cuan-s25/activate-release.py --release $release_sha $extra_activate_flags"
   unset SSHPASS
 fi
 
