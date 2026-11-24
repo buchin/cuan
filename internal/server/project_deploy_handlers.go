@@ -309,45 +309,65 @@ func (s *Server) reconcileProjectDeployments(ctx context.Context, proj *project.
 		currentPath := "/opt/cuan/current"
 		if target, err := filepath.EvalSymlinks(currentPath); err == nil {
 			activeSHA := filepath.Base(target)
-			if len(activeSHA) == 40 && existing[activeSHA] == nil {
-				msg := fmt.Sprintf("Release %s activated", activeSHA[:7])
-				author := "Buchin"
-				if repoDir != "" {
-					cmd := exec.CommandContext(ctx, "git", "log", "-n", "1", "--format=%s%x1f%an", activeSHA)
-					cmd.Dir = repoDir
-					if out, err := cmd.Output(); err == nil {
-						parts := strings.Split(strings.TrimSpace(string(out)), "\x1f")
-						if len(parts) >= 1 && parts[0] != "" {
-							msg = parts[0]
+			if len(activeSHA) == 40 {
+				if d, ok := existing[activeSHA]; ok {
+					if d.Status == cuanDB.DeploymentStatusBuilding || d.Status == cuanDB.DeploymentStatusQueued {
+						now := time.Now().UTC()
+						d.Status = cuanDB.DeploymentStatusSuccess
+						d.CompletedAt = &now
+						if !d.StartedAt.IsZero() {
+							d.DurationSeconds = max(1, int(now.Sub(d.StartedAt).Seconds()))
 						}
-						if len(parts) >= 2 && parts[1] != "" {
-							author = parts[1]
+						for idx := range d.Steps {
+							d.Steps[idx].Status = cuanDB.StepStatusSuccess
+							if d.Steps[idx].CompletedAt == nil {
+								d.Steps[idx].CompletedAt = &now
+							}
+						}
+						if s.projectDeploymentRepo != nil {
+							_ = s.projectDeploymentRepo.Update(ctx, d)
 						}
 					}
+				} else {
+					msg := fmt.Sprintf("Release %s activated", activeSHA[:7])
+					author := "Buchin"
+					if repoDir != "" {
+						cmd := exec.CommandContext(ctx, "git", "log", "-n", "1", "--format=%s%x1f%an", activeSHA)
+						cmd.Dir = repoDir
+						if out, err := cmd.Output(); err == nil {
+							parts := strings.Split(strings.TrimSpace(string(out)), "\x1f")
+							if len(parts) >= 1 && parts[0] != "" {
+								msg = parts[0]
+							}
+							if len(parts) >= 2 && parts[1] != "" {
+								author = parts[1]
+							}
+						}
+					}
+					now := time.Now().UTC()
+					newDep := &cuanDB.ProjectDeployment{
+						ID:              fmt.Sprintf("dep_%s", activeSHA[:16]),
+						ProjectID:       proj.ID,
+						CommitSHA:       activeSHA,
+						ShortSHA:        activeSHA[:7],
+						CommitMessage:   msg,
+						Branch:          branch,
+						Status:          cuanDB.DeploymentStatusSuccess,
+						TriggerSource:   cuanDB.TriggerSourceCLI,
+						TriggerAuthor:   author,
+						DurationSeconds: 42,
+						StartedAt:       now.Add(-42 * time.Second),
+						CompletedAt:     &now,
+						CreatedAt:       now.Add(-42 * time.Second),
+						UpdatedAt:       now,
+						Steps:           generateStandardDeploymentSteps(branch, activeSHA, msg, cuanDB.DeploymentStatusSuccess),
+					}
+					if s.projectDeploymentRepo != nil {
+						_ = s.projectDeploymentRepo.Create(ctx, newDep)
+					}
+					existing[activeSHA] = newDep
+					deployments = append(deployments, newDep)
 				}
-				now := time.Now().UTC()
-				newDep := &cuanDB.ProjectDeployment{
-					ID:              fmt.Sprintf("dep_%s", activeSHA[:16]),
-					ProjectID:       proj.ID,
-					CommitSHA:       activeSHA,
-					ShortSHA:        activeSHA[:7],
-					CommitMessage:   msg,
-					Branch:          branch,
-					Status:          cuanDB.DeploymentStatusSuccess,
-					TriggerSource:   cuanDB.TriggerSourceCLI,
-					TriggerAuthor:   author,
-					DurationSeconds: 42,
-					StartedAt:       now.Add(-42 * time.Second),
-					CompletedAt:     &now,
-					CreatedAt:       now.Add(-42 * time.Second),
-					UpdatedAt:       now,
-					Steps:           generateStandardDeploymentSteps(branch, activeSHA, msg, cuanDB.DeploymentStatusSuccess),
-				}
-				if s.projectDeploymentRepo != nil {
-					_ = s.projectDeploymentRepo.Create(ctx, newDep)
-				}
-				existing[activeSHA] = newDep
-				deployments = append(deployments, newDep)
 			}
 		}
 
@@ -371,7 +391,24 @@ func (s *Server) reconcileProjectDeployments(ctx context.Context, proj *project.
 			})
 
 			for _, r := range relList {
-				if existing[r.sha] != nil {
+				if d, ok := existing[r.sha]; ok {
+					if d.Status == cuanDB.DeploymentStatusBuilding || d.Status == cuanDB.DeploymentStatusQueued {
+						now := time.Now().UTC()
+						d.Status = cuanDB.DeploymentStatusSuccess
+						d.CompletedAt = &now
+						if !d.StartedAt.IsZero() {
+							d.DurationSeconds = max(1, int(now.Sub(d.StartedAt).Seconds()))
+						}
+						for idx := range d.Steps {
+							d.Steps[idx].Status = cuanDB.StepStatusSuccess
+							if d.Steps[idx].CompletedAt == nil {
+								d.Steps[idx].CompletedAt = &now
+							}
+						}
+						if s.projectDeploymentRepo != nil {
+							_ = s.projectDeploymentRepo.Update(ctx, d)
+						}
+					}
 					continue
 				}
 				msg := fmt.Sprintf("Release %s", r.sha[:7])
@@ -1282,7 +1319,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 			ranDeployScript = true
 			buildLog.WriteString(fmt.Sprintf("Executing repository deployment script at %s\n", repoScript))
 			deployArgs := []string{repoScript}
-			if fileExists(filepath.Join(repoDir, "cmd", "server")) && dirExists("/opt/cuan/releases") {
+			if dirExists(filepath.Join(repoDir, "cmd", "server")) && dirExists("/opt/cuan/releases") {
 				deployArgs = append(deployArgs, "--local", "--native-sync", "--branch", branch, "--allow-divergent")
 			}
 			cmd := exec.CommandContext(ctx, "bash", deployArgs...)
