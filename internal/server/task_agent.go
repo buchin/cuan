@@ -527,7 +527,17 @@ func (s *Server) handleTaskAgent(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	if report.State == "review" || report.State == "blocked" || report.State == "done" {
+	cleanTitle := ""
+	if updated != nil {
+		cleanTitle = strings.TrimSpace(updated.Title)
+	}
+	isDedicatedTerminal := strings.HasPrefix(cleanTitle, "Terminal ·") || strings.HasPrefix(cleanTitle, "Terminal -") || strings.HasPrefix(cleanTitle, "Terminal:")
+	if !isDedicatedTerminal && s.taskSvc != nil {
+		if att, err := s.taskSvc.GetAttempt(context.Background(), g.AttemptID); err == nil && att != nil && att.RunnerID == "local_terminal" {
+			isDedicatedTerminal = true
+		}
+	}
+	if !isDedicatedTerminal && (report.State == "review" || report.State == "blocked" || report.State == "done") {
 		// A report is a claim, not acceptance. Publication must not race the
 		// runner's process-exit, repository verification and deployment gates.
 		// Return the tool response before closing its parent PTY. Never stop a later

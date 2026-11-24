@@ -165,10 +165,10 @@ export function workStatus(task: Task) {
   if (attempt === 'queued') return 'Queued'
   if (attempt === 'canceled' || attempt === 'cancelled') return 'Cancelled'
   if (task.status === 'review') return task.result_kind === 'answer' && ['succeeded', 'completed'].includes(attempt || '') ? 'Answered' : 'Ready for review'
-  if ((task.status as string) === 'queued' || (task.status as string) === 'pending') return 'Queued'
   if (task.launch?.state === 'stopped') return 'Needs attention'
   if (task.launch?.state === 'cancelled') return 'Cancelled'
   if (task.status === 'blocked' || ['failed', 'interrupted'].includes(attempt || '')) return 'Needs attention'
+  if ((task.status as string) === 'queued' || (task.status as string) === 'pending') return 'Queued'
   if (task.status === 'doing') return 'Not running'
   return 'Not started'
 }

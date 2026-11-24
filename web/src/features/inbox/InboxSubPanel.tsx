@@ -196,8 +196,10 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
   const totalTasks = contact.task_count !== undefined
     ? Math.max(0, contact.task_count - (contact.canceled_tasks || 0))
     : (progModel?.total ?? 0)
-  const allTasksDone = (totalTasks > 0 || !!progModel) && (progModel ? progModel.complete : doneTasks >= totalTasks)
+  const hasTasks = totalTasks > 0 || !!progModel
+  const allTasksDone = hasTasks && (progModel ? progModel.complete : doneTasks >= totalTasks)
   const isResolved = Boolean(contact.resolved)
+  const isComplete = isResolved || allTasksDone
   const isWorking = hasActiveWork
 
   const cachedSubstage = id ? getRoomActiveSubstage(id) : undefined
@@ -209,8 +211,6 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
     substage === 'Menunggu antrean' ||
     substage === 'Queued'
   )
-  const isComplete = (isResolved || allTasksDone) && !isWorking && !isQueued
-  const hasTasks = totalTasks > 0 || !!progModel || isQueued
 
   const fraction = progModel ? progModel.fraction : (totalTasks > 0 ? doneTasks / totalTasks : 0)
   const angle = fraction * Math.PI * 2

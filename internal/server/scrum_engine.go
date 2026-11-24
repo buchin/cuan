@@ -15,8 +15,14 @@ import (
 )
 
 // InitScrumEngine initializes the autonomous event-driven Scrum Engine,
-// binding completion listeners to runner events.
+// binding completion listeners to runner events and deploy completion listeners.
 func (s *Server) InitScrumEngine(ctx context.Context) {
+	if s.deployCoordinator != nil {
+		s.deployCoordinator.SetOnDeploySuccess(func(bgCtx context.Context, job DeployJob) {
+			s.reconcileVerifiedPublicationTasks(bgCtx)
+		})
+	}
+
 	bus := runner.GlobalEventBus
 	if s.runnerSvc != nil && s.runnerSvc.EventBus() != nil {
 		bus = s.runnerSvc.EventBus()

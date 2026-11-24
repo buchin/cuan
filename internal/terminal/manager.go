@@ -381,21 +381,47 @@ func (m *Manager) GetProjectSession(projectID string) (*Session, bool) {
 	return sess, true
 }
 
-// CloseProjectSession explicitly terminates and removes a project's terminal session.
+// CloseProjectSession explicitly terminates and removes a project's terminal session and associated runner sessions.
 func (m *Manager) CloseProjectSession(projectID string) error {
 	key := ProjectSessionKey(projectID)
 	m.mu.Lock()
-	sess, exists := m.sessions[key]
-	if exists {
+	var toClose []*Session
+	if sess, exists := m.sessions[key]; exists {
+		toClose = append(toClose, sess)
 		delete(m.sessions, key)
 	}
+	if activeTaskID, exists := m.projectSessions[projectID]; exists && activeTaskID != "" {
+		if taskSess, ok := m.sessions[activeTaskID]; ok && taskSess != nil {
+			toClose = append(toClose, taskSess)
+			delete(m.sessions, activeTaskID)
+		}
+	}
 	delete(m.projectSessions, projectID)
+	if m.taskAliases != nil {
+		for tID, targetKey := range m.taskAliases {
+			if targetKey == key {
+				delete(m.taskAliases, tID)
+			}
+		}
+	}
 	m.mu.Unlock()
 
-	if !exists {
+	var firstErr error
+	for _, sess := range toClose {
+		if err := sess.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+// ResetProjectSession explicitly terminates and removes any active terminal session and aliases for a project.
+func (m *Manager) ResetProjectSession(projectID string) error {
+	if projectID == "" {
 		return nil
 	}
-	return sess.Close()
+	_ = TerminateProjectWorker(projectID)
+	return m.CloseProjectSession(projectID)
 }
 
 // RegisterTaskAlias links a task ID to an underlying session key (e.g. dedicated project terminal).
@@ -1244,19 +1270,28 @@ func (m *Manager) GetProjectActiveRunner(projectID string) *ProjectActiveRunner 
 	if projectID == "" {
 		return nil
 	}
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
 	activeTaskID, exists := m.projectSessions[projectID]
 	if !exists || activeTaskID == "" {
+		m.mu.Unlock()
 		return nil
 	}
 	sess, ok := m.sessions[activeTaskID]
 	if !ok || sess.IsClosed() {
+		delete(m.projectSessions, projectID)
+		m.mu.Unlock()
 		return nil
 	}
 	var pid int
 	if sess.PTY() != nil {
 		pid = sess.PTY().PID()
+		if pid <= 0 || (syscall.Kill(pid, 0) != nil && errors.Is(syscall.Kill(pid, 0), syscall.ESRCH)) {
+			delete(m.projectSessions, projectID)
+			delete(m.sessions, activeTaskID)
+			_ = sess.Close()
+			m.mu.Unlock()
+			return nil
+		}
 	}
 	var output string
 	if buf := sess.historyBuffer; buf != nil {
@@ -1267,14 +1302,36 @@ func (m *Manager) GetProjectActiveRunner(projectID string) *ProjectActiveRunner 
 			output = string(b)
 		}
 	}
+	createdAt := sess.CreatedAt()
+	lastActivity := sess.LastActivity()
+	m.mu.Unlock()
+
 	return &ProjectActiveRunner{
 		ProjectID:    projectID,
 		TaskID:       activeTaskID,
 		PID:          pid,
-		CreatedAt:    sess.CreatedAt(),
-		LastActivity: sess.LastActivity(),
+		CreatedAt:    createdAt,
+		LastActivity: lastActivity,
 		RecentOutput: output,
 	}
+}
+
+// ActiveProjectRunners returns a snapshot of all active project runners with live processes.
+func (m *Manager) ActiveProjectRunners() []*ProjectActiveRunner {
+	m.mu.RLock()
+	var projects []string
+	for pID := range m.projectSessions {
+		projects = append(projects, pID)
+	}
+	m.mu.RUnlock()
+
+	var result []*ProjectActiveRunner
+	for _, pID := range projects {
+		if active := m.GetProjectActiveRunner(pID); active != nil {
+			result = append(result, active)
+		}
+	}
+	return result
 }
 
 // ensureResourceGuardrailEnv injects sensible resource constraints into task runner environments

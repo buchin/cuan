@@ -86,11 +86,14 @@ export function TaskStartingPage({ taskId }: { taskId: string }) {
           }
         } catch {}
       }
-      if (currentStatus === 'done') {
+      if (currentStatus === 'done' || currentStatus === 'cancelled' || currentStatus === 'canceled') {
         try {
           await tasksApi.updateStatus(taskId, 'todo')
           if (mounted.current) setTaskStatus('doing')
         } catch {}
+      }
+      if (!request.runner_id && (title.startsWith('Terminal') || title.includes('Terminal'))) {
+        request.runner_id = 'local_terminal'
       }
       const result = await tasksApi.runAgent(taskId, request)
       if (!result.attempt) throw new Error('The session was not confirmed.')
@@ -178,9 +181,16 @@ export function TaskStartingPage({ taskId }: { taskId: string }) {
           <p className="break-words text-sm text-muted-foreground">{title}</p>
         )}
         {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
+          <div className="space-y-1">
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+            {title.startsWith('Terminal ·') && (
+              <p className="text-xs text-muted-foreground">
+                Kapasitas model utama mungkin sedang dalam antrian atau cooldown. Anda dapat mencoba lagi atau memilih agent / model lain di bawah ini.
+              </p>
+            )}
+          </div>
         )}
 
         {!request && !busy && agents.length > 0 && (
@@ -207,12 +217,21 @@ export function TaskStartingPage({ taskId }: { taskId: string }) {
               onClick={async () => {
                 setBusy(true)
                 setError('')
+                const isTerminal =
+                  title.startsWith('Terminal') ||
+                  title.includes('Terminal')
                 const req: RunTaskRequest = {
                   request_id: crypto.randomUUID(),
                   agent_id: selectedAgent,
+                  runner_id: isTerminal ? 'local_terminal' : undefined,
                 }
                 try {
-                  if (error.includes('Reopen the completed task') || taskStatus === 'done') {
+                  if (
+                    error.includes('Reopen the completed task') ||
+                    taskStatus === 'done' ||
+                    taskStatus === 'cancelled' ||
+                    taskStatus === 'canceled'
+                  ) {
                     await tasksApi.updateStatus(taskId, 'todo')
                     setTaskStatus('doing')
                   }

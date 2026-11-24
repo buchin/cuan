@@ -131,5 +131,8 @@ func (r *taskOutputRecorder) recordQuotaCooldown(owner, accountID, model string)
 	plain := strings.Join(strings.Fields(taskOutputANSI.ReplaceAllString(r.quotaTail, "")), " ")
 	r.mu.Unlock()
 	duration, _, _ := agent.ParseProviderQuotaResetDuration(plain)
+	if duration > 24*time.Hour {
+		duration = 24 * time.Hour
+	}
 	return agent.RecordProviderModelQuotaWithDuration(owner, accountID, model, duration)
 }

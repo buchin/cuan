@@ -27,6 +27,8 @@ func RunProjectCLI(args []string, in io.Reader, out, errOut io.Writer) int {
 	const help = `Cuan project environments (same settings as the application UI)
 
 Usage:
+  cuan project list [--limit N]
+  cuan project get PROJECT_ID
   cuan project settings show PROJECT_ID
   cuan project settings set PROJECT_ID [--deploy-script TEXT] [--auto-deploy true|false] [--deploy-branch TEXT]
   cuan project guidance show PROJECT_ID
@@ -45,6 +47,12 @@ Changes apply to new tasks; existing tasks retain their environment snapshot.`
 	if len(args) == 0 || args[0] == "--help" || args[0] == "help" {
 		fmt.Fprintln(out, help)
 		return 0
+	}
+	if args[0] == "list" {
+		return runProjectListCLI(args[1:], out, errOut)
+	}
+	if args[0] == "get" {
+		return runProjectGetCLI(args[1:], out, errOut)
 	}
 	if args[0] == "settings" {
 		return runProjectSettingsCLI(args[1:], out, errOut)
@@ -161,4 +169,52 @@ func parseEnvironmentInput(raw string) (map[string]string, error) {
 		values[key] = value
 	}
 	return values, nil
+}
+
+func runProjectListCLI(args []string, out, errOut io.Writer) int {
+	client := GetCuanClient()
+	if client == nil || !client.IsConfigured() {
+		fmt.Fprintln(errOut, "configure Cuan API URL and auth token first")
+		return 1
+	}
+	fs := flag.NewFlagSet("project list", flag.ContinueOnError)
+	fs.SetOutput(errOut)
+	limit := fs.Int("limit", 20, "Maximum projects to return")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	projects, err := client.ListProjects(ctx, *limit)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	enc := json.NewEncoder(out)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(map[string]any{"projects": projects, "total": len(projects)})
+	return 0
+}
+
+func runProjectGetCLI(args []string, out, errOut io.Writer) int {
+	if len(args) == 0 {
+		fmt.Fprintln(errOut, "project ID or name is required")
+		return 2
+	}
+	client := GetCuanClient()
+	if client == nil || !client.IsConfigured() {
+		fmt.Fprintln(errOut, "configure Cuan API URL and auth token first")
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	proj, err := client.GetProject(ctx, args[0])
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	enc := json.NewEncoder(out)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(proj)
+	return 0
 }

@@ -41,6 +41,9 @@ func TestCoordinatorResponseActionsUseExistingContracts(t *testing.T) {
 		{"schedule", inboxScheduleAction{Action: "create", Title: "Daily Routine", ScheduleType: "daily", TimeOfDay: "03:00"}, "cuan-schedule"},
 		{"project", inboxProjectAction{Action: "create", Name: "My New Project"}, "cuan-project"},
 		{"skill", inboxSkillAction{Action: "toggle", AgentID: "agent_dev", SkillID: "vision_receipt_extractor", Enabled: &trueVal}, "cuan-skill"},
+		{"team", inboxTeamAction{Action: "invite", Email: "dev@example.com", Role: "member"}, "cuan-team"},
+		{"brain", inboxBrainAction{Action: "set_model", Provider: "openai", Model: "gpt-4o"}, "cuan-brain"},
+		{"brand_memory", inboxBrandMemoryAction{Action: "add", Category: "brand", Topic: "Tone", Content: "Ramah dan solutif"}, "cuan-brand-memory"},
 	}
 	for _, c := range cases {
 		t.Run(c.kind+c.marker, func(t *testing.T) {

@@ -2,12 +2,15 @@ import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import { ListRowContent } from '../../components/layout/ListControls'
 import { ItemActions } from '../../components/ui/ItemActions'
 import { useCallback, useEffect, useState } from 'react'
-import { Bot, Plus, RefreshCw } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Bot, Plus, RefreshCw, Terminal } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { useAuth } from '../../context/AuthContext'
 import { aiProvidersApi, type AIProviderDTO } from '../../api/aiProviders'
 import { accountsApi, type ProviderAccount } from '../../api/accounts'
 import { agentsApi, type Agent } from '../../api/agents'
+import { tasksApi } from '../../api/tasks'
+import { projectsApi } from '../../api/projects'
 import { AddBrainModal } from './AddBrainModal'
 import { AccountModelPicker } from './AccountModelPicker'
 import { AccountUsageDetails } from './AccountUsageDetails'
@@ -79,6 +82,78 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
   const [drawerNotice, setDrawerNotice] = useState('')
   const [checking, setChecking] = useState(false)
   const [disconnectOpen, setDisconnectOpen] = useState(false)
+  const [terminalLaunching, setTerminalLaunching] = useState<string | null>(null)
+  const navigate = useNavigate()
+
+  const openTerminalForBrain = useCallback(async (brain: Brain) => {
+    if (terminalLaunching) return
+    setTerminalLaunching(brain.id)
+    setError('')
+    try {
+      const brainLabel = brain.label || brain.id
+      const taskTitle = `Terminal · ${brainLabel}`
+      let targetTask = null
+      try {
+        const res = await tasksApi.page({ search: taskTitle, page_size: 10 })
+        targetTask = res.tasks.find(
+          (t) => t.title === taskTitle && (t.status as string) !== 'cancelled',
+        )
+      } catch {}
+
+      const assignedAgentId = brain.account?.agent_id || primary?.id || 'agent_cuan'
+      const accountId = brain.account?.id || (brain.id.startsWith('byok_') ? '' : brain.id)
+
+      let targetProject = null
+      try {
+        const projectList = await projectsApi.list()
+        targetProject = projectList.find(p => !p.is_archived && p.name.toLowerCase() === 'cuan') || projectList.find(p => !p.is_archived) || null
+      } catch {}
+
+      const projId = targetProject?.id || 'default'
+
+      if (!targetTask) {
+        targetTask = await tasksApi.create({
+          title: taskTitle,
+          project_id: projId,
+          project_ids: [projId],
+          description: `Interactive terminal session to test and evaluate AI brain: ${brainLabel}.`,
+          assignee_id: assignedAgentId,
+        })
+      } else if (
+        targetTask.status === 'done' ||
+        (targetTask.status as string) === 'cancelled' ||
+        (targetTask.status as string) === 'canceled'
+      ) {
+        try {
+          await tasksApi.updateStatus(targetTask.id, 'todo')
+        } catch {}
+      }
+
+      const launchPayload = {
+        request_id: crypto.randomUUID(),
+        agent_id: assignedAgentId,
+        account_id: accountId,
+        runner_id: 'local_terminal',
+      }
+
+      try {
+        localStorage.setItem('cuan_terminal_pin', 'true')
+        localStorage.setItem('cuan-task-launch:' + targetTask.id, JSON.stringify(launchPayload))
+      } catch {}
+
+      const targetSessionId = 'latest'
+      const accountParam = accountId ? `&account_id=${encodeURIComponent(accountId)}` : ''
+      navigate(`/tasks/${encodeURIComponent(targetTask.id)}/sessions/${encodeURIComponent(targetSessionId)}?terminal=open${accountParam}`, {
+        state: {
+          taskReturnTo: '/settings/agent',
+        },
+      })
+    } catch {
+      setError(t('Could not start terminal session for this brain. Try again.'))
+    } finally {
+      setTerminalLaunching(null)
+    }
+  }, [terminalLaunching, primary?.id, navigate, t])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -225,11 +300,27 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
       <div className="flex items-center justify-between gap-3"><h3 className="text-base font-semibold">{t('AI brains')}</h3>{isOwner && <button className="action-secondary inline-flex items-center gap-1.5" onClick={() => setAddOpen(true)}><Plus className="h-4 w-4" />{t('Add brain')}</button>}</div>
       <p className="text-sm leading-6 text-muted-foreground">{t('Cuan uses available capacity automatically. Open a connection to edit its model or connection details.')}</p>
       {loading ? <p role="status" className="py-5 text-sm text-muted-foreground">{t('Loading…')}</p> : brains.length === 0 ? <p className="py-5 text-sm text-muted-foreground">{t('Connect an AI brain to get started.')}</p> : <GroupedSection inset={false} containerClassName="!bg-transparent">
-        {brains.map(brain => <ItemActions key={brain.id} label={brain.label} actions={[{ label: 'Edit brain', run: () => openBrain(brain) }, ...(isOwner ? [{ label: 'Disconnect brain', run: () => { openBrain(brain); setDisconnectOpen(true) } }] : [])]}>
-          <button className="flex min-h-[76px] w-full items-center gap-3 py-3 text-left hover:bg-muted/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => openBrain(brain)} aria-label={t('Edit brain') + ': ' + brain.label}>
-            <ListRowContent leading={<span className="flex h-9 w-9 items-center justify-center bg-muted/50 text-xs text-muted-foreground">{brain.provider.slice(0,1).toUpperCase()}</span>} title={brain.label}
-              description={<><span className="block whitespace-normal break-all">{brain.account ? (brain.account.email || t('Email identity unavailable')) : brain.provider}</span><span className="mt-1 block whitespace-normal">{brain.provider} · {statusText(brain.state)}</span>{brain.account && <BrainQuotaTag account={brain.account} />}</>} />
-          </button>
+        {brains.map(brain => <ItemActions key={brain.id} label={brain.label} actions={[{ label: t('Uji coba Terminal'), run: () => void openTerminalForBrain(brain) }, { label: 'Edit brain', run: () => openBrain(brain) }, ...(isOwner ? [{ label: 'Disconnect brain', run: () => { openBrain(brain); setDisconnectOpen(true) } }] : [])]}>
+          <div className="flex min-h-[76px] w-full items-center justify-between gap-3 px-3 py-3 hover:bg-muted/20">
+            <button className="flex flex-1 min-w-0 items-center gap-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => openBrain(brain)} aria-label={t('Edit brain') + ': ' + brain.label}>
+              <ListRowContent leading={<span className="flex h-9 w-9 items-center justify-center bg-muted/50 text-xs text-muted-foreground">{brain.provider.slice(0,1).toUpperCase()}</span>} title={brain.label}
+                description={<><span className="block whitespace-normal break-all">{brain.account ? (brain.account.email || t('Email identity unavailable')) : brain.provider}</span><span className="mt-1 block whitespace-normal">{brain.provider} · {statusText(brain.state)}</span>{brain.account && <BrainQuotaTag account={brain.account} />}</>} />
+            </button>
+            <button
+              type="button"
+              className="action-secondary inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium shrink-0"
+              disabled={terminalLaunching === brain.id}
+              onClick={(e) => {
+                e.stopPropagation()
+                void openTerminalForBrain(brain)
+              }}
+              title={t('Uji coba di terminal')}
+              aria-label={`${t('Uji coba terminal')}: ${brain.label}`}
+            >
+              <Terminal className="h-3.5 w-3.5 text-primary" />
+              <span className="hidden sm:inline">{terminalLaunching === brain.id ? t('Starting…') : t('Terminal')}</span>
+            </button>
+          </div>
         </ItemActions>)}
 
       </GroupedSection>}
@@ -237,7 +328,10 @@ export function AgentSettingsView({ showHeading = true }: { showHeading?: boolea
     <SlideDrawer isOpen={!!selected} onClose={closeDrawer} title={t('Brain settings')} description={selected?.label} size="md">
       {selected && <div className="space-y-6">
         <div className="space-y-3 border-t border-border/40 pt-5"><h3 className="text-sm font-medium">{t('Connection')}</h3><p className="text-sm text-muted-foreground">{statusText(selected.state)}</p>{selected.account && <div className="space-y-1 text-sm"><p className="break-all">{selected.account.email || t('Email identity unavailable')}</p><p className="text-xs leading-5 text-muted-foreground">{t('Subscription account. Check the connection to refresh its email identity.')}</p></div>}{selected.account?.message && <p className="break-words text-xs leading-6 text-muted-foreground">{selected.account.message}</p>}{selected.account?.quota_retry_at && <p className="text-xs text-muted-foreground">{t('Next capacity check')}: {new Date(selected.account.quota_retry_at).toLocaleString()}</p>}{selected.byok?.api_key_masked && <p className="text-xs font-mono text-muted-foreground">{selected.byok.api_key_masked}</p>}
-          <button type="button" className="action-secondary inline-flex items-center gap-2" disabled={checking || busy} onClick={() => void checkBrain()}><RefreshCw className={`h-4 w-4 ${checking ? 'animate-spin' : ''}`} />{t(checking ? 'Checking…' : 'Check connection')}</button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" className="action-secondary inline-flex items-center gap-2" disabled={checking || busy} onClick={() => void checkBrain()}><RefreshCw className={`h-4 w-4 ${checking ? 'animate-spin' : ''}`} />{t(checking ? 'Checking…' : 'Check connection')}</button>
+            <button type="button" className="action-secondary inline-flex items-center gap-2" disabled={checking || busy || !!terminalLaunching} onClick={() => void openTerminalForBrain(selected)}><Terminal className="h-4 w-4 text-primary" />{t('Uji coba di terminal')}</button>
+          </div>
         </div>
         <form onSubmit={saveBrain} className="space-y-5">
           {!selected.account && <p className="text-sm font-medium">{selected.label}</p>}

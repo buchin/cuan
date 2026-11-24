@@ -151,7 +151,28 @@ func (s *Server) handleTaskTerminalWebSocket(w http.ResponseWriter, r *http.Requ
 	if tDetail != nil {
 		cleanTitle = strings.TrimSpace(tDetail.Title)
 	}
-	isDedicatedTerminalTask := tDetail != nil && (strings.HasPrefix(cleanTitle, "Terminal ·") || strings.HasPrefix(cleanTitle, "Terminal -") || strings.HasPrefix(cleanTitle, "Terminal:")) && targetProjID != ""
+	if cleanTitle == "" && s.projectStudioRepo != nil {
+		if pt, err := s.projectStudioRepo.GetTaskByID(r.Context(), taskID); err == nil && pt != nil {
+			cleanTitle = strings.TrimSpace(pt.Title)
+		}
+	}
+	isDedicatedTerminalTask := (cleanTitle != "" && (strings.HasPrefix(cleanTitle, "Terminal ") || strings.HasPrefix(cleanTitle, "Terminal·") || strings.HasPrefix(cleanTitle, "Terminal:") || strings.HasPrefix(cleanTitle, "Terminal-") || strings.Contains(cleanTitle, "Terminal ·"))) ||
+		r.URL.Query().Get("runner_id") == "local_terminal" ||
+		(r.URL.Query().Get("mode") == "interactive" && strings.HasPrefix(cleanTitle, "Terminal"))
+
+	if targetProjID == "" && isDedicatedTerminalTask && s.projectSvc != nil {
+		if projs, err := s.projectSvc.List(r.Context()); err == nil && len(projs) > 0 {
+			for _, p := range projs {
+				if strings.EqualFold(p.Name, "cuan") {
+					targetProjID = p.ID
+					break
+				}
+			}
+			if targetProjID == "" {
+				targetProjID = projs[0].ID
+			}
+		}
+	}
 	isCancelled := tDetail != nil && (tDetail.Status == task.TaskStatusCancelled || tDetail.Status == "canceled")
 
 	if isDedicatedTerminalTask {
@@ -173,9 +194,6 @@ func (s *Server) handleTaskTerminalWebSocket(w http.ResponseWriter, r *http.Requ
 					if tDetail.LatestAttempt.Status != task.AttemptStatusRunning {
 						_, _ = s.taskSvc.UpdateAttemptStatus(r.Context(), tDetail.LatestAttempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning})
 					}
-				} else if tDetail.LatestAttempt != nil && terminal.ProjectSocketExists(targetProjID) {
-					activeAttID = tDetail.LatestAttempt.ID
-					_, _ = s.taskSvc.UpdateAttemptStatus(r.Context(), tDetail.LatestAttempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusRunning})
 				} else {
 					if att, err := s.taskSvc.CreateAttempt(r.Context(), taskID, "runner", task.CreateAttemptRequest{
 						RunnerID:  "local_terminal",
@@ -288,6 +306,85 @@ func (s *Server) handleGetTerminalSessionsStatus(w http.ResponseWriter, r *http.
 	})
 }
 
+// handleGetActiveTerminalStatus returns status of active project terminal runners and sessions.
+// GET /api/terminal/active or GET /api/v1/terminal/active
+// Optional query parameter: ?project_id=... (or ?id=...)
+func (s *Server) handleGetActiveTerminalStatus(w http.ResponseWriter, r *http.Request) {
+	if s.terminalManager == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "terminal manager is not configured")
+		return
+	}
+
+	projectID := strings.TrimSpace(r.URL.Query().Get("project_id"))
+	if projectID == "" {
+		projectID = strings.TrimSpace(r.URL.Query().Get("id"))
+	}
+
+	if projectID != "" {
+		active := s.terminalManager.GetProjectActiveRunner(projectID)
+		if active == nil {
+			respondJSON(w, http.StatusOK, map[string]interface{}{
+				"active":     false,
+				"project_id": projectID,
+			})
+			return
+		}
+		respondJSON(w, http.StatusOK, map[string]interface{}{
+			"active":        true,
+			"project_id":    active.ProjectID,
+			"task_id":       active.TaskID,
+			"pid":           active.PID,
+			"created_at":    active.CreatedAt.Format(time.RFC3339),
+			"last_activity": active.LastActivity.Format(time.RFC3339),
+			"recent_output": active.RecentOutput,
+		})
+		return
+	}
+
+	activeRunners := s.terminalManager.ActiveProjectRunners()
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"active":   len(activeRunners) > 0,
+		"count":    len(activeRunners),
+		"runners":  activeRunners,
+		"sessions": activeRunners,
+	})
+}
+
+// handleResetActiveTerminalStatus cleanly terminates and resets active terminal sessions for a project or all projects.
+// DELETE /api/terminal/active or DELETE /api/v1/terminal/active
+// Optional query parameter: ?project_id=... (or ?id=...)
+func (s *Server) handleResetActiveTerminalStatus(w http.ResponseWriter, r *http.Request) {
+	if s.terminalManager == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "terminal manager is not configured")
+		return
+	}
+
+	projectID := strings.TrimSpace(r.URL.Query().Get("project_id"))
+	if projectID == "" {
+		projectID = strings.TrimSpace(r.URL.Query().Get("id"))
+	}
+
+	if projectID != "" {
+		_ = terminal.TerminateProjectWorker(projectID)
+		_ = s.terminalManager.CloseProjectSession(projectID)
+		if s.taskSvc != nil {
+			_ = s.taskSvc.FinishTaskLaunches(r.Context(), projectID, "stopped")
+		}
+		s.kickTaskLaunches()
+		respondJSON(w, http.StatusOK, map[string]interface{}{
+			"status":     "reset",
+			"project_id": projectID,
+		})
+		return
+	}
+
+	_ = s.terminalManager.CloseAll()
+	s.kickTaskLaunches()
+	respondJSON(w, http.StatusOK, map[string]interface{}{
+		"status": "reset_all",
+	})
+}
+
 // handleCloseTaskTerminalSession terminates an active terminal session for a task.
 // DELETE /api/tasks/{id}/terminal or DELETE /api/v1/tasks/{id}/terminal
 func (s *Server) handleCloseTaskTerminalSession(w http.ResponseWriter, r *http.Request) {
@@ -327,6 +424,7 @@ func (s *Server) handleCloseTaskTerminalSession(w http.ResponseWriter, r *http.R
 	if s.terminalManager != nil {
 		_ = s.terminalManager.CloseSession(taskID)
 	}
+	s.kickTaskLaunches()
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"status":  "closed",
@@ -434,13 +532,32 @@ func (s *Server) handleProjectTerminalWebSocket(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	requestedAccountID := strings.TrimSpace(r.URL.Query().Get("account_id"))
+	if requestedAccountID == "" {
+		requestedAccountID = strings.TrimSpace(r.URL.Query().Get("brain_id"))
+	}
 	if ownerID != "" {
-		if home, brain, release, err := agent.LeaseHealthyBrainForProject(ownerID, proj.ID, nil); err == nil && home != "" {
+		var home string
+		var brain *agent.ProviderAccount
+		var release func()
+		var err error
+
+		if requestedAccountID != "" {
+			if h, b, rel, e := agent.LeaseSpecificBrain(ownerID, requestedAccountID); e == nil {
+				home, brain, release = h, b, rel
+			}
+		}
+		if home == "" {
+			home, brain, release, err = agent.LeaseHealthyBrainForProject(ownerID, proj.ID, nil)
+		}
+		if err == nil && home != "" {
 			env = append(env, agent.AntigravityProfileEnvironment(home)...)
 			if brain != nil && brain.ModelID != "" {
 				env = append(env, "CUAN_AGENT_MODEL="+brain.ModelID)
 			}
-			release()
+			if release != nil {
+				release()
+			}
 		}
 	}
 
@@ -624,6 +741,7 @@ func (s *Server) handleCloseProjectTerminalSession(w http.ResponseWriter, r *htt
 
 	_ = terminal.TerminateProjectWorker(rawProjID)
 	_ = s.terminalManager.CloseProjectSession(rawProjID)
+	s.kickTaskLaunches()
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"status":     "closed",
 		"project_id": rawProjID,
@@ -689,6 +807,7 @@ type runTaskAgentPayload struct {
 	RequestID       string `json:"request_id"`
 	Revision        string `json:"revision"`
 	AgentID         string `json:"agent_id"`
+	AccountID       string `json:"account_id,omitempty"`
 	Prompt          string `json:"prompt"`
 	Binary          string `json:"binary"`
 	RunnerID        string `json:"runner_id,omitempty"`
@@ -818,11 +937,25 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			projID = pt.ProjectID
 		}
 	}
-	isDedicatedTerminalTask := (tDetail != nil && strings.HasPrefix(tDetail.Title, "Terminal ·")) || strings.HasPrefix(payload.Prompt, "Terminal ·")
+	cleanTaskTitle := ""
+	if tDetail != nil {
+		cleanTaskTitle = strings.TrimSpace(tDetail.Title)
+	}
+	if cleanTaskTitle == "" && s.projectStudioRepo != nil {
+		if pt, err := s.projectStudioRepo.GetTaskByID(r.Context(), taskID); err == nil && pt != nil {
+			cleanTaskTitle = strings.TrimSpace(pt.Title)
+		}
+	}
+	isDedicatedTerminalTask := (cleanTaskTitle != "" && (strings.HasPrefix(cleanTaskTitle, "Terminal ") || strings.HasPrefix(cleanTaskTitle, "Terminal·") || strings.HasPrefix(cleanTaskTitle, "Terminal:") || strings.HasPrefix(cleanTaskTitle, "Terminal-") || strings.Contains(cleanTaskTitle, "Terminal ·"))) ||
+		strings.HasPrefix(payload.Prompt, "Terminal") ||
+		payload.RunnerID == "local_terminal"
 	if !isDedicatedTerminalTask && projID != "" && s.isProjectLaneActive(r.Context(), projID, taskCategory, taskID) {
 		status := task.TaskStatusQueued
 		if s.taskSvc != nil {
 			_, _ = s.taskSvc.UpdateTask(r.Context(), taskID, "runner", task.UpdateTaskRequest{Status: &status})
+			if candidate, cErr := s.ensureTaskLaunchCandidate(r.Context(), taskID, payload.RequestID, ownerID, payload.AgentID, payload.Revision); cErr == nil && candidate != nil {
+				_, _ = s.taskSvc.SaveLaunch(r.Context(), *candidate)
+			}
 		}
 		if s.projectStudioRepo != nil {
 			_ = s.projectStudioRepo.UpdateTaskStatus(r.Context(), taskID, "queued")
@@ -954,7 +1087,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			}
 		}
 	}
-	nativePublicTask := expectedBinary == "agy" && registeredAgent.ID == db.AgentIDCuan && (payload.RunnerID == "" || payload.RunnerID == "cuan-runner")
+	nativePublicTask := !isDedicatedTerminalTask && expectedBinary == "agy" && registeredAgent.ID == db.AgentIDCuan && (payload.RunnerID == "" || payload.RunnerID == "cuan-runner")
 	if nativePublicTask {
 		// Admission must use the worker's selected-model and task-slot policy,
 		// not the separate chat router's legacy model fallbacks. Release this
@@ -967,39 +1100,85 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 		release()
 		profileHome = home
 	} else if expectedBinary == "agy" {
-		primary, _ := agent.ProviderAccountForConnection(ownerID, registeredAgent.ID, registeredAgent.ConnectionID)
-		limited := primary != nil && primary.State == "quota_limited"
-		routes := s.providerRoutes(r.Context(), ownerID, registeredAgent, profileHome, limited)
-		if needsVision {
-			visionRoutes := make([]inboxAccountRoute, 0, len(routes))
-			for _, r := range routes {
-				if r.model == "" || agent.IsModelVisionCapable("agy", r.model) {
-					visionRoutes = append(visionRoutes, r)
+		if payload.AccountID != "" {
+			if targetAcct, aErr := agent.GetProviderAccount(ownerID, payload.AccountID); aErr == nil && targetAcct != nil && targetAcct.CredentialsPresent {
+				if targetHome, hErr := agent.ProviderAccountHome(ownerID, targetAcct.ID); hErr == nil {
+					targetModel := targetAcct.ModelID
+					if targetModel == "" {
+						targetModel = "gemini-3.8-flash-high"
+					}
+					if release, lErr := s.leaseProviderRoute(r.Context(), ownerID, registeredAgent, inboxAccountRoute{
+						accountID: targetAcct.ID,
+						home:      targetHome,
+						model:     targetModel,
+						provider:  targetAcct.Provider,
+						primary:   true,
+					}); lErr == nil {
+						routeRelease = release
+						selectedAccountID = targetAcct.ID
+						selectedModel = targetModel
+						profileHome = targetHome
+						selected = &inboxAccountRoute{
+							accountID: targetAcct.ID,
+							home:      targetHome,
+							model:     targetModel,
+							provider:  targetAcct.Provider,
+							primary:   true,
+						}
+					}
 				}
-			}
-			routes = visionRoutes
-		}
-		if len(routes) == 0 {
-			msg := "No allowed account/model route is available. Check usage and fallback settings in Settings → Agents. The task has not started."
-			code := "provider_unavailable"
-			if needsVision {
-				msg = fmt.Sprintf("Task requires image/visual inspection, but no vision-capable model route is available for agent %s.", registeredAgent.Name)
-				code = "provider_vision_unsupported"
-			}
-			respondJSON(w, 409, map[string]string{"error": msg, "code": code})
-			return
-		}
-		for i := range routes {
-			release, err := s.leaseProviderRoute(r.Context(), ownerID, registeredAgent, routes[i])
-			if err == nil {
-				routeRelease = release
-				selected = &routes[i]
-				break
 			}
 		}
 		if selected == nil {
-			respondJSON(w, 409, map[string]string{"error": "All allowed AI account session slots are in use. The task has not started. Try again when a session finishes.", "code": "provider_capacity"})
-			return
+			primary, _ := agent.ProviderAccountForConnection(ownerID, registeredAgent.ID, registeredAgent.ConnectionID)
+			limited := primary != nil && primary.State == "quota_limited"
+			routes := s.providerRoutes(r.Context(), ownerID, registeredAgent, profileHome, limited)
+			if needsVision {
+				visionRoutes := make([]inboxAccountRoute, 0, len(routes))
+				for _, r := range routes {
+					if r.model == "" || agent.IsModelVisionCapable("agy", r.model) {
+						visionRoutes = append(visionRoutes, r)
+					}
+				}
+				routes = visionRoutes
+			}
+			for i := range routes {
+				release, err := s.leaseProviderRoute(r.Context(), ownerID, registeredAgent, routes[i])
+				if err == nil {
+					routeRelease = release
+					selected = &routes[i]
+					break
+				}
+			}
+			if selected == nil && isDedicatedTerminalTask {
+				if home, brain, rel, bErr := agent.LeaseHealthyBrain(ownerID, nil, needsVision); bErr == nil && brain != nil {
+					routeRelease = rel
+					profileHome = home
+					selectedModel = brain.ExecutionModelID()
+					selectedAccountID = brain.ID
+					selected = &inboxAccountRoute{
+						accountID: brain.ID,
+						home:      home,
+						model:     selectedModel,
+						provider:  brain.Provider,
+						primary:   false,
+					}
+				}
+			}
+			if selected == nil {
+				if len(routes) == 0 {
+					msg := "No allowed account/model route is available. Check usage and fallback settings in Settings → Agents. The task has not started."
+					code := "provider_unavailable"
+					if needsVision {
+						msg = fmt.Sprintf("Task requires image/visual inspection, but no vision-capable model route is available for agent %s.", registeredAgent.Name)
+						code = "provider_vision_unsupported"
+					}
+					respondJSON(w, 409, map[string]string{"error": msg, "code": code})
+					return
+				}
+				respondJSON(w, 409, map[string]string{"error": "All allowed AI account session slots are in use. The task has not started. Try again when a session finishes.", "code": "provider_capacity"})
+				return
+			}
 		}
 		profileHome = selected.home
 		selectedModel = selected.model
@@ -1098,13 +1277,13 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 				respondJSONError(w, 400, "Describe the changes needed before starting a revision")
 				return
 			}
-			if detail.Status == task.TaskStatusDone {
+			if detail.Status == task.TaskStatusDone || detail.Status == task.TaskStatusCancelled || detail.Status == "canceled" {
 				cleanTitle := strings.TrimSpace(detail.Title)
-				if strings.HasPrefix(cleanTitle, "Terminal ·") || strings.HasPrefix(cleanTitle, "Terminal -") || strings.HasPrefix(cleanTitle, "Terminal:") || strings.HasPrefix(payload.Prompt, "Terminal ·") {
+				if isDedicatedTerminalTask || strings.HasPrefix(cleanTitle, "Terminal") {
 					doingStatus := task.TaskStatusDoing
 					_, _ = s.taskSvc.UpdateTask(r.Context(), detail.ID, "runner", task.UpdateTaskRequest{Status: &doingStatus})
 					detail.Status = task.TaskStatusDoing
-				} else {
+				} else if detail.Status == task.TaskStatusDone {
 					respondJSONError(w, 409, "Reopen the completed task before starting a new session")
 					return
 				}
@@ -1237,7 +1416,7 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 				return
 			}
 			if runnerID == "" {
-				if agentID == "agent_lifecycle" || agentID == "agent_queued" || (detail != nil && strings.HasPrefix(detail.Title, "Terminal ·")) {
+				if isDedicatedTerminalTask || agentID == "agent_lifecycle" || agentID == "agent_queued" || (detail != nil && strings.HasPrefix(detail.Title, "Terminal")) {
 					runnerID = "local_terminal"
 				} else {
 					runnerID = "cuan-runner"
@@ -1491,6 +1670,12 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 							_ = s.taskSvc.ReconcileLocalTask(ctx, taskID, attempt.ID)
 							return
 						}
+					}
+					if isDedicatedTerminalTask {
+						// Dedicated interactive terminals never transition to 'done' or auto-stopped on exit.
+						// Retain their exit in attempt history, but do not set task to 'done'.
+						_, _ = s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusSucceeded, ExitCode: &h.ExitCode, ErrorMessage: note})
+						return
 					}
 					if h.EndReason == "agent_report" || (ready && h.ExitCode == 0) {
 						updatedAttempt, e = s.taskSvc.FinishReportedAttempt(ctx, attempt.ID, h.ExitCode)

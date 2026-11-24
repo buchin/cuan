@@ -77,6 +77,8 @@ func (s *Server) registerTasksRootRoutes(r chi.Router) {
 	r.Get("/api/projects/tasks/{id}/terminal", s.handleTaskTerminalWebSocket)
 	r.Delete("/api/projects/tasks/{id}/terminal", s.handleCloseTaskTerminalSession)
 	r.Get("/api/terminal/sessions", s.handleGetTerminalSessionsStatus)
+	r.Get("/api/terminal/active", s.handleGetActiveTerminalStatus)
+	r.Delete("/api/terminal/active", s.handleResetActiveTerminalStatus)
 
 	// Project Terminal Engine
 	r.Get("/api/projects/{id}/terminal", s.handleProjectTerminalWebSocket)
@@ -115,6 +117,8 @@ func (s *Server) registerTasksV1Routes(r chi.Router) {
 	r.Get("/projects/tasks/{id}/terminal", s.handleTaskTerminalWebSocket)
 	r.Delete("/projects/tasks/{id}/terminal", s.handleCloseTaskTerminalSession)
 	r.Get("/terminal/sessions", s.handleGetTerminalSessionsStatus)
+	r.Get("/terminal/active", s.handleGetActiveTerminalStatus)
+	r.Delete("/terminal/active", s.handleResetActiveTerminalStatus)
 
 	// Project Terminal Engine in v1
 	r.Get("/projects/{id}/terminal", s.handleProjectTerminalWebSocket)
@@ -237,8 +241,21 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 			req.ProjectID = active[0].ID
 			req.ProjectIDs = []string{active[0].ID}
 		} else if len(active) > 1 {
-			respondJSONError(w, 400, "Multiple active projects found. Choose an active project.")
-			return
+			cleanTitle := strings.TrimSpace(req.Title)
+			if strings.HasPrefix(cleanTitle, "Terminal ") || strings.HasPrefix(cleanTitle, "Terminal·") || strings.HasPrefix(cleanTitle, "Terminal:") || strings.HasPrefix(cleanTitle, "Terminal-") || strings.Contains(cleanTitle, "Terminal ·") {
+				chosen := active[0].ID
+				for _, p := range active {
+					if strings.EqualFold(p.Name, "cuan") {
+						chosen = p.ID
+						break
+					}
+				}
+				req.ProjectID = chosen
+				req.ProjectIDs = []string{chosen}
+			} else {
+				respondJSONError(w, 400, "Multiple active projects found. Choose an active project.")
+				return
+			}
 		} else {
 			p, err := s.projectSvc.EnsureDefault(r.Context())
 			if err != nil {
@@ -390,6 +407,17 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Status != nil {
+		if updated != nil && (updated.Status == task.TaskStatusDone || updated.Status == task.TaskStatusReview || updated.Status == task.TaskStatusBlocked || updated.Status == "cancelled" || updated.Status == "failed") {
+			if s.terminalManager != nil {
+				_ = s.terminalManager.CloseSession(id)
+				if updated.ProjectID != "" {
+					_ = s.terminalManager.ResetProjectSession(updated.ProjectID)
+				}
+			}
+			if s.taskSvc != nil {
+				_ = s.taskSvc.FinishTaskLaunches(r.Context(), id, "stopped")
+			}
+		}
 		s.kickTaskLaunches()
 		if updated != nil && updated.Status == task.TaskStatusDone {
 			s.DispatchTaskCompletedPush(r.Context(), updated)

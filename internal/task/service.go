@@ -654,7 +654,7 @@ func (s *Service) UpdateTask(ctx context.Context, id string, author string, req 
 						hasSucceeded := false
 						if attempts, err := s.store.ListAttempts(ctx, id); err == nil {
 							for _, a := range attempts {
-								if a.Status == AttemptStatusSucceeded {
+								if a.Status == AttemptStatusSucceeded || (a.ExitCode != nil && *a.ExitCode == 0 && a.ErrorMessage == PublicationReceiptRequiredMessage) {
 									hasSucceeded = true
 									break
 								}

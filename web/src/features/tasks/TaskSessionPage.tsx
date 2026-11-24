@@ -193,7 +193,11 @@ export function TaskSessionPage({
       ? detail?.latest_attempt || detail?.attempts[0]
       : detail?.attempts.find((a) => a.id === sessionId)
   const isDedicatedTerminal = Boolean(
-    detail?.title?.startsWith('Terminal ·') ||
+    detail?.title?.startsWith('Terminal ') ||
+    detail?.title?.startsWith('Terminal·') ||
+    detail?.title?.startsWith('Terminal:') ||
+    detail?.title?.startsWith('Terminal-') ||
+    detail?.title?.includes('Terminal ·') ||
     attempt?.runner_id === 'local_terminal'
   )
   const isTerminalSessionCancelled = Boolean(
@@ -486,7 +490,9 @@ export function TaskSessionPage({
   const isWorking = status === 'Working'
   const isConnected = terminalConnection === 'connected' || terminalConnection === 'streaming'
   const isConnecting = (terminalConnection === 'connecting' || terminalConnection === 'loading') && !isConnected
-  const isStoppedOrCancelled = isTerminalSessionCancelled || attempt?.status === 'canceled' || (detail?.status as string) === 'cancelled'
+  const isStoppedOrCancelled = isDedicatedTerminal
+    ? isTerminalSessionCancelled
+    : isTerminalSessionCancelled || attempt?.status === 'canceled' || (detail?.status as string) === 'cancelled'
   const statusLabel = isDedicatedTerminal
     ? (isStoppedOrCancelled
         ? (language === 'id' ? 'Sesi dihentikan' : 'Session stopped')
@@ -520,7 +526,7 @@ export function TaskSessionPage({
       className={cn(
         'inline-flex shrink-0 items-center gap-1 sm:gap-1.5 rounded-full border px-2 sm:px-2.5 py-0.5 text-[11px] sm:text-xs font-semibold shadow-xs transition-colors',
         isDedicatedTerminal
-          ? isConnected
+          ? isConnected && !isStoppedOrCancelled
             ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25'
             : isConnecting
               ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
@@ -695,21 +701,36 @@ export function TaskSessionPage({
                   disabled={busy}
                   onClick={async () => {
                     setBusy(true)
+                    setError('')
                     try {
+                      if (
+                        detail?.status === 'done' ||
+                        (detail?.status as string) === 'cancelled' ||
+                        (detail?.status as string) === 'canceled'
+                      ) {
+                        await tasksApi.updateStatus(taskId, 'todo')
+                      }
                       const request = {
                         request_id: crypto.randomUUID(),
                         agent_id: detail?.assignee_id || 'default',
                         runner_id: 'local_terminal',
                       }
-                      localStorage.setItem('cuan-task-launch:' + taskId, JSON.stringify(request))
-                      navigate(basePath + '/sessions/start' + suffix, {
-                        state: {
-                          taskReturnTo: state?.taskReturnTo,
-                          startRequestId: request.request_id,
-                        },
-                      })
-                    } catch {
-                      setError('Could not restart terminal session. Try again.')
+                      const runRes = await tasksApi.runAgent(taskId, request)
+                      if (runRes.attempt?.id) {
+                        navigate(
+                          basePath + '/sessions/' + encodeURIComponent(runRes.attempt.id) + suffix,
+                          { replace: true, state },
+                        )
+                      }
+                      await refresh()
+                    } catch (e) {
+                      setError(
+                        e instanceof Error
+                          ? e.message
+                          : (language === 'id'
+                              ? 'Gagal memulai kembali sesi terminal. Coba lagi.'
+                              : 'Could not restart terminal session. Try again.'),
+                      )
                     } finally {
                       setBusy(false)
                     }

@@ -152,6 +152,7 @@ export interface CreateTaskRequest {
   request_id?: string
   title: string
   description?: string
+  project_id?: string
   project_ids?: string[]
   priority?: TaskPriority
   status?: TaskStatus
@@ -168,6 +169,7 @@ export interface UpdateTaskRequest {
   complete_note?: string
   title?: string
   description?: string
+  project_id?: string
   project_ids?: string[]
   priority?: TaskPriority
   status?: TaskStatus

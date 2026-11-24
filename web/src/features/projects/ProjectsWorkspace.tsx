@@ -238,7 +238,7 @@ export function ProjectsWorkspace({
         )
       } catch {}
 
-      const targetSessionId = targetTask.latest_attempt?.id || 'latest'
+      const targetSessionId = 'latest'
 
       if (popout) {
         const popoutUrl = `/tasks/${encodeURIComponent(targetTask.id)}/sessions/${encodeURIComponent(targetSessionId)}?terminal=open&popout=true`

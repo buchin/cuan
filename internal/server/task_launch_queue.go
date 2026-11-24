@@ -259,15 +259,17 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 		return finish("stopped", "The native release scope could not be validated.")
 	}
 	recoverySource := automaticRecoverySource(detail, job.RequestID)
-	trigger, authorized, authErr := s.authorizeSavedTaskLaunch(ctx, job, detail)
-	if authErr != nil {
-		return finish("queued", "Conversation storage is temporarily unavailable.")
-	}
-	if !authorized {
-		return finish("stopped", "The original user authorization is unavailable or cancelled.")
-	}
-	if !s.taskContinuationAfterCancel(ctx, trigger, detail) {
-		return finish("stopped", "The work was cancelled. A new user instruction is required to continue.")
+	if detail.SourceRoomID != "" && detail.SourceMessageID != "" {
+		trigger, authorized, authErr := s.authorizeSavedTaskLaunch(ctx, job, detail)
+		if authErr != nil {
+			return finish("queued", "Conversation storage is temporarily unavailable.")
+		}
+		if !authorized {
+			return finish("stopped", "The original user authorization is unavailable or cancelled.")
+		}
+		if !s.taskContinuationAfterCancel(ctx, trigger, detail) {
+			return finish("stopped", "The work was cancelled. A new user instruction is required to continue.")
+		}
 	}
 	// A launch response can be lost after its exact attempt was reserved. Once
 	// that attempt exists, it is no longer supposed to match its predecessor.
@@ -334,6 +336,19 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 			}
 		}
 	}
+	if (targetAgent == "" || targetAgent == "default") && s.agentRepo != nil {
+		if ags, e := s.agentRepo.ListAgents(ctx, db.AgentFilter{}); e == nil {
+			for _, a := range ags {
+				if a.Enabled && a.Status != "archived" && a.Status != "inactive" {
+					targetAgent = a.ID
+					break
+				}
+			}
+		}
+	}
+	if targetAgent == "" || targetAgent == "default" {
+		targetAgent = db.AgentIDCuan
+	}
 	runnerID := "cuan-runner"
 	if verification == nil && liveInspection == nil && (targetAgent == "agent_lifecycle" || targetAgent == "agent_queued" || job.AgentID == "agent_lifecycle" || job.AgentID == "agent_queued") {
 		runnerID = "local_terminal"
@@ -351,7 +366,14 @@ func (s *Server) executeQueuedTaskLaunch(ctx context.Context, job task.TaskLaunc
 	// request is not the task's original approval represents a later, separately
 	// authorized turn rather than a blind repeat of the previous attempt.
 	ownerAuthorized := job.SourceRequestID != "" && job.SourceRequestID != job.RequestID
-	s.runTaskAgent(response, request, job.TaskID, runTaskAgentPayload{RequestID: job.RequestID, AgentID: targetAgent, Revision: job.Revision, RunnerID: runnerID, RecoverySourceAttemptID: recoverySourceID, OwnerAuthorized: ownerAuthorized}, job.OwnerID)
+	ownerID := job.OwnerID
+	if ownerID == "" && s.authSvc != nil {
+		ownerID, _ = s.authSvc.OwnerID(ctx)
+	}
+	if ownerID == "" {
+		ownerID = "owner"
+	}
+	s.runTaskAgent(response, request, job.TaskID, runTaskAgentPayload{RequestID: job.RequestID, AgentID: targetAgent, Revision: job.Revision, RunnerID: runnerID, RecoverySourceAttemptID: recoverySourceID, OwnerAuthorized: ownerAuthorized}, ownerID)
 	if response.code == 200 {
 		var payload struct {
 			Replayed bool              `json:"replayed"`
@@ -417,6 +439,168 @@ func (s *Server) kickTaskLaunches() {
 		defer s.inboxWorkers.Delete(key)
 		s.drainTaskLaunches(context.Background(), time.Now().UTC())
 	}()
+}
+
+// ensureTaskLaunchCandidate prepares a fully normalized TaskLaunch for a task.
+func (s *Server) ensureTaskLaunchCandidate(ctx context.Context, taskID string, reqID string, ownerID string, agentID string, revision string) (*task.TaskLaunch, error) {
+	if s.taskSvc == nil {
+		return nil, errors.New("task service unavailable")
+	}
+	detail, err := s.taskSvc.GetTaskDetail(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+	projID := detail.ProjectID
+	if projID == "" && len(detail.ProjectIDs) > 0 {
+		projID = detail.ProjectIDs[0]
+	}
+	if projID == "" {
+		return nil, errors.New("missing project id")
+	}
+
+	if ownerID == "" && s.authSvc != nil {
+		ownerID, _ = s.authSvc.OwnerID(ctx)
+	}
+	if ownerID == "" {
+		ownerID = "owner"
+	}
+
+	cleanAgent := strings.TrimSpace(agentID)
+	if cleanAgent == "" || cleanAgent == "default" {
+		cleanAgent = detail.AssignedAgent
+	}
+	if cleanAgent == "" || cleanAgent == "default" {
+		if s.agentRepo != nil {
+			if ags, e := s.agentRepo.ListAgents(ctx, db.AgentFilter{}); e == nil {
+				for _, a := range ags {
+					if a.Enabled && a.Status != "archived" && a.Status != "inactive" {
+						cleanAgent = a.ID
+						break
+					}
+				}
+			}
+		}
+	}
+	if cleanAgent == "" || cleanAgent == "default" {
+		cleanAgent = db.AgentIDCuan
+	}
+
+	roomID := ""
+	if detail.SourceRoomID != "" && db.IsValidUUID(detail.SourceRoomID) {
+		roomID = detail.SourceRoomID
+	}
+	if roomID == "" && s.projectStudioRepo != nil {
+		if rooms, rErr := s.projectStudioRepo.ListRoomsByProjectID(ctx, projID); rErr == nil && len(rooms) > 0 {
+			roomID = rooms[0].ID
+		} else {
+			newRoom := &db.ProjectRoom{
+				ID:        db.GenerateUUID(),
+				ProjectID: projID,
+				Title:     "General",
+				Topic:     "general",
+				CreatedAt: time.Now().UTC(),
+				UpdatedAt: time.Now().UTC(),
+			}
+			if cErr := s.projectStudioRepo.CreateRoom(ctx, newRoom); cErr == nil {
+				roomID = newRoom.ID
+			}
+		}
+	}
+	if roomID == "" {
+		roomID = db.GenerateUUID()
+	}
+
+	if reqID == "" {
+		reqID = db.GenerateUUID()
+	}
+	sourceReqID := reqID
+
+	now := time.Now().UTC()
+	candidate := &task.TaskLaunch{
+		TaskID:           taskID,
+		ProjectID:        projID,
+		RequestID:        reqID,
+		OwnerID:          ownerID,
+		RoomID:           roomID,
+		SourceRequestID:  sourceReqID,
+		AgentID:          cleanAgent,
+		Revision:         revision,
+		InstructionsHash: task.LaunchInstructionsHash(detail.Instructions),
+		CreatedAt:        now,
+		AvailableAt:      now,
+		ExpiresAt:        now.Add(24 * time.Hour),
+	}
+	return candidate, nil
+}
+
+// evaluateIdleRunnerQueues inspects queued tasks across projects. When a project's
+// runner lock is IDLE (zero active runners holding project lock), it resets any stale
+// terminal sessions, ensures a valid pending task launch is present, and immediately
+// triggers ClaimLaunch so queued tasks start executing automatically.
+func (s *Server) evaluateIdleRunnerQueues(ctx context.Context) {
+	if s.taskSvc == nil {
+		return
+	}
+
+	queuedTasks, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{Status: task.TaskStatusQueued})
+	if err != nil || len(queuedTasks) == 0 {
+		return
+	}
+
+	now := time.Now().UTC()
+	checkedProjects := make(map[string]bool)
+
+	for _, t := range queuedTasks {
+		if t == nil || strings.HasPrefix(t.Title, "Terminal ·") {
+			continue
+		}
+		projID := t.ProjectID
+		if projID == "" && len(t.ProjectIDs) > 0 {
+			projID = t.ProjectIDs[0]
+		}
+
+		if projID != "" && checkedProjects[projID] {
+			continue
+		}
+		if projID != "" {
+			checkedProjects[projID] = true
+		}
+
+		lane := t.ExecutionCategory
+		if lane == "" {
+			lane = task.ExecutionCategoryCode
+		}
+
+		// Check if the runner lock is IDLE for this project lane
+		isLocked := false
+		if projID != "" {
+			isLocked = s.isProjectLaneActive(ctx, projID, lane, t.ID)
+		}
+
+		if !isLocked {
+			// Lock is IDLE! Clean up any zombie terminal session for this project.
+			if projID != "" && s.terminalManager != nil {
+				if active := s.terminalManager.GetProjectActiveRunner(projID); active == nil {
+					_ = s.terminalManager.ResetProjectSession(projID)
+				}
+			}
+
+			// Check if task already has an active launch ready to claim
+			hasActiveLaunch := false
+			if launch, lErr := s.taskSvc.LatestLaunch(ctx, t.ID); lErr == nil && launch != nil {
+				if launch.State == "queued" || (launch.State == "claimed" && launch.LeaseUntil != nil && launch.LeaseUntil.After(now)) {
+					hasActiveLaunch = true
+				}
+			}
+
+			if !hasActiveLaunch {
+				if candidate, cErr := s.ensureTaskLaunchCandidate(ctx, t.ID, "", "", t.AssignedAgent, ""); cErr == nil && candidate != nil {
+					_, _ = s.taskSvc.SaveLaunch(ctx, *candidate)
+				}
+			}
+			s.kickTaskLaunches()
+		}
+	}
 }
 func (s *Server) drainTaskLaunches(ctx context.Context, now time.Time) {
 	for i := 0; i < 4 && !s.inboxStopping.Load(); i++ {
