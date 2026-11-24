@@ -305,7 +305,7 @@ func (s *DBStore) UpdateTask(ctx context.Context, t *Task) error {
 			updated_at = $13,summary=$14,complete_note=$15,dod_checklist=$16::jsonb,project_id=NULLIF($17,''),
 			execution_category = $18,
 			required_stages = $19,
-			source_room_id = COALESCE(NULLIF($20,''), source_room_id)
+			source_room_id = COALESCE(NULLIF($20,'')::uuid, source_room_id)
 		WHERE id = $1
 	`
 	res, err := tx.ExecContext(ctx, query,
