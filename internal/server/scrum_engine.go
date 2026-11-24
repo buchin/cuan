@@ -90,15 +90,15 @@ func (s *Server) handleRunnerAttemptCompleted(ctx context.Context, taskID, attem
 	if targetRoomID == "" && s.projectStudioRepo != nil {
 		if recentMap, err := s.projectStudioRepo.ListRecentMessages(ctx, 20); err == nil {
 			taskPattern := "/tasks/" + detail.ID
+			var earliestTime time.Time
 			for rID, msgs := range recentMap {
 				for _, m := range msgs {
 					if strings.Contains(m.Content, taskPattern) {
-						targetRoomID = rID
-						break
+						if targetRoomID == "" || m.CreatedAt.Before(earliestTime) {
+							targetRoomID = rID
+							earliestTime = m.CreatedAt
+						}
 					}
-				}
-				if targetRoomID != "" {
-					break
 				}
 			}
 		}
