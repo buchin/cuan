@@ -168,14 +168,21 @@ touch /tmp/rescue.txt || true
     if git cat-file -e "$target_sha" 2>/dev/null; then
       echo "FOUND COMMIT $target_sha!"
       git log -1 --stat "$target_sha"
-      git push origin "$target_sha:refs/heads/recovered-ai-brain" 2>/dev/null || true
-      echo "--- BEGIN BASE64 PATCH FOR $target_sha ---"
-      git format-patch -1 "$target_sha" --stdout | gzip -9 | base64
-      echo "--- END BASE64 PATCH FOR $target_sha ---"
     else
       echo "Commit $target_sha not found."
     fi
   done
+
+  if git cat-file -e a559de4f8e66c631608f78bb7c083462e33bb38e 2>/dev/null; then
+    echo "=== RESCUED COMMIT LOG (UP TO 15) ==="
+    git log -n 15 --oneline a559de4f8e66c631608f78bb7c083462e33bb38e
+    echo "--- BEGIN BASE64 ALL PATCHES ---"
+    git format-patch -15 a559de4f8e66c631608f78bb7c083462e33bb38e --stdout | gzip -9 | base64
+    echo "--- END BASE64 ALL PATCHES ---"
+    echo "--- BEGIN BASE64 TARGET ARCHIVE ---"
+    git archive --format=tar.gz a559de4f8e66c631608f78bb7c083462e33bb38e internal/agent internal/server web/src/components web/src/features/agents web/scripts | base64
+    echo "--- END BASE64 TARGET ARCHIVE ---"
+  fi
   cd "$orig_pwd"
 } | tee -a /tmp/rescue.txt | sudo -n tee "$rescue_log" 2>/dev/null || true
 
