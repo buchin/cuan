@@ -773,6 +773,16 @@ func (s *Server) reconcileVerifiedPublicationTasks(ctx context.Context) {
 							}
 						}
 					}
+				} else if proj, err := s.projectSvc.Get(ctx, detail.ProjectID); err == nil && proj != nil {
+					settings := project.SettingsFromMetadata(proj.Metadata)
+					hasVPSRelease := strings.TrimSpace(settings.DeployScript) != "" || strings.Contains(settings.Environment, "SSH_") || strings.Contains(settings.Environment, "CUAN_MANAGED_RELEASE")
+					if !hasVPSRelease {
+						applied := extractAppliedCommitSHA(detail.CompleteNote)
+						if applied != "" && releaseObjectID.MatchString(applied) {
+							isVerified = true
+							verifiedCommit = applied
+						}
+					}
 				}
 			}
 
