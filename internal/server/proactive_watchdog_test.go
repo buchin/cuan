@@ -889,3 +889,73 @@ func TestProactiveWatchdogReviewTaskNeverGeneratesActionCardSpam(t *testing.T) {
 		t.Fatalf("expected 0 unsolicited messages for review task, got %d", len(messages)-1)
 	}
 }
+
+func TestReconcileVerifiedPublicationTasks(t *testing.T) {
+	ctx := context.Background()
+	taskStore := task.NewMemoryStore()
+	taskSvc := task.NewService(taskStore, nil)
+	repo := db.NewMemoryProjectStudioRepository()
+
+	roomID := db.GenerateUUID()
+	room := &db.ProjectRoom{
+		ID:        roomID,
+		ProjectID: "proj_cuan",
+		Title:     "Perbaikan Navbar",
+	}
+	if err := repo.CreateRoom(ctx, room); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Audit / Maintenance task in blocked status with passing verification
+	auditTask := &task.Task{
+		ID:                "task_audit_blocked",
+		ProjectID:         "proj_cuan",
+		SourceRoomID:      room.ID,
+		Title:             "🛠️ Pemeliharaan Rutin & Code Health",
+		Status:            task.TaskStatusBlocked,
+		ExecutionCategory: task.ExecutionCategoryOps,
+		Summary:           "Audit pemeliharaan selesai 100%.",
+		CompleteNote:      "Audit berhasil dilaksanakan: pengujian otomatis 100% lulus, Go tests pass, build pass.",
+		DoDChecklist: []task.DoDItem{
+			{ID: "dod_1", Text: "Jalankan test", Completed: false},
+		},
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+	if err := taskStore.CreateTask(ctx, auditTask); err != nil {
+		t.Fatal(err)
+	}
+
+	zero := 0
+	attempt := &task.TaskAttempt{
+		ID:           "att_audit_1",
+		TaskID:       auditTask.ID,
+		Status:       task.AttemptStatusFailed,
+		ExitCode:     &zero,
+		ErrorMessage: task.PublicationReceiptRequiredMessage,
+		CreatedAt:    time.Now().UTC(),
+	}
+	if err := taskStore.CreateAttempt(ctx, attempt); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := &Server{
+		taskSvc:           taskSvc,
+		projectStudioRepo: repo,
+	}
+
+	// Run reconciliation
+	srv.reconcileVerifiedPublicationTasks(ctx)
+
+	// Verify audit task transitioned to DONE
+	updatedAudit, err := taskStore.GetTask(ctx, auditTask.ID)
+	if err != nil || updatedAudit == nil {
+		t.Fatalf("failed to get audit task: %v", err)
+	}
+	if updatedAudit.Status != task.TaskStatusDone {
+		t.Fatalf("expected audit task status 'done', got: %s", updatedAudit.Status)
+	}
+	if len(updatedAudit.DoDChecklist) == 0 || !updatedAudit.DoDChecklist[0].Completed {
+		t.Fatalf("expected DoD item to be marked completed")
+	}
+}

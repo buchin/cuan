@@ -749,6 +749,7 @@ func (s *Server) reconcileStartupState(ctx context.Context) {
 	if err := s.ReconcileStaleRunners(ctx); err != nil {
 		log.Printf("[Startup] ReconcileStaleRunners error: %v", err)
 	}
+	s.reconcileVerifiedPublicationTasks(ctx)
 	s.deliverInboxTaskUpdates(ctx)
 	s.kickTaskLaunches()
 }

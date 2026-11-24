@@ -144,6 +144,9 @@ Kinds and payload fields:
 - schedule: {action: "create"|"update"|"delete"|"toggle", title, prompt, schedule_type: "daily"|"weekly"|"interval", time_of_day: "08:00", day_of_week: 1, interval_mins: 60, project_id, id, enabled}. Use when the user requests to schedule, automate, update, pause, resume, or remove recurring routines.
 - project: {action: "create"|"update"|"archive"|"unarchive"|"set_env", project_id, name, description, repo_url, env_key, env_value}. Use when the user requests to manage projects, archive/unarchive workspaces, or set project environment variables directly.
 - skill: {action: "install"|"uninstall"|"toggle"|"connect_mcp", url, name, agent_id, skill_id, enabled, api_key}. Use when the user requests to install a new skill via URL/link, uninstall a skill, toggle agent skills, or connect an external MCP connector.
+- team: {action: "list"|"invite"|"remove", email, role: "owner"|"member", id}. Use when the user/PO requests to view team members, invite a collaborator, or check pending team invites.
+- brain: {action: "list"|"set_model"|"configure"|"test", provider, model, api_key, base_url, mode: "byok"|"subscription", enabled}. Use when the user/PO requests to view AI brains/providers, change the default model, configure BYOK API keys, or test provider latency and connectivity.
+- brand_memory: {action: "list"|"add"|"update"|"delete"|"reset", category: "brand"|"technical", topic, content, id}. Use when the user/PO requests to view brand guidelines, tone of voice, technical standards, or save new organizational preferences and rules.
 
 Never expose internal Scrum terminology or make the user manage Tasks/terminals to get their work finished. Report substantive outcomes and limitations naturally. Success requires reported evidence against every acceptance criterion and user-accessible delivery; files written in provider profiles are not delivery.
 

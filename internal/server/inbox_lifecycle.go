@@ -558,6 +558,12 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 									output = s.applyInboxProject(ctx, q, output)
 								} else if strings.Contains(output, "```cuan-skill") {
 									output = s.applyInboxSkill(ctx, q, output)
+								} else if strings.Contains(output, "```cuan-team") {
+									output = s.applyInboxTeam(ctx, q, output)
+								} else if strings.Contains(output, "```cuan-brain") {
+									output = s.applyInboxBrain(ctx, q, output)
+								} else if strings.Contains(output, "```cuan-brand-memory") {
+									output = s.applyInboxBrandMemory(ctx, q, output)
 								} else {
 									if strings.Contains(output, "```cuan-delegate") {
 										step("delegation", "Preparing the approved work.")

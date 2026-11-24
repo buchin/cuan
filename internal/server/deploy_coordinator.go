@@ -38,9 +38,10 @@ type projectDeployState struct {
 // preventing concurrent execution of deploy scripts and eliminating build pile-up.
 // Inspired by Fural's two-layer coalescing deployment architecture.
 type DeployCoordinator struct {
-	mu       sync.Mutex
-	projects map[string]*projectDeployState
-	execute  func(ctx context.Context, job DeployJob) error
+	mu              sync.Mutex
+	projects        map[string]*projectDeployState
+	execute         func(ctx context.Context, job DeployJob) error
+	onDeploySuccess func(ctx context.Context, job DeployJob)
 }
 
 // NewDeployCoordinator creates a new deployment coordinator with the default shell executor.
@@ -57,6 +58,13 @@ func (c *DeployCoordinator) SetExecutor(fn func(ctx context.Context, job DeployJ
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.execute = fn
+}
+
+// SetOnDeploySuccess sets an asynchronous callback invoked whenever a deployment succeeds.
+func (c *DeployCoordinator) SetOnDeploySuccess(fn func(ctx context.Context, job DeployJob)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.onDeploySuccess = fn
 }
 
 // Enqueue submits a deployment job. If a deployment is already in-flight for this project,
@@ -128,6 +136,10 @@ func (c *DeployCoordinator) runLeader(initialJob DeployJob) {
 		} else {
 			log.Printf("[DeployCoordinator] Deploy succeeded for project %s (task %s, coalesced %d)",
 				currentJob.ProjectID, currentJob.TaskID, currentJob.CoalescedCount)
+			onSuccess := c.onDeploySuccess
+			if onSuccess != nil {
+				go onSuccess(context.Background(), currentJob)
+			}
 		}
 
 		if state != nil && state.pending != nil {

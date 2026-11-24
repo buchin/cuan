@@ -70,6 +70,7 @@ func (s *Server) RunProactiveWatchdogCycle(ctx context.Context) {
 	if s.taskSvc != nil && s.projectStudioRepo != nil && s.executesInbox() {
 		s.deliverInboxTaskUpdates(ctx)
 		s.heartbeatSweepQueuedInboxRequests(ctx)
+		s.reconcileVerifiedPublicationTasks(ctx)
 		s.orchestrateBlockedInboxTasks(ctx)
 		s.autoResolveCompletedConversations(ctx)
 	}
@@ -703,5 +704,183 @@ func (s *Server) autoResolveCompletedConversations(ctx context.Context) {
 		s.publishInbox(room.ID)
 		s.requestStorageMaintenance()
 		log.Printf("[Watchdog] Proactively auto-resolved completed conversation %s after 24h grace period", room.ID)
+	}
+}
+
+func extractNativeReleaseHandoffCommit(activities []*task.TaskActivity) string {
+	for _, a := range activities {
+		if a != nil && a.ActivityType == "native_release_handoff" {
+			var p struct {
+				SourceCommit string `json:"source_commit"`
+			}
+			if json.Unmarshal([]byte(a.Message), &p) == nil && releaseObjectID.MatchString(p.SourceCommit) {
+				return p.SourceCommit
+			}
+		}
+	}
+	return ""
+}
+
+// reconcileVerifiedPublicationTasks scans tasks in status 'review' or 'blocked'
+// and checks if their applied or result commit is already verified and contained
+// in the running live release. If so, it autonomously transitions the task to 'done',
+// marks all DoD items completed, and posts the completion delivery report to the chat room.
+func (s *Server) reconcileVerifiedPublicationTasks(ctx context.Context) {
+	if s.taskSvc == nil || s.projectStudioRepo == nil {
+		return
+	}
+
+	reviewTasks, _ := s.taskSvc.ListTasks(ctx, task.TaskFilter{Status: task.TaskStatusReview})
+	blockedTasks, _ := s.taskSvc.ListTasks(ctx, task.TaskFilter{Status: task.TaskStatusBlocked})
+
+	var candidates []*task.TaskItemResponse
+	candidates = append(candidates, reviewTasks...)
+	candidates = append(candidates, blockedTasks...)
+	if len(candidates) == 0 {
+		return
+	}
+
+	for _, item := range candidates {
+		if item == nil || item.ID == "" {
+			continue
+		}
+		detail, err := s.taskSvc.GetTaskDetail(ctx, item.ID)
+		if err != nil || detail == nil || detail.Status == task.TaskStatusDone || detail.Status == "cancelled" || detail.Status == "canceled" {
+			continue
+		}
+
+		// 1. Code tasks: Check if result commit, applied commit, or handoff commit is verified in live release
+		if detail.ExecutionCategory == "" || detail.ExecutionCategory == task.ExecutionCategoryCode {
+			handoffCommit := extractNativeReleaseHandoffCommit(detail.Activities)
+			obs := s.inboxReviewPublication(ctx, detail)
+			isVerified := false
+			verifiedCommit := ""
+
+			if obs != nil && obs.Verified && obs.Provenance != "verified_current_project_snapshot" && (obs.ResultCommitContained == nil || *obs.ResultCommitContained) {
+				isVerified = true
+				verifiedCommit = obs.Commit
+			} else if s.projectSvc != nil && detail.ProjectID != "" {
+				if running := s.runningProjectRelease(ctx, detail); running != nil && running.Commit != "" {
+					checkList := []string{detail.CommitSHA, extractAppliedCommitSHA(detail.CompleteNote), handoffCommit}
+					for _, cand := range checkList {
+						if cand != "" && releaseObjectID.MatchString(cand) {
+							if cand == running.Commit {
+								isVerified = true
+								verifiedCommit = cand
+								break
+							}
+							if contained, err := s.projectSvc.PublishedCommitContained(ctx, detail.ProjectID, cand, running.Commit); err == nil && contained {
+								isVerified = true
+								verifiedCommit = cand
+								break
+							}
+						}
+					}
+				}
+			}
+
+			if isVerified {
+				completedDoD := make([]task.DoDItem, len(detail.DoDChecklist))
+				for i, itm := range detail.DoDChecklist {
+					completedDoD[i] = task.DoDItem{
+						ID:        itm.ID,
+						Text:      itm.Text,
+						Evidence:  itm.Evidence,
+						Completed: true,
+					}
+				}
+				if detail.Status != task.TaskStatusReview {
+					reviewStatus := task.TaskStatusReview
+					_, _ = s.taskSvc.UpdateTask(ctx, detail.ID, "scrum_master", task.UpdateTaskRequest{
+						Status:       &reviewStatus,
+						DoDChecklist: &completedDoD,
+					})
+				}
+
+				doneStatus := task.TaskStatusDone
+				note := detail.CompleteNote
+				displayCommit := verifiedCommit
+				if len(displayCommit) > 8 {
+					displayCommit = displayCommit[:8]
+				}
+				verifiedMarker := fmt.Sprintf("🚀 Perubahan telah diverifikasi aktif pada rilis live (%s).", displayCommit)
+				if !strings.Contains(note, "telah diverifikasi aktif pada rilis live") && !strings.Contains(note, "Perubahan telah berhasil diterapkan") {
+					if note != "" {
+						note += "\n\n"
+					}
+					note += verifiedMarker
+				}
+				summary := strings.TrimSpace(detail.Summary)
+				if summary == "" {
+					summary = fmt.Sprintf("Pekerjaan '%s' telah selesai dan diverifikasi aktif pada rilis produksi.", detail.Title)
+				}
+
+				updated, err := s.taskSvc.UpdateTask(ctx, detail.ID, "scrum_master", task.UpdateTaskRequest{
+					Status:       &doneStatus,
+					Summary:      &summary,
+					CompleteNote: &note,
+					DoDChecklist: &completedDoD,
+				})
+				if err == nil && updated != nil {
+					log.Printf("[Watchdog AI Orchestrator] Autonomously reconciled verified task %s -> DONE (commit: %s)",
+						detail.ID, verifiedCommit)
+					detail.Task = *updated
+					_ = s.PostTaskCompletionMessage(ctx, updated)
+					s.DispatchTaskCompletedPush(ctx, updated)
+					if detail.SourceRoomID != "" {
+						if blocker, err := s.conversationResolutionBlocker(ctx, detail.SourceRoomID); err == nil && blocker == "" {
+							now := time.Now().UTC()
+							_ = s.projectStudioRepo.SetRoomResolved(ctx, detail.SourceRoomID, &now)
+						}
+						s.publishInbox(detail.SourceRoomID)
+					}
+					continue
+				}
+			}
+		}
+
+		// 2. Audit or non-code/ops tasks: Check if completed with full verification report
+		if (isInvestigationOrNonCodeText(detail.Title) || strings.Contains(strings.ToLower(detail.Title), "pemeliharaan") || strings.Contains(strings.ToLower(detail.Title), "audit") || detail.ExecutionCategory == task.ExecutionCategoryOps || detail.ExecutionCategory == task.ExecutionCategoryReadOnly) &&
+			strings.TrimSpace(detail.Summary) != "" && strings.TrimSpace(detail.CompleteNote) != "" &&
+			(strings.Contains(detail.CompleteNote, "berhasil") || strings.Contains(detail.CompleteNote, "lulus") || strings.Contains(detail.CompleteNote, "100%")) {
+			completedDoD := make([]task.DoDItem, len(detail.DoDChecklist))
+			for i, itm := range detail.DoDChecklist {
+				completedDoD[i] = task.DoDItem{
+					ID:        itm.ID,
+					Text:      itm.Text,
+					Evidence:  itm.Evidence,
+					Completed: true,
+				}
+			}
+			if detail.Status != task.TaskStatusReview {
+				reviewStatus := task.TaskStatusReview
+				_, _ = s.taskSvc.UpdateTask(ctx, detail.ID, "scrum_master", task.UpdateTaskRequest{
+					Status:       &reviewStatus,
+					DoDChecklist: &completedDoD,
+				})
+			}
+			doneStatus := task.TaskStatusDone
+			summary := strings.TrimSpace(detail.Summary)
+			note := detail.CompleteNote
+			updated, err := s.taskSvc.UpdateTask(ctx, detail.ID, "scrum_master", task.UpdateTaskRequest{
+				Status:       &doneStatus,
+				Summary:      &summary,
+				CompleteNote: &note,
+				DoDChecklist: &completedDoD,
+			})
+			if err == nil && updated != nil {
+				log.Printf("[Watchdog AI Orchestrator] Autonomously reconciled completed audit task %s -> DONE", detail.ID)
+				detail.Task = *updated
+				_ = s.PostTaskCompletionMessage(ctx, updated)
+				s.DispatchTaskCompletedPush(ctx, updated)
+				if detail.SourceRoomID != "" {
+					if blocker, err := s.conversationResolutionBlocker(ctx, detail.SourceRoomID); err == nil && blocker == "" {
+						now := time.Now().UTC()
+						_ = s.projectStudioRepo.SetRoomResolved(ctx, detail.SourceRoomID, &now)
+					}
+					s.publishInbox(detail.SourceRoomID)
+				}
+			}
+		}
 	}
 }

@@ -80,6 +80,33 @@ func inboxResponseDiagnostic(raw string) string {
 				return "Response format: " + err.Error()
 			}
 		}
+		if action.Kind == "team" {
+			var payload inboxTeamAction
+			if strictCoordinatorJSON(action.Payload, &payload) != nil {
+				return "Response format: team payload fields or types rejected."
+			}
+			if _, _, err := parseInboxTeam("```cuan-team\n" + string(action.Payload) + "\n```"); err != nil {
+				return "Response format: " + err.Error()
+			}
+		}
+		if action.Kind == "brain" {
+			var payload inboxBrainAction
+			if strictCoordinatorJSON(action.Payload, &payload) != nil {
+				return "Response format: brain payload fields or types rejected."
+			}
+			if _, _, err := parseInboxBrain("```cuan-brain\n" + string(action.Payload) + "\n```"); err != nil {
+				return "Response format: " + err.Error()
+			}
+		}
+		if action.Kind == "brand_memory" {
+			var payload inboxBrandMemoryAction
+			if strictCoordinatorJSON(action.Payload, &payload) != nil {
+				return "Response format: brand memory payload fields or types rejected."
+			}
+			if _, _, err := parseInboxBrandMemory("```cuan-brand-memory\n" + string(action.Payload) + "\n```"); err != nil {
+				return "Response format: " + err.Error()
+			}
+		}
 		if action.Kind == "task_reopen" {
 			var payload inboxTaskReopenAction
 			if strictCoordinatorJSON(action.Payload, &payload) != nil {
