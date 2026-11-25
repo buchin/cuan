@@ -10,6 +10,7 @@ import { useMessageReceipts } from './useMessageReceipts'
 import { InternalVisibility } from '../../components/ui/InternalVisibility'
 import { workStatus, workDisplayStatus } from '../tasks/task-ui'
 import { setRoomActiveSubstage } from './task-substage'
+import { pickPriorityTask } from './conversation-status'
 import { startsMessageGroup } from './message-group'
 import { PageHeader, PageTitle } from '../../components/layout/PageHeader'
 import { IconButton } from '../../components/ui/IconButton'
@@ -728,7 +729,7 @@ export function InboxView({
           const ct = count('canceled_tasks', states.filter(state => state === 'Cancelled').length)
           const ft = count('failed_tasks', states.filter(state => ['Needs attention', 'Not running'].includes(state)).length)
 
-          const activeTask = data.tasks.find(t => isTaskActive(t)) || data.tasks.find(t => workStatus(t) === 'Ready for review') || data.tasks[0]
+          const activeTask = pickPriorityTask(data.tasks)
           const substage = activeTask ? workDisplayStatus(activeTask) : undefined
 
           const changed =
@@ -1028,7 +1029,7 @@ export function InboxView({
             const ct = states.filter(state => state === 'Cancelled').length
             const ft = states.filter(state => ['Needs attention', 'Not running'].includes(state)).length
 
-            const activeTask = data.tasks.find(t => isTaskActive(t)) || data.tasks.find(t => workStatus(t) === 'Ready for review') || data.tasks[0]
+            const activeTask = pickPriorityTask(data.tasks)
             const substage = activeTask ? workDisplayStatus(activeTask) : undefined
 
             const changed =
