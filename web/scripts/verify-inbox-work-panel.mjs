@@ -794,13 +794,35 @@ try{
   assert.ok(expandedStudioHeight > initialStudioHeight, 'Studio goal textarea must smoothly auto-expand when typing multiple lines')
   await page.screenshot({ path: path.join(output, `studio-expanded-${width}.png`) })
 
-  // Verify circular TypingDots in InboxActivity (light & dark mode)
+  // Verify circular TypingDots & bubble-contained InboxActivity (light & dark mode)
   await page.goto(new URL('/inbox/c-agent', origin).href, { waitUntil: 'domcontentloaded' })
-  const typingDots = page.getByTestId('inbox-activity-typing-dots')
-  await typingDots.waitFor({ state: 'visible', timeout: 10000 })
-  await typingDots.scrollIntoViewIfNeeded()
-  const stopReplyBtn = page.getByRole('button', { name: /Hentikan respons|Stop reply/i })
+  const activityBubble = page.locator('[data-response-state="running"].wa-message-bubble.wa-incoming[data-bubble-tail="incoming"]')
+  await activityBubble.waitFor({ state: 'visible', timeout: 10000 })
+  await activityBubble.scrollIntoViewIfNeeded()
+  const typingDots = activityBubble.getByTestId('inbox-activity-typing-dots')
+  await typingDots.waitFor({ state: 'visible', timeout: 5000 })
+  const stopReplyBtn = activityBubble.getByRole('button', { name: /Hentikan respons|Stop reply/i })
   await stopReplyBtn.waitFor({ state: 'visible', timeout: 5000 })
+  const detailBtn = activityBubble.getByRole('button', { name: /Detail/i })
+  await detailBtn.waitFor({ state: 'visible', timeout: 5000 })
+  const activityTextEl = activityBubble.getByTestId('inbox-activity-text')
+  await activityTextEl.waitFor({ state: 'visible', timeout: 5000 })
+  const bubbleBox = await activityBubble.boundingBox()
+  assert.ok(bubbleBox && bubbleBox.width >= 270, `Assistant progress bubble width must be >= 270px, got ${bubbleBox?.width}`)
+  if (width >= 1200) {
+    assert.ok(bubbleBox.width < width * 0.85, `Assistant progress bubble on desktop must not span full width, got ${bubbleBox.width}px`)
+  }
+  for (const [name, loc] of [['typingDots', typingDots], ['activityText', activityTextEl], ['detailBtn', detailBtn], ['stopReplyBtn', stopReplyBtn]]) {
+    const elBox = await loc.boundingBox()
+    assert.ok(
+      elBox &&
+        elBox.x >= bubbleBox.x - 1 &&
+        elBox.x + elBox.width <= bubbleBox.x + bubbleBox.width + 1 &&
+        elBox.y >= bubbleBox.y - 1 &&
+        elBox.y + elBox.height <= bubbleBox.y + bubbleBox.height + 1,
+      `${name} must be contained inside assistant chat bubble`,
+    )
+  }
   const dotStyles = await typingDots.locator('span').evaluateAll(els =>
     els.map(el => {
       const s = getComputedStyle(el)
