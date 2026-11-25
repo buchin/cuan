@@ -165,18 +165,23 @@ func inboxReconciliationResponseDiagnostic(raw string) string {
 
 // Review labels identify contract conflicts without recording findings or values.
 func inboxReviewResponseDiagnostic(raw string) string {
+	cleaned, ok := stripReviewJSONFences(raw)
+	if !ok {
+		return "Review format: invalid JSON object or field types."
+	}
 	var result inboxReviewEvaluation
-	if json.Unmarshal([]byte(raw), &result) != nil {
+	decoder := json.NewDecoder(strings.NewReader(cleaned))
+	if decoder.Decode(&result) != nil {
 		return "Review format: invalid JSON object or field types."
 	}
 	if result.Decision != "pass" && result.Decision != "revise" && result.Decision != "blocked" {
 		return "Review format: decision must be pass, revise, or blocked."
 	}
-	if strings.TrimSpace(result.Explanation) == "" {
+	if strings.TrimSpace(result.Explanation) == "" && !(result.Decision == "pass" && strings.TrimSpace(result.Finding) != "") {
 		return "Review format: explanation is required."
 	}
-	if len(result.Finding) > 1000 {
-		return "Review format: finding exceeds 1000 characters."
+	if len(result.Finding) > 6000 {
+		return "Review format: finding exceeds 6000 characters."
 	}
 	if len(result.Explanation) > 6000 {
 		return "Review format: explanation exceeds 6000 characters."

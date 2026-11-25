@@ -319,27 +319,35 @@ func (s *Server) inboxReviewData(ctx context.Context, d *task.TaskDetailResponse
 	return string(raw)
 }
 
-func parseInboxReviewEvaluation(raw string) (inboxReviewEvaluation, error) {
-	bad := errors.New("invalid task review decision")
-	var result inboxReviewEvaluation
+func stripReviewJSONFences(raw string) (string, bool) {
 	raw = strings.ReplaceAll(raw, "\r\n", "\n")
 	raw = strings.TrimSpace(raw)
 	// Some native schemas append the same normalized JSON after a fenced answer.
-	// Accept only an identical duplicate, never conflicting decisions or actions.
-	if !strings.HasPrefix(raw, "```json\n") {
-		if start := strings.Index(raw, "```json\n"); start >= 0 {
-			raw = strings.TrimSpace(raw[start:])
+	// Preserve any trailing payload so callers can verify duplicates match.
+	for _, prefix := range []string{"```json\n", "```\n"} {
+		if !strings.HasPrefix(raw, prefix) {
+			if start := strings.Index(raw, prefix); start >= 0 {
+				raw = strings.TrimSpace(raw[start:])
+			}
+		}
+		if strings.HasPrefix(raw, prefix) {
+			end := strings.Index(raw[len(prefix):], "```")
+			if end < 0 {
+				return "", false
+			}
+			end += len(prefix)
+			return raw[len(prefix):end] + "\n" + strings.TrimSpace(raw[end+3:]), true
 		}
 	}
-	if strings.HasPrefix(raw, "```json\n") {
-		end := strings.Index(raw[len("```json\n"):], "```")
-		if end < 0 {
-			return result, bad
-		}
-		end += len("```json\n")
-		raw = raw[len("```json\n"):end] + "\n" + strings.TrimSpace(raw[end+3:])
-	}
-	if len(raw) > 18000 {
+	return raw, true
+}
+
+func parseInboxReviewEvaluation(raw string) (inboxReviewEvaluation, error) {
+	bad := errors.New("invalid task review decision")
+	var result inboxReviewEvaluation
+	var ok bool
+	raw, ok = stripReviewJSONFences(raw)
+	if !ok || len(raw) > 32000 {
 		return result, bad
 	}
 	decoder := json.NewDecoder(strings.NewReader(raw))
@@ -402,7 +410,10 @@ func parseInboxReviewEvaluation(raw string) (inboxReviewEvaluation, error) {
 	if result.SourceReview == "revise" && result.Decision == "pass" {
 		return result, bad
 	}
-	if (result.RequestedOutcome != "" && result.RequestedOutcome != "completed" && result.RequestedOutcome != "needs_input" && result.RequestedOutcome != "unfinished") || result.Decision != "pass" && result.Decision != "revise" && result.Decision != "blocked" || strings.TrimSpace(result.Explanation) == "" || len(result.VisualInspection) > 4000 || len(result.Finding) > 1000 || (result.RemainingWork != "" && result.RemainingWork != "none" && result.RemainingWork != "verification" && result.RemainingWork != "implementation" && result.RemainingWork != "publication" && result.RemainingWork != "external") || len(result.Explanation) > 6000 || len(result.Revision) > 6000 || len(result.CustomerReplyDraft) > 6000 || result.Decision == "revise" && strings.TrimSpace(result.Revision) == "" || result.Decision != "revise" && result.Revision != "" {
+	if result.Decision == "pass" && strings.TrimSpace(result.Explanation) == "" && strings.TrimSpace(result.Finding) != "" {
+		result.Explanation = result.Finding
+	}
+	if (result.RequestedOutcome != "" && result.RequestedOutcome != "completed" && result.RequestedOutcome != "needs_input" && result.RequestedOutcome != "unfinished") || result.Decision != "pass" && result.Decision != "revise" && result.Decision != "blocked" || strings.TrimSpace(result.Explanation) == "" || len(result.VisualInspection) > 4000 || len(result.Finding) > 6000 || (result.RemainingWork != "" && result.RemainingWork != "none" && result.RemainingWork != "verification" && result.RemainingWork != "implementation" && result.RemainingWork != "publication" && result.RemainingWork != "external") || len(result.Explanation) > 6000 || len(result.Revision) > 6000 || len(result.CustomerReplyDraft) > 6000 || result.Decision == "revise" && strings.TrimSpace(result.Revision) == "" || result.Decision != "revise" && result.Revision != "" {
 		return result, bad
 	}
 	if result.ManagerAction != "" && result.ManagerAction != "continue" && result.ManagerAction != "replan" && result.ManagerAction != "wait" && result.ManagerAction != "needs_owner" {

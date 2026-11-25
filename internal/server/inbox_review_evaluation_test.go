@@ -782,3 +782,64 @@ func TestInboxReviewedTask_RetryResumeVariations(t *testing.T) {
 		}
 	}
 }
+
+func TestParseInboxReviewEvaluation_DetailedAuditFindingAccepted(t *testing.T) {
+	detailedFinding := strings.TrimSpace(strings.Repeat("Akar masalah #1: false-positive DenyDeploy pada executionpolicy.FromInstructions; bukti commit 2ba0214b dan log att_95b06c8d. ", 12))
+	if len(detailedFinding) <= 1000 || len(detailedFinding) > 6000 {
+		t.Fatalf("unexpected test fixture length: %d", len(detailedFinding))
+	}
+
+	payload, _ := json.Marshal(inboxReviewEvaluation{
+		Decision:         "pass",
+		SourceReview:     "not_checked",
+		RequestedOutcome: "completed",
+		RemainingWork:    "none",
+		VisualInspection: "",
+		Finding:          detailedFinding,
+		Explanation:      "Investigasi read-only selesai dengan seluruh bukti terverifikasi.",
+		Revision:         "",
+	})
+
+	for _, raw := range []string{
+		string(payload),
+		"```\n" + string(payload) + "\n```",
+		"```json\n" + string(payload) + "\n```\n" + string(payload),
+	} {
+		eval, err := parseInboxReviewEvaluation(raw)
+		if err != nil {
+			t.Fatalf("expected detailed audit review to pass validation, got err=%v", err)
+		}
+		if eval.Decision != "pass" || eval.Finding != detailedFinding {
+			t.Fatalf("unexpected parsed evaluation: %+v", eval)
+		}
+	}
+
+	// Pass with finding populated and explanation omitted should normalize explanation from finding.
+	noExplanation, _ := json.Marshal(inboxReviewEvaluation{
+		Decision:         "pass",
+		SourceReview:     "not_checked",
+		RequestedOutcome: "completed",
+		RemainingWork:    "none",
+		Finding:          detailedFinding,
+	})
+	eval, err := parseInboxReviewEvaluation(string(noExplanation))
+	if err != nil {
+		t.Fatalf("expected pass with finding and empty explanation to succeed, got %v", err)
+	}
+	if eval.Explanation != detailedFinding {
+		t.Fatalf("expected explanation to default to finding")
+	}
+
+	// Findings exceeding 6000 bytes must still be rejected.
+	oversized, _ := json.Marshal(inboxReviewEvaluation{
+		Decision:         "pass",
+		SourceReview:     "not_checked",
+		RequestedOutcome: "completed",
+		RemainingWork:    "none",
+		Finding:          strings.Repeat("x", 6001),
+		Explanation:      "Summary",
+	})
+	if _, err := parseInboxReviewEvaluation(string(oversized)); err == nil {
+		t.Fatal("expected finding > 6000 bytes to be rejected")
+	}
+}
