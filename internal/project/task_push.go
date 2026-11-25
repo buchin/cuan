@@ -6,7 +6,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/buchin/cuan/internal/executionpolicy"
 	"github.com/buchin/cuan/internal/git"
@@ -96,4 +98,48 @@ func (s *Service) PushTaskBranch(ctx context.Context, taskID, projectID, instruc
 		return "", ErrGitHubConnectionRequired
 	}
 	return s.gitClient.PushBoundBranch(ctx, workspace, p.RepoURL, branch, token)
+}
+
+// PushProjectBranch pushes a non-default branch from the project's local workspace
+// using the server-stored GitHub connection token.
+func (s *Service) PushProjectBranch(ctx context.Context, projectID, branch string) (string, string, error) {
+	current, err := s.store.GetProject(ctx, projectID)
+	if err != nil {
+		return "", "", err
+	}
+	if current == nil {
+		return "", "", ErrProjectNotFound
+	}
+	if strings.TrimSpace(current.RepoURL) == "" {
+		return "", "", errors.New("This project has no connected repository")
+	}
+	workDir := strings.TrimSpace(current.LocalPath)
+	if workDir == "" {
+		if wd, wdErr := s.ProjectTerminalWorkspace(ctx, projectID, current.ToResponse()); wdErr == nil {
+			workDir = strings.TrimSpace(wd)
+		}
+	}
+	if workDir == "" {
+		return "", "", errors.New("This project has no local workspace")
+	}
+	token, err := s.repositoryToken(ctx, current.EncryptedToken)
+	if err != nil {
+		return "", "", err
+	}
+	if token == "" {
+		return "", "", ErrGitHubConnectionRequired
+	}
+	targetBranch := strings.TrimSpace(branch)
+	if targetBranch == "" {
+		out, symErr := exec.CommandContext(ctx, "git", "-C", workDir, "symbolic-ref", "--short", "HEAD").Output()
+		if symErr != nil {
+			return "", "", errors.New("Unable to determine current branch in project workspace")
+		}
+		targetBranch = strings.TrimSpace(string(out))
+	}
+	commit, err := s.gitClient.PushExecutionBranch(ctx, workDir, current.RepoURL, targetBranch, current.DefaultBranch, token)
+	if err != nil {
+		return targetBranch, "", err
+	}
+	return targetBranch, commit, nil
 }
