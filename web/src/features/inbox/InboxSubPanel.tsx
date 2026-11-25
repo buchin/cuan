@@ -5,6 +5,7 @@ import { IconButton } from '../../components/ui/IconButton'
 import { PageHeader, PageHeaderBrand, PageTitle } from '../../components/layout/PageHeader'
 import { HairlineList } from '../../components/layout/HairlineList'
 import { taskProgressModel } from '../../components/ui/TaskProgress'
+import { Avatar } from '../../components/ui/Avatar'
 import { StatusDot } from '../../components/ui/StatusDot'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useArchivedItems } from '../../hooks/useArchivedItems'
@@ -15,9 +16,8 @@ import { agentForContact, connectionStatus } from '../agents/connection'
 import { useState, useEffect, memo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { ChatContact, chatApi } from '../../api/chat'
-import { Bot, User, CheckCircle2, CheckCheck, Plus, Eye, Clock3 } from 'lucide-react'
+import { CheckCircle2, CheckCheck, Plus, Eye, Clock3 } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import { getContactInitials } from './contact-initials'
 import { TASK_STATUS_THEMES, workDisplayStatus } from '../tasks/task-ui'
 import { setRoomActiveSubstage } from './task-substage'
 import { resolveConversationStatus, resolveScopedSubstage, pickPriorityTask } from './conversation-status'
@@ -353,24 +353,11 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
       >
         {/* Unified Identity Avatar with Overlaid Status Badge */}
         <div className="relative shrink-0 mt-0.5">
-          <div
-            data-avatar="true"
-            className="h-9 w-9 rounded-full bg-secondary/80 flex items-center justify-center font-semibold text-xs border border-border/50 text-foreground overflow-hidden avatar select-none"
-          >
-            {contact.avatar && contact.avatar !== '👤' ? (
-              contact.avatar.startsWith('http') || contact.avatar.startsWith('/') ? (
-                <img src={contact.avatar} alt="" className="h-full w-full object-cover rounded-full" />
-              ) : (
-                <span>{contact.avatar}</span>
-              )
-            ) : contact.type === 'agent' ? (
-              <Bot className="h-4 w-4 text-primary" />
-            ) : getContactInitials(contact.name) ? (
-              <span className="tracking-wide select-none">{getContactInitials(contact.name)}</span>
-            ) : (
-              <User className="h-4 w-4 text-muted-foreground" />
-            )}
-          </div>
+          <Avatar
+            name={contact.name}
+            avatar={contact.avatar}
+            type={contact.type}
+          />
 
           {/* Overlaid Status Badge at Bottom-Right - Only when status is active, in-review, queued, or complete */}
           {(isComplete || isWorking || hasReview || isQueued || hasTasks || (contact.type === 'customer' && contact.is_online === true)) && (
