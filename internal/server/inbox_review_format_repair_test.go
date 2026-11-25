@@ -66,3 +66,42 @@ sleep 1
 		})
 	}
 }
+
+func TestInboxReviewCLIAcceptsDetailedAuditPassWithoutValidationError(t *testing.T) {
+	home, workspace, bin := t.TempDir(), t.TempDir(), t.TempDir()
+	detailedFinding := strings.TrimSpace(strings.Repeat("Temuan audit read-only: akar masalah terverifikasi pada commit 2ba0214b dan log att_95b06c8d. ", 15))
+	validBytes, _ := json.Marshal(inboxReviewEvaluation{
+		Decision:         "pass",
+		SourceReview:     "not_checked",
+		RequestedOutcome: "completed",
+		RemainingWork:    "none",
+		VisualInspection: "",
+		Finding:          detailedFinding,
+		Explanation:      "Audit read-only selesai dan memenuhi seluruh kriteria.",
+		Revision:         "",
+	})
+	wrapBytes, _ := json.Marshal(map[string]any{
+		"event": "result",
+		"result": map[string]string{
+			"status":   "SUCCESS",
+			"response": string(validBytes),
+		},
+	})
+	script := "#!/bin/sh\nprintf '%s\\n' '" + strings.ReplaceAll(string(wrapBytes), "'", "'\\''") + "'\n"
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	installInboxSandboxStub(t, bin)
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+
+	s := &Server{cfg: &config.Config{Environment: "staging"}}
+	ctx := context.WithValue(context.Background(), inboxTaskReviewKey{}, true)
+	out, failure := s.executeInboxCLI(ctx, "Coordinator", "agy", "PRIVATE_REVIEW_CONTEXT", home, workspace, nil)
+	if failure != "" {
+		t.Fatalf("expected audit review response to validate cleanly, got failure=%q", failure)
+	}
+	eval, err := parseInboxReviewEvaluation(out)
+	if err != nil || eval.Decision != "pass" || eval.Finding != detailedFinding {
+		t.Fatalf("unexpected validated output: out=%q err=%v eval=%+v", out, err, eval)
+	}
+}

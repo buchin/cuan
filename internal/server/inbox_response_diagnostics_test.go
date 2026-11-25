@@ -63,3 +63,23 @@ func TestReviewContractDiagnosticPreservesRejectionAndPrivacy(t *testing.T) {
 		}
 	}
 }
+
+func TestReviewContractDiagnostic_FencedAndDuplicateFindingLimit(t *testing.T) {
+	oversized := strings.Repeat("PRIVATE_DATA", 600)
+	fenced := "```json\n{\"decision\":\"pass\",\"finding\":\"" + oversized + "\",\"explanation\":\"PRIVATE_DATA\",\"revision\":\"\"}\n```"
+	dupObj := `{"decision":"pass","finding":"` + oversized + `","explanation":"PRIVATE_DATA","revision":""}`
+	duplicate := dupObj + dupObj
+
+	for _, raw := range []string{fenced, duplicate} {
+		if _, err := parseInboxReviewEvaluation(raw); err == nil {
+			t.Fatal("oversized finding fixture accepted")
+		}
+		diagnostic := inboxReviewResponseDiagnostic(raw)
+		if !strings.Contains(diagnostic, "finding exceeds 6000") || strings.Contains(diagnostic, "PRIVATE_DATA") {
+			t.Fatalf("unexpected diagnostic: %q", diagnostic)
+		}
+		if !strings.Contains(inboxReviewFormatRepairPrompt(raw), diagnostic) {
+			t.Fatal("review repair lost native rejection category")
+		}
+	}
+}
