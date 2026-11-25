@@ -450,3 +450,107 @@ func TestPrepareTaskWorkspace_AutomaticPruning(t *testing.T) {
 		t.Errorf("new workspace path %s does not exist: %v", ws.Path, err)
 	}
 }
+
+func TestPruneMergedCuanBranches(t *testing.T) {
+	tempDir := t.TempDir()
+	repoDir := filepath.Join(tempDir, "repo")
+	createTestBaseRepo(t, repoDir)
+
+	runGit := func(args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", repoDir}, args...)...)
+		cmd.Env = append(os.Environ(),
+			"GIT_AUTHOR_NAME=Tester",
+			"GIT_AUTHOR_EMAIL=tester@example.com",
+			"GIT_COMMITTER_NAME=Tester",
+			"GIT_COMMITTER_EMAIL=tester@example.com",
+		)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v failed: %s (%v)", args, out, err)
+		}
+		return strings.TrimSpace(string(out))
+	}
+
+	// Ensure default branch is named main or dev
+	defaultBranch := runGit("symbolic-ref", "--short", "HEAD")
+
+	// 1. Merged cuan/task-* without worktree -> should be pruned
+	runGit("branch", "cuan/task-merged-1")
+	// 2. Merged cuan/recovered-* without worktree -> should be pruned
+	runGit("branch", "cuan/recovered-merged-1")
+	// 3. Non-cuan merged branch -> should be preserved
+	runGit("branch", "feature/keep-me")
+	// 4. Merged cuan/task-* bound to an active worktree -> should be preserved
+	wtDir := filepath.Join(tempDir, "active-wt")
+	runGit("worktree", "add", "-b", "cuan/task-active-wt", wtDir, defaultBranch)
+	// 5. Unmerged cuan/task-* -> should be preserved
+	runGit("checkout", "-b", "cuan/task-unmerged-1")
+	if err := os.WriteFile(filepath.Join(repoDir, "unmerged.txt"), []byte("wip"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	runGit("add", "unmerged.txt")
+	runGit("commit", "-m", "unmerged work")
+	runGit("checkout", defaultBranch)
+
+	client := NewClient()
+	pruned, err := client.PruneMergedCuanBranches(context.Background(), repoDir, defaultBranch)
+	if err != nil {
+		t.Fatalf("PruneMergedCuanBranches failed: %v", err)
+	}
+	if pruned != 2 {
+		t.Fatalf("expected 2 pruned branches, got %d", pruned)
+	}
+
+	hasBranch := func(name string) bool {
+		err := exec.Command("git", "-C", repoDir, "show-ref", "--verify", "--quiet", "refs/heads/"+name).Run()
+		return err == nil
+	}
+	if hasBranch("cuan/task-merged-1") || hasBranch("cuan/recovered-merged-1") {
+		t.Fatal("expected merged non-worktree cuan/* branches to be deleted")
+	}
+	for _, keep := range []string{"feature/keep-me", "cuan/task-active-wt", "cuan/task-unmerged-1"} {
+		if !hasBranch(keep) {
+			t.Fatalf("expected branch %s to be preserved", keep)
+		}
+	}
+}
+
+func TestPruneReconstructedWorkspaces(t *testing.T) {
+	tempDir := t.TempDir()
+	base := filepath.Join(tempDir, "base-repo")
+	createTestBaseRepo(t, base)
+
+	recBase := filepath.Join(tempDir, "reconstructed-workspaces")
+	now := time.Now()
+
+	makeRec := func(key string, modTime time.Time) string {
+		wt := filepath.Join(recBase, key, "worktree")
+		if err := os.MkdirAll(filepath.Dir(wt), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if out, err := exec.Command("git", "clone", base, wt).CombinedOutput(); err != nil {
+			t.Fatalf("clone %s: %s", key, out)
+		}
+		_ = os.Chtimes(wt, modTime, modTime)
+		return wt
+	}
+
+	oldWt := makeRec("old_key", now.Add(-10*24*time.Hour))
+	recentWt := makeRec("recent_key", now.Add(-2*time.Hour))
+
+	client := NewClient()
+	pruned, err := client.PruneReconstructedWorkspaces(recBase, 7*24*time.Hour, 10)
+	if err != nil {
+		t.Fatalf("PruneReconstructedWorkspaces failed: %v", err)
+	}
+	if pruned != 1 {
+		t.Fatalf("expected 1 pruned reconstructed workspace, got %d", pruned)
+	}
+	if _, err := os.Stat(filepath.Dir(oldWt)); !os.IsNotExist(err) {
+		t.Fatalf("expected old reconstructed parent dir to be removed")
+	}
+	if _, err := os.Stat(recentWt); err != nil {
+		t.Fatalf("expected recent reconstructed workspace to remain: %v", err)
+	}
+}

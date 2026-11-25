@@ -710,3 +710,130 @@ func (c *Client) pruneRecreatableWorkspace(ctx context.Context, dir, lockPath st
 	}
 	return os.RemoveAll(dir) == nil
 }
+
+// PruneMergedCuanBranches prunes stale worktree metadata and safely deletes
+// local cuan/task-* and cuan/recovered-* branches that are already merged into
+// targetBranch (or HEAD if targetBranch is empty/unavailable) and not bound to
+// any active worktree.
+func (c *Client) PruneMergedCuanBranches(ctx context.Context, repoDir, targetBranch string) (int, error) {
+	if strings.TrimSpace(repoDir) == "" {
+		return 0, nil
+	}
+	if _, err := os.Stat(filepath.Join(repoDir, ".git")); err != nil {
+		return 0, nil
+	}
+
+	_ = exec.CommandContext(ctx, c.gitBinary, "-C", repoDir, "worktree", "prune").Run()
+
+	targetRef := "HEAD"
+	if tb := strings.TrimSpace(targetBranch); tb != "" {
+		if err := exec.CommandContext(ctx, c.gitBinary, "-C", repoDir, "rev-parse", "--verify", tb).Run(); err == nil {
+			targetRef = tb
+		}
+	}
+
+	out, err := exec.CommandContext(ctx, c.gitBinary, "-C", repoDir, "branch", "--merged", targetRef).Output()
+	if err != nil {
+		return 0, fmt.Errorf("list merged branches: %w", err)
+	}
+
+	deleted := 0
+	for _, rawLine := range strings.Split(string(out), "\n") {
+		if ctx.Err() != nil {
+			break
+		}
+		if len(rawLine) == 0 {
+			continue
+		}
+		// Never touch the checked-out branch (*) or any branch bound to an active worktree (+).
+		if rawLine[0] == '*' || rawLine[0] == '+' {
+			continue
+		}
+		branch := strings.TrimSpace(rawLine)
+		if !strings.HasPrefix(branch, "cuan/task-") && !strings.HasPrefix(branch, "cuan/recovered-") {
+			continue
+		}
+		if err := exec.CommandContext(ctx, c.gitBinary, "-C", repoDir, "branch", "-d", branch).Run(); err == nil {
+			deleted++
+		}
+	}
+	return deleted, nil
+}
+
+// PruneReconstructedWorkspaces prunes stale reconstructed/<hash>/worktree
+// directories using the same safety invariants as PruneStaleWorkspaces.
+func (c *Client) PruneReconstructedWorkspaces(reconstructedBase string, maxAge time.Duration, maxWorkspaces int) (int, error) {
+	if reconstructedBase == "" {
+		return 0, nil
+	}
+	entries, err := os.ReadDir(reconstructedBase)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("read reconstructed base dir: %w", err)
+	}
+
+	locksDir := filepath.Join(reconstructedBase, ".task-execution-locks")
+	if err := os.MkdirAll(locksDir, 0700); err != nil {
+		return 0, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	type candidate struct {
+		key      string
+		parent   string
+		worktree string
+		modTime  time.Time
+	}
+
+	var remaining []candidate
+	pruned := 0
+
+	for _, entry := range entries {
+		if ctx.Err() != nil {
+			return pruned, nil
+		}
+		key := entry.Name()
+		if !entry.IsDir() || strings.HasPrefix(key, ".") {
+			continue
+		}
+		parent := filepath.Join(reconstructedBase, key)
+		wtPath := filepath.Join(parent, "worktree")
+		info, sErr := os.Stat(wtPath)
+		if sErr != nil || !info.IsDir() {
+			continue
+		}
+		lockFile := filepath.Join(locksDir, key+".lock")
+		if active, aErr := taskprocess.Active(lockFile); aErr == nil && active {
+			continue
+		}
+		cand := candidate{key: key, parent: parent, worktree: wtPath, modTime: info.ModTime()}
+		if maxAge > 0 && time.Since(cand.modTime) > maxAge {
+			if c.pruneRecreatableWorkspace(ctx, cand.worktree, lockFile) {
+				_ = os.Remove(cand.parent) // remove parent only if now empty
+				pruned++
+			}
+			continue
+		}
+		remaining = append(remaining, cand)
+	}
+
+	if maxWorkspaces > 0 && len(remaining) > maxWorkspaces {
+		sort.Slice(remaining, func(i, j int) bool {
+			return remaining[i].modTime.Before(remaining[j].modTime)
+		})
+		excess := len(remaining) - maxWorkspaces
+		for i := 0; i < excess; i++ {
+			cand := remaining[i]
+			lockFile := filepath.Join(locksDir, cand.key+".lock")
+			if c.pruneRecreatableWorkspace(ctx, cand.worktree, lockFile) {
+				_ = os.Remove(cand.parent)
+				pruned++
+			}
+		}
+	}
+
+	return pruned, nil
+}

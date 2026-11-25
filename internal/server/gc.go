@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"log"
 	"os"
 	"path/filepath"
@@ -11,8 +12,8 @@ import (
 	"github.com/buchin/cuan/internal/git"
 )
 
-// runTaskWorkspaceGC prunes stale task workspaces under data/projects/task-workspaces.
-// It removes workspaces older than 48 hours and caps total workspaces at 10.
+// runTaskWorkspaceGC prunes stale task workspaces, reconstructed workspaces,
+// and merged cuan/* branch refs.
 func (s *Server) runTaskWorkspaceGC() {
 	base := filepath.Join("data", "projects")
 	if s.cfg.ProjectsDir != "" {
@@ -24,10 +25,32 @@ func (s *Server) runTaskWorkspaceGC() {
 	pruned, err := gc.PruneStaleWorkspaces(workspacesBase, 48*time.Hour, "", 10)
 	if err != nil {
 		log.Printf("[gc] task workspace prune error: %v", err)
-		return
-	}
-	if pruned > 0 {
+	} else if pruned > 0 {
 		log.Printf("[gc] task workspace GC: pruned %d stale workspace(s)", pruned)
+	}
+
+	reconstructedBase := filepath.Join(base, "reconstructed-workspaces")
+	if rPruned, rErr := gc.PruneReconstructedWorkspaces(reconstructedBase, 7*24*time.Hour, 10); rErr != nil {
+		log.Printf("[gc] reconstructed workspace prune error: %v", rErr)
+	} else if rPruned > 0 {
+		log.Printf("[gc] reconstructed workspace GC: pruned %d stale workspace(s)", rPruned)
+	}
+
+	if s.projectSvc != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		if projects, pErr := s.projectSvc.List(ctx); pErr == nil {
+			for _, p := range projects {
+				if p == nil || strings.TrimSpace(p.LocalPath) == "" {
+					continue
+				}
+				if bPruned, bErr := gc.PruneMergedCuanBranches(ctx, p.LocalPath, p.DefaultBranch); bErr != nil {
+					log.Printf("[gc] branch prune error for %s: %v", p.ID, bErr)
+				} else if bPruned > 0 {
+					log.Printf("[gc] branch GC for %s: pruned %d merged cuan/* branch(es)", p.ID, bPruned)
+				}
+			}
+		}
 	}
 }
 
