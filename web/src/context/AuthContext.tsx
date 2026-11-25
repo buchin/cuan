@@ -67,8 +67,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshUser = useCallback(async () => {
     try {
-      // 1. Check setup status
-      const statusRes = await fetch('/api/v1/auth/status')
+      const currentToken = localStorage.getItem(TOKEN_KEY) || token
+      const [statusRes, meRes] = await Promise.all([
+        fetch('/api/v1/auth/status'),
+        fetch('/api/v1/auth/me', {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(currentToken
+              ? { Authorization: `Bearer ${currentToken}` }
+              : {}),
+          },
+        }),
+      ])
+
       if (statusRes.ok) {
         const statusData = await statusRes.json()
         setSetupRequired(statusData.setup_required ?? false)
@@ -78,31 +89,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSetupError(`Setup status endpoint returned HTTP ${statusRes.status}.`)
       }
 
-      // 2. If token exists, fetch profile from /api/v1/auth/me
-      const currentToken = localStorage.getItem(TOKEN_KEY) || token
-      {
-        const meRes = await fetch('/api/v1/auth/me', {
-          headers: {
-            'Content-Type': 'application/json',
-            ...(currentToken
-              ? { Authorization: `Bearer ${currentToken}` }
-              : {}),
-          },
-        })
-
-        if (meRes.ok) {
-          const meData = await meRes.json()
-          const ownerInfo = meData.user || meData.owner
-          if (ownerInfo) {
-            setUser(ownerInfo)
-            setToken(currentToken)
-          }
-        } else if (meRes.status === 401) {
-          // Token expired or invalid
-          localStorage.removeItem(TOKEN_KEY)
-          setToken('')
-          setUser(null)
+      if (meRes.ok) {
+        const meData = await meRes.json()
+        const ownerInfo = meData.user || meData.owner
+        if (ownerInfo) {
+          setUser(ownerInfo)
+          setToken(currentToken)
         }
+      } else if (meRes.status === 401) {
+        // Token expired or invalid
+        localStorage.removeItem(TOKEN_KEY)
+        setToken('')
+        setUser(null)
       }
     } catch (err) {
       const detail = err instanceof Error ? err.message : 'Network request failed.'

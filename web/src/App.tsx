@@ -105,6 +105,36 @@ function ViewFallback() {
   )
 }
 
+function preloadRouteChunk(pathname: string) {
+  const seg = pathname.split('/').filter(Boolean)[0] || ''
+  switch (seg) {
+    case 'projects':
+      void import('./features/projects/ProjectsWorkspace')
+      break
+    case 'tasks':
+      void import('./features/tasks/TaskBoardView')
+      break
+    case 'contacts':
+      void import('./features/contacts/ContactsView')
+      break
+    case 'schedules':
+      void import('./features/schedules/SchedulesView')
+      break
+    case 'settings':
+    case 'account':
+      void import('./features/settings/SettingsView')
+      break
+    case 'studio':
+      void import('./features/inbox/StudioView')
+      break
+    case 'notifications':
+      break
+    default:
+      void import('./features/inbox/InboxView')
+      break
+  }
+}
+
 function isProjectEqual(a?: Project, b?: Project): boolean {
   if (a === b) return true
   if (!a || !b) return false
@@ -188,6 +218,11 @@ export function App() {
   const { isAuthenticated, isLoading: authLoading } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
+
+  // Preload active route chunk while auth status is still resolving to avoid sequential Suspense waterfall.
+  useEffect(() => {
+    preloadRouteChunk(location.pathname)
+  }, [location.pathname])
 
   // Parse URL pathname segments: /:tab/:id
   const pathSegments = useMemo(
@@ -945,13 +980,8 @@ export function App() {
 
   if (authLoading) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-background text-primary font-mono">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="text-xs uppercase tracking-widest text-muted-foreground">
-            Initializing Cuan...
-          </span>
-        </div>
+      <div className="h-dvh w-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     )
   }
