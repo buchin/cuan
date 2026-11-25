@@ -130,3 +130,16 @@ test('3. Notification Icon: clean neutral-muted Bell with soft amber micro-dot b
     'NotificationsPopover must eliminate the large primary neon number badge pill'
   )
 })
+
+test('4. Navbar/Header: NotificationsPopover is removed from AppShell header', () => {
+  const appShellPath = path.join(webDir, 'src/components/layout/AppShell.tsx')
+  const appShellSrc = fs.readFileSync(appShellPath, 'utf8')
+  assert.ok(
+    !appShellSrc.includes('<NotificationsPopover'),
+    'AppShell must not render NotificationsPopover in PageHeader'
+  )
+  assert.ok(
+    !appShellSrc.includes('NotificationsPopover'),
+    'AppShell must not import NotificationsPopover'
+  )
+})
