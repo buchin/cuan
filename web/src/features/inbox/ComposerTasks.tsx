@@ -181,7 +181,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
                     <span
                       data-timeline-connector
                       aria-hidden
-                      className="absolute left-[7px] top-[22px] -bottom-[24px] w-0.5 bg-muted-foreground/30 dark:bg-muted-foreground/40 pointer-events-none"
+                      className="absolute left-[7.5px] top-[22px] -bottom-[24px] w-px bg-muted-foreground/[0.18] dark:bg-muted-foreground/25 pointer-events-none"
                     />
                   )}
                   <span className="absolute left-0 top-0.5 flex h-4 w-4 items-center justify-center bg-card z-1">

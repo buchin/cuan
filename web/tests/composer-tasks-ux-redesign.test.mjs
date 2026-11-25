@@ -41,6 +41,14 @@ test('2. Linear timeline without accordion nesting & total elimination of inline
     composerTasksSrc.includes('data-timeline="linear-progress"'),
     'ComposerTasks must present tasks as a clean linear timeline'
   )
+  assert.ok(
+    composerTasksSrc.includes('left-[7.5px]') && composerTasksSrc.includes('w-px') && !composerTasksSrc.includes('w-0.5'),
+    'ComposerTasks timeline connector must be a 1px hairline aligned to the center of the 16px status icon'
+  )
+  assert.ok(
+    !chatCalmCssSrc.includes('width: 2px !important'),
+    'chat-calm.css must not force 2px width on timeline connectors'
+  )
 })
 
 test('3. Affordance pill styling on task actions (Rincian) with >= 44px touch target', () => {
