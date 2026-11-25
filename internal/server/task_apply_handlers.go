@@ -306,17 +306,21 @@ func (s *Server) autoApplyAndDeployTask(ctx context.Context, taskID, projectID s
 	mergeRes, err := s.applyTaskInternal(ctx, taskDetail.ID, taskDetail.ProjectID, taskDetail.Title, taskDetail.Summary, branch, taskDetail.PRNumber)
 	if err != nil {
 		log.Printf("[AutoDeploy] Auto-apply failed for task %s: %v", taskID, err)
-		reviewStatus := task.TaskStatusReview
-		failNote := taskDetail.CompleteNote
-		if failNote != "" {
-			failNote += "\n\n"
+		const autoApplyFailMarker = "⚠️ Auto-apply tidak dapat menggabungkan perubahan secara otomatis"
+		if !strings.Contains(taskDetail.CompleteNote, autoApplyFailMarker) || taskDetail.Status != task.TaskStatusReview {
+			reviewStatus := task.TaskStatusReview
+			req := task.UpdateTaskRequest{Status: &reviewStatus}
+			if !strings.Contains(taskDetail.CompleteNote, autoApplyFailMarker) {
+				failNote := taskDetail.CompleteNote
+				if failNote != "" {
+					failNote += "\n\n"
+				}
+				failNote += fmt.Sprintf("%s (%v). Hasil pekerjaan tetap tersimpan untuk ditinjau.", autoApplyFailMarker, err)
+				req.CompleteNote = &failNote
+			}
+			_, _ = s.taskSvc.UpdateTask(ctx, taskID, "system", req)
 		}
-		failNote += fmt.Sprintf("⚠️ Auto-apply tidak dapat menggabungkan perubahan secara otomatis (%v). Hasil pekerjaan tetap tersimpan untuk ditinjau.", err)
-		_, _ = s.taskSvc.UpdateTask(ctx, taskID, "system", task.UpdateTaskRequest{
-			Status:       &reviewStatus,
-			CompleteNote: &failNote,
-		})
-		return true
+		return false
 	}
 	appliedSHA := ""
 	if mergeRes != nil {

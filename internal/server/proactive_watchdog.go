@@ -322,6 +322,7 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 		if latestAssessment != nil &&
 			(latestAssessment.RemainingWork == "publication" || latestAssessment.RemainingWork == "none" || strings.HasPrefix(latestAssessment.Revision, "Native publication reconciliation:")) &&
 			(latestAssessment.SourceReview == "pass" || latestAssessment.Decision == "pass" || strings.HasPrefix(latestAssessment.Revision, "Native publication reconciliation:")) &&
+			!strings.Contains(detail.CompleteNote, "⚠️ Auto-apply tidak dapat menggabungkan perubahan secara otomatis") &&
 			s.projectSvc != nil && detail.ProjectID != "" {
 			if proj, err := s.projectSvc.Get(ctx, detail.ProjectID); err == nil && proj != nil {
 				if project.SettingsFromMetadata(proj.Metadata).IsAutoDeployEnabled() {
