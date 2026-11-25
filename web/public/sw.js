@@ -68,30 +68,11 @@ self.addEventListener('push', event => {
 
   const body = (typeof data.body === 'string' && data.body.trim()) ? data.body.trim() : ''
 
-  let icon = (typeof data.icon === 'string' && data.icon.trim()) ? data.icon.trim() : ''
-  if (!icon || icon === '/icons/cuan-192.png') {
-    const isTask = tag.startsWith('task:') || rawTag.startsWith('task:') || (typeof data.href === 'string' && data.href.includes('/tasks/'))
-
-    if (isTask || kind === 'completed' || kind === 'approval' || kind === 'blocker') {
-      if (kind === 'completed' || tag.includes(':done') || rawTag.includes(':done') || status.toLowerCase().includes('complete') || title.includes('✓ Selesai') || title.includes('Pekerjaan Selesai')) {
-        icon = '/icons/task-done.png'
-      } else if (kind === 'approval' || tag.includes(':review') || rawTag.includes(':review') || status.toLowerCase().includes('review') || status.toLowerCase().includes('approval') || title.includes('Persetujuan')) {
-        icon = '/icons/task-review.png'
-      } else if (kind === 'blocker' || tag.includes(':blocked') || rawTag.includes(':blocked') || status.toLowerCase().includes('attention')) {
-        icon = '/icons/task-blocker.png'
-      }
-    }
-  }
-  if (!icon) {
-    icon = '/icons/cuan-192.png'
-  }
-
   const badge = (typeof data.badge === 'string' && data.badge.trim()) ? data.badge.trim() : '/icons/cuan-badge-96.png'
 
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
-      icon,
       badge,
       tag,
       renotify: true,

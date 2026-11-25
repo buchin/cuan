@@ -164,31 +164,6 @@ func formatTaskPushTitle(rawTitle string, kind string) string {
 	return raw
 }
 
-func pushIconForNotification(item ownerNotification, tag string) string {
-	isTask := strings.HasPrefix(tag, "task:") || strings.HasPrefix(item.ID, "task:") || strings.Contains(item.Href, "/tasks/")
-	if isTask {
-		switch {
-		case item.Kind == "completed" || strings.Contains(item.ID, ":done") || item.Status == "Completed":
-			return "/icons/task-done.png"
-		case item.Kind == "approval" || strings.Contains(item.ID, ":review") || item.Status == "Review requested" || item.Status == "Needs approval":
-			return "/icons/task-review.png"
-		case item.Kind == "blocker" || strings.Contains(item.ID, ":blocked") || item.Status == "Needs attention":
-			return "/icons/task-blocker.png"
-		default:
-			return "/icons/task-done.png"
-		}
-	}
-
-	switch item.Kind {
-	case "approval":
-		return "/icons/task-review.png"
-	case "blocker":
-		return "/icons/task-blocker.png"
-	default:
-		return "/icons/cuan-192.png"
-	}
-}
-
 func extractRoomID(item ownerNotification) string {
 	for _, prefix := range []string{"customer:", "agent:", "approval:", "request:", "room:"} {
 		if strings.HasPrefix(item.ID, prefix) {
@@ -306,15 +281,12 @@ func buildPushPayload(item ownerNotification) map[string]string {
 		}
 	}
 
-	icon := pushIconForNotification(item, tag)
-
 	return map[string]string{
 		"title":  title,
 		"body":   body,
 		"href":   href,
 		"tag":    tag,
 		"badge":  "/icons/cuan-badge-96.png",
-		"icon":   icon,
 		"kind":   item.Kind,
 		"status": item.Status,
 	}
