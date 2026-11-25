@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -129,7 +130,11 @@ func RunWithProgress(parent context.Context, p *Plan, environment []string, obse
 	}
 	result.output = string(output.data)
 	if err != nil {
-		result.Error = "release process did not complete"
+		if result.ExitCode > 0 {
+			result.Error = fmt.Sprintf("release process exited with code %d", result.ExitCode)
+		} else {
+			result.Error = "release process did not complete"
+		}
 		if ctx.Err() != nil {
 			result.Error = "release process canceled or deadline reached"
 		}

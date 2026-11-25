@@ -157,8 +157,12 @@ release_sha="$local_sha"
 is_local=0
 if [[ "$force_local" == 1 ]]; then
   is_local=1
-elif [[ -d "/opt/cuan/releases" && -z "${DOJO_TERMAPI_VPS_PASSWORD:-}" ]]; then
-  is_local=1
+elif [[ -d "/opt/cuan/releases" ]]; then
+  if [[ -z "${DOJO_TERMAPI_VPS_PASSWORD:-}" ]]; then
+    is_local=1
+  elif [[ -n "${DOJO_TERMAPI_VPS_PUBLIC_IP:-}" ]] && hostname -I 2>/dev/null | grep -qwF "${DOJO_TERMAPI_VPS_PUBLIC_IP}"; then
+    is_local=1
+  fi
 fi
 
 if [[ "$is_local" == 0 ]]; then
