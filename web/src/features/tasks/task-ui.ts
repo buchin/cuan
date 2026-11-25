@@ -37,7 +37,7 @@ export const TASK_STATUS_THEMES: Record<TaskStateKey, TaskStatusTheme> = {
     key: 'queued',
     dotVariant: 'queued',
     textColor: 'text-muted-foreground',
-    badgeClass: 'bg-amber-500/15 text-amber-800 dark:text-amber-200 border-amber-500/35',
+    badgeClass: 'bg-muted/80 text-muted-foreground border-border/40',
     counterBadgeClass: 'bg-muted/80 text-muted-foreground border border-border/30',
   },
   attention: {
