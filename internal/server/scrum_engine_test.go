@@ -554,3 +554,55 @@ func TestAutonomousScrumEngine_BackgroundTask_DoesNotHijackUnrelatedRoom(t *test
 		}
 	}
 }
+
+func TestShouldSkipDuplicateInboxReply(t *testing.T) {
+	ctx := context.Background()
+	srv, _ := setupTestChatServer(t)
+	roomID := cuanDB.GenerateUUID()
+	if err := srv.projectStudioRepo.CreateRoom(ctx, &cuanDB.ProjectRoom{ID: roomID, ProjectID: "default", Title: "Dedup Room"}); err != nil {
+		t.Fatal(err)
+	}
+	firstUserMsg := cuanDB.GenerateUUID()
+	secondUserMsg := cuanDB.GenerateUUID()
+	now := time.Now().UTC()
+
+	// 1. User reply "Siap" to u1; same reply to u2 must NOT be skipped, while exact duplicate to u1 IS skipped.
+	if err := srv.projectStudioRepo.CreateMessage(ctx, &cuanDB.ProjectMessage{
+		ID: cuanDB.GenerateUUID(), RoomID: roomID, AuthorType: "agent", AuthorID: "agent_cuan",
+		Content: "Siap", ReplyToID: &firstUserMsg, CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !shouldSkipDuplicateInboxReply(ctx, srv.projectStudioRepo, roomID, firstUserMsg, "Siap", false) {
+		t.Fatal("expected exact duplicate reply to same user message to be skipped")
+	}
+	if shouldSkipDuplicateInboxReply(ctx, srv.projectStudioRepo, roomID, secondUserMsg, "Siap", false) {
+		t.Fatal("expected legitimate short reply to a different user message NOT to be skipped")
+	}
+
+	// 2. Scrum Engine already posted completion for task t_123 -> snapshotReview completion MUST be skipped.
+	if err := srv.projectStudioRepo.CreateMessage(ctx, &cuanDB.ProjectMessage{
+		ID: cuanDB.GenerateUUID(), RoomID: roomID, AuthorType: "agent", AuthorID: "scrum_master",
+		Content: "Hasil pekerjaan memenuhi kriteria yang disepakati.\n\nFix selesai.\n\n[View work](/tasks/t_123)", CreatedAt: now.Add(time.Second), UpdatedAt: now.Add(time.Second),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !shouldSkipDuplicateInboxReply(ctx, srv.projectStudioRepo, roomID, "", "Pekerjaan telah selesai dan diverifikasi.\n\nFix selesai.\n\n[View work](/tasks/t_123)", true) {
+		t.Fatal("expected duplicate completion notice for t_123 to be skipped")
+	}
+
+	// 3. Customer draft for t_123 is NOT skipped if previous message had no draft, and IS skipped once draft exists.
+	draftMsg := "Investigasi selesai.\n\n**Draf balasan untuk pengunjung:**\n> Halo kak, sudah beres!\n\n[View work](/tasks/t_123)"
+	if shouldSkipDuplicateInboxReply(ctx, srv.projectStudioRepo, roomID, "", draftMsg, true) {
+		t.Fatal("expected customer reply draft NOT to be skipped when no draft was posted yet")
+	}
+	if err := srv.projectStudioRepo.CreateMessage(ctx, &cuanDB.ProjectMessage{
+		ID: cuanDB.GenerateUUID(), RoomID: roomID, AuthorType: "agent", AuthorID: "scrum_master",
+		Content: draftMsg, CreatedAt: now.Add(2 * time.Second), UpdatedAt: now.Add(2 * time.Second),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !shouldSkipDuplicateInboxReply(ctx, srv.projectStudioRepo, roomID, "", draftMsg, true) {
+		t.Fatal("expected duplicate customer reply draft to be skipped")
+	}
+}

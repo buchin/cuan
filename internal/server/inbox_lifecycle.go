@@ -574,19 +574,8 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 							}
 							output = deduplicateWorkLinks(output)
 							now := time.Now().UTC()
-							if snapshotReview && output != "" && s.projectStudioRepo != nil {
-								if msgs, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, q.RoomID); err == nil && len(msgs) > 0 {
-									last := msgs[len(msgs)-1]
-									if strings.TrimSpace(last.Content) == strings.TrimSpace(output) {
-										reply = nil
-									} else {
-										reply = &db.ProjectMessage{ID: q.ReplyID, RoomID: q.RoomID, AuthorType: "agent", AuthorID: registered.ID, AuthorName: registered.Name, Content: output, ReplyToID: &q.MessageID, CreatedAt: now, UpdatedAt: now}
-										s.RecordMessageGrounding(q.ReplyID, s.ActiveBrandGroundingTastesForOwner(q.OwnerID))
-									}
-								} else {
-									reply = &db.ProjectMessage{ID: q.ReplyID, RoomID: q.RoomID, AuthorType: "agent", AuthorID: registered.ID, AuthorName: registered.Name, Content: output, ReplyToID: &q.MessageID, CreatedAt: now, UpdatedAt: now}
-									s.RecordMessageGrounding(q.ReplyID, s.ActiveBrandGroundingTastesForOwner(q.OwnerID))
-								}
+							if shouldSkipDuplicateInboxReply(ctx, s.projectStudioRepo, q.RoomID, q.MessageID, output, snapshotReview) {
+								reply = nil
 							} else {
 								reply = &db.ProjectMessage{ID: q.ReplyID, RoomID: q.RoomID, AuthorType: "agent", AuthorID: registered.ID, AuthorName: registered.Name, Content: output, ReplyToID: &q.MessageID, CreatedAt: now, UpdatedAt: now}
 								s.RecordMessageGrounding(q.ReplyID, s.ActiveBrandGroundingTastesForOwner(q.OwnerID))
@@ -613,11 +602,11 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 		} else if q.SafeError == inboxQuotaNoBackup {
 			q.SafeError = "AI capacity is still unavailable. Your message is saved; retry when you are ready."
 		} else if q.SafeError == inboxReviewProviderWaiting {
-			q.SafeError = "The review service is still unavailable. Saved work remains unaccepted; review has not completed."
+			q.SafeError = "Layanan pemeriksaan masih belum tersedia saat ini. Hasil pekerjaan tersimpan aman; pemeriksaan belum selesai."
 		} else if q.SafeError == inboxHandoffPersistenceWaiting {
-			q.SafeError = "The verified handoff could not be saved. The result remains available; acceptance has not been confirmed."
+			q.SafeError = "Serah terima hasil belum dapat disimpan. Hasil tetap tersedia; penerimaan belum dikonfirmasi."
 		} else if q.SafeError == inboxReviewRefreshWaiting {
-			q.SafeError = "Review context is still changing. Saved work remains unaccepted."
+			q.SafeError = "Konteks pemeriksaan sedang diperbarui. Hasil pekerjaan tersimpan aman."
 		}
 	}
 	step("persistence", "Saving the final conversation state.")
@@ -684,4 +673,53 @@ func inboxCapacityRetryDelay(steps []db.InboxStep) time.Duration {
 		}
 	}
 	return delay
+}
+
+// shouldSkipDuplicateInboxReply prevents redundant identical bubbles and double-posting
+// between Scrum Engine completion delivery and snapshot review evaluations.
+func shouldSkipDuplicateInboxReply(ctx context.Context, repo db.ProjectStudioRepository, roomID, replyToMsgID, output string, snapshotReview bool) bool {
+	trimmed := strings.TrimSpace(output)
+	if trimmed == "" || repo == nil || roomID == "" {
+		return false
+	}
+	msgs, err := repo.ListMessagesByRoomID(ctx, roomID)
+	if err != nil || len(msgs) == 0 {
+		return false
+	}
+
+	var taskRef string
+	if matches := workLink.FindStringSubmatch(trimmed); len(matches) == 2 {
+		taskRef = "/tasks/" + matches[1]
+	}
+	isDoneOutput := taskRef != "" && (strings.Contains(trimmed, "Pekerjaan telah selesai") ||
+		strings.Contains(trimmed, "Hasil pekerjaan memenuhi kriteria") ||
+		strings.Contains(trimmed, "Draf balasan"))
+	outputHasDraft := strings.Contains(trimmed, "Draf balasan")
+
+	start := len(msgs) - 8
+	if start < 0 {
+		start = 0
+	}
+	for i := len(msgs) - 1; i >= start; i-- {
+		m := msgs[i]
+		if m.AuthorType != "agent" && m.AuthorType != "system" {
+			continue
+		}
+		existing := strings.TrimSpace(m.Content)
+		if existing == trimmed {
+			if snapshotReview || taskRef != "" || (replyToMsgID != "" && m.ReplyToID != nil && *m.ReplyToID == replyToMsgID) {
+				return true
+			}
+		}
+		if snapshotReview && isDoneOutput && strings.Contains(existing, taskRef) {
+			alreadyCompleted := strings.Contains(existing, "Hasil pekerjaan memenuhi kriteria") ||
+				strings.Contains(existing, "Pekerjaan telah selesai") ||
+				strings.Contains(existing, "Pekerjaan ditandai selesai") ||
+				strings.Contains(existing, "Draf balasan")
+			if alreadyCompleted && (!outputHasDraft || strings.Contains(existing, "Draf balasan")) {
+				return true
+			}
+		}
+	}
+	return false
 }
