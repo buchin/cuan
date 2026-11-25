@@ -1692,9 +1692,10 @@ func (s *Server) runTaskAgent(w http.ResponseWriter, r *http.Request, taskID str
 			Command:           payload.Binary,
 			Prompt:            taskPrompt,
 			WorkDir:           workDir,
-			Cols:              payload.Cols,
-			Rows:              payload.Rows,
-			Mode:              terminal.ModeInteractive,
+			Cols:                payload.Cols,
+			Rows:                payload.Rows,
+			Mode:                terminal.ModeInteractive,
+			IsDedicatedTerminal: isDedicatedTerminalTask,
 			OnOutput: func(chunk []byte) {
 				if output != nil {
 					output.append(chunk)

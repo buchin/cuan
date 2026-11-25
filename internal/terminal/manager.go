@@ -61,11 +61,12 @@ type TaskAgentRunConfig struct {
 	WorkDir           string
 	Env               []string
 	DelegatedEnv      map[string]string
-	Cols              uint16
-	Rows              uint16
-	Mode              Mode
-	OnOutput          func([]byte)
-	OnExit            func(history *TaskRunHistory)
+	Cols                uint16
+	Rows                uint16
+	Mode                Mode
+	IsDedicatedTerminal bool
+	OnOutput            func([]byte)
+	OnExit              func(history *TaskRunHistory)
 }
 
 // ManagerConfig defines configuration parameters for the terminal session manager.
@@ -423,7 +424,6 @@ func (m *Manager) GetOrCreateProjectSession(ctx context.Context, projectID, work
 	sess.SetPersistent(true)
 
 	m.sessions[key] = sess
-	m.projectSessions[projectID] = key
 	return sess, nil
 }
 
@@ -438,7 +438,8 @@ func (m *Manager) GetProjectSession(projectID string) (*Session, bool) {
 	return sess, true
 }
 
-// CloseProjectSession explicitly terminates and removes a project's terminal session and associated runner sessions.
+// CloseProjectSession explicitly terminates and removes a project's interactive terminal session
+// without disturbing any automated task runner session in the same project.
 func (m *Manager) CloseProjectSession(projectID string) error {
 	key := ProjectSessionKey(projectID)
 	m.mu.Lock()
@@ -447,13 +448,6 @@ func (m *Manager) CloseProjectSession(projectID string) error {
 		toClose = append(toClose, sess)
 		delete(m.sessions, key)
 	}
-	if activeTaskID, exists := m.projectSessions[projectID]; exists && activeTaskID != "" {
-		if taskSess, ok := m.sessions[activeTaskID]; ok && taskSess != nil {
-			toClose = append(toClose, taskSess)
-			delete(m.sessions, activeTaskID)
-		}
-	}
-	delete(m.projectSessions, projectID)
 	if m.taskAliases != nil {
 		for tID, targetKey := range m.taskAliases {
 			if targetKey == key {
@@ -561,18 +555,6 @@ func (m *Manager) CloseSession(taskID string) error {
 	for pID, tID := range m.projectSessions {
 		if tID == taskID {
 			delete(m.projectSessions, pID)
-			projKey := ProjectSessionKey(pID)
-			if sess, exists := m.sessions[projKey]; exists {
-				toClose = append(toClose, sess)
-				delete(m.sessions, projKey)
-			}
-		}
-	}
-	if !strings.HasPrefix(taskID, "project-term-") {
-		projKey := ProjectSessionKey(taskID)
-		if sess, exists := m.sessions[projKey]; exists {
-			toClose = append(toClose, sess)
-			delete(m.sessions, projKey)
 		}
 	}
 	m.mu.Unlock()
@@ -936,8 +918,10 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 		category = task.ExecutionCategoryCode
 	}
 
+	isDedicatedTerminal := cfg.IsDedicatedTerminal || strings.HasPrefix(taskID, "project-term-")
+
 	var projLease io.Closer
-	if cfg.ProjectID != "" {
+	if cfg.ProjectID != "" && !isDedicatedTerminal {
 		// Schema migration barrier: check if migration lock is active
 		if migPath, mErr := m.projectMigrationLockPath(cfg.ProjectID); mErr == nil {
 			if mActive, _ := taskprocess.Active(migPath); mActive {
@@ -1051,7 +1035,7 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 		runs = runs[len(runs)-20:]
 	}
 	m.histories[taskID] = runs
-	if cfg.ProjectID != "" {
+	if cfg.ProjectID != "" && !isDedicatedTerminal {
 		m.projectSessions[cfg.ProjectID] = taskID
 	}
 	m.mu.Unlock()
@@ -1071,7 +1055,7 @@ func (m *Manager) RunTaskAgent(ctx context.Context, cfg TaskAgentRunConfig) (*Se
 		}
 		exitCode := proc.ExitCode()
 		m.mu.Lock()
-		if cfg.ProjectID != "" && m.projectSessions[cfg.ProjectID] == taskID {
+		if cfg.ProjectID != "" && !isDedicatedTerminal && m.projectSessions[cfg.ProjectID] == taskID {
 			delete(m.projectSessions, cfg.ProjectID)
 		}
 		history.FinishedAt = time.Now().UTC()
@@ -1329,7 +1313,7 @@ func (m *Manager) GetProjectActiveRunner(projectID string) *ProjectActiveRunner 
 	}
 	m.mu.Lock()
 	activeTaskID, exists := m.projectSessions[projectID]
-	if !exists || activeTaskID == "" {
+	if !exists || activeTaskID == "" || strings.HasPrefix(activeTaskID, "project-term-") {
 		m.mu.Unlock()
 		return nil
 	}

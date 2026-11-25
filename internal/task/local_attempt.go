@@ -27,6 +27,16 @@ func (s *Service) ReconcileLocalTask(ctx context.Context, taskID, attemptID stri
 	}
 	return nil
 }
+// IsDedicatedTerminalTitle reports whether a task title identifies an interactive
+// project/brain terminal session rather than an automated runner task.
+func IsDedicatedTerminalTitle(title string) bool {
+	clean := strings.TrimSpace(title)
+	return strings.HasPrefix(clean, "Terminal ·") ||
+		strings.HasPrefix(clean, "Terminal -") ||
+		strings.HasPrefix(clean, "Terminal:") ||
+		strings.HasPrefix(clean, "Terminal·")
+}
+
 func (s *DBStore) ReconcileLocalTask(ctx context.Context, taskID, attemptID string) error {
 	tx, e := s.db.BeginTx(ctx, nil)
 	if e != nil {
@@ -44,8 +54,7 @@ func (s *DBStore) ReconcileLocalTask(ctx context.Context, taskID, attemptID stri
 	if e != nil {
 		return e
 	}
-	clean := strings.TrimSpace(title)
-	if strings.HasPrefix(clean, "Terminal ·") || strings.HasPrefix(clean, "Terminal -") || strings.HasPrefix(clean, "Terminal:") {
+	if IsDedicatedTerminalTitle(title) {
 		// Dedicated interactive terminals remain in 'doing' and never transition to 'done' or 'review' via ReconcileLocalTask
 		return tx.Commit()
 	}
@@ -107,8 +116,7 @@ func (s *MemoryStore) ReconcileLocalTask(ctx context.Context, taskID, attemptID 
 	if !ok {
 		return ErrTaskNotFound
 	}
-	clean := strings.TrimSpace(t.Title)
-	if strings.HasPrefix(clean, "Terminal ·") || strings.HasPrefix(clean, "Terminal -") || strings.HasPrefix(clean, "Terminal:") {
+	if IsDedicatedTerminalTitle(t.Title) {
 		return nil
 	}
 	// A cancelled task may still have a later attempt run; an interrupted attempt

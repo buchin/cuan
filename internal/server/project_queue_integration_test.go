@@ -333,3 +333,69 @@ func TestProjectTerminalActiveEndpointAndReset(t *testing.T) {
 		t.Fatalf("expected status=reset, got: %v", bodyDel)
 	}
 }
+
+func TestProjectTerminal_DoesNotBlockOrReportAsActiveRunner(t *testing.T) {
+	s, _, call, _ := inboxFixture(t)
+	ctx := context.Background()
+
+	// Create a dedicated Terminal · cuan task in 'doing' status
+	termResp := call("POST", "/api/v1/tasks", `{"request_id":"`+db.GenerateUUID()+`","title":"Terminal · cuan","instructions":"Interactive terminal session"}`)
+	if termResp.Code != http.StatusCreated {
+		t.Fatalf("create terminal task failed: %d %s", termResp.Code, termResp.Body.String())
+	}
+	var termTask task.Task
+	if err := json.Unmarshal(termResp.Body.Bytes(), &termTask); err != nil {
+		t.Fatalf("unmarshal terminal task failed: %v", err)
+	}
+	projectID := termTask.ProjectID
+	doing := task.TaskStatusDoing
+	if _, err := s.taskSvc.UpdateTask(ctx, termTask.ID, "runner", task.UpdateTaskRequest{Status: &doing}); err != nil {
+		t.Fatalf("update terminal task status failed: %v", err)
+	}
+
+	// Open a persistent interactive project terminal session
+	workDir := t.TempDir()
+	projSess, err := s.terminalManager.GetOrCreateProjectSession(ctx, projectID, workDir, "/bin/sh", 80, 24)
+	if err != nil {
+		t.Fatalf("GetOrCreateProjectSession failed: %v", err)
+	}
+	defer func() { _ = s.terminalManager.CloseProjectSession(projectID) }()
+
+	// 1. Project lane must NOT be locked by either the open project terminal or the doing Terminal · cuan task
+	if s.isProjectLaneActive(ctx, projectID, task.ExecutionCategoryCode, "") {
+		t.Fatalf("expected project code lane to be idle when only interactive terminal is active")
+	}
+
+	// 2. /api/v1/terminal/active must report active=false
+	activeRes := call("GET", "/api/v1/terminal/active?project_id="+projectID, "")
+	if activeRes.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK from terminal/active, got %d: %s", activeRes.Code, activeRes.Body.String())
+	}
+	var activeBody map[string]interface{}
+	_ = json.Unmarshal(activeRes.Body.Bytes(), &activeBody)
+	if activeBody["active"] != false {
+		t.Fatalf("expected terminal/active to report active=false, got %v", activeBody)
+	}
+
+	// 3. /api/v1/projects/{id}/runner-state and formatProjectRunnerLiveState must report idle and NOT list Terminal · cuan
+	runnerRes := call("GET", "/api/v1/projects/"+projectID+"/runner-state", "")
+	if runnerRes.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK from runner-state, got %d: %s", runnerRes.Code, runnerRes.Body.String())
+	}
+	if strings.Contains(runnerRes.Body.String(), "Terminal · cuan") {
+		t.Fatalf("runner-state unexpectedly reported Terminal · cuan as active runner: %s", runnerRes.Body.String())
+	}
+	liveState := s.formatProjectRunnerLiveState(ctx, projectID)
+	if !strings.Contains(liveState, "[IDLE / AVAILABLE]") || strings.Contains(liveState, "Terminal · cuan") {
+		t.Fatalf("expected liveState to be IDLE without Terminal · cuan, got: %s", liveState)
+	}
+
+	// 4. evaluateIdleRunnerQueues must NOT terminate the open interactive project terminal session
+	s.evaluateIdleRunnerQueues(ctx)
+	if projSess.IsClosed() {
+		t.Fatal("evaluateIdleRunnerQueues unexpectedly closed the interactive project terminal session")
+	}
+	if _, ok := s.terminalManager.GetProjectSession(projectID); !ok {
+		t.Fatal("expected persistent project terminal session to remain registered after evaluateIdleRunnerQueues")
+	}
+}
