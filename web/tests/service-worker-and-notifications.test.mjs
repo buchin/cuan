@@ -82,8 +82,8 @@ test('1. Service Worker: sw.js dynamic push payload parsing, elimination of stat
     'sw.js must extract dynamic tag from push payload',
   )
   assert.ok(
-    swSrc.includes('icon'),
-    'sw.js must handle notification icon',
+    !swSrc.includes('icon:') && !swSrc.includes('icon,'),
+    'sw.js must not pass large right-side icon to showNotification',
   )
   assert.ok(
     swSrc.includes('badge'),
@@ -96,30 +96,6 @@ test('1. Service Worker: sw.js dynamic push payload parsing, elimination of stat
   assert.ok(
     fs.existsSync(path.join(webDir, 'public/icons/cuan-badge-96.png')),
     'web/public/icons/cuan-badge-96.png must exist',
-  )
-  assert.ok(
-    fs.existsSync(path.join(webDir, 'public/icons/task-done.png')),
-    'web/public/icons/task-done.png must exist',
-  )
-  assert.ok(
-    fs.existsSync(path.join(webDir, 'public/icons/task-review.png')),
-    'web/public/icons/task-review.png must exist',
-  )
-  assert.ok(
-    fs.existsSync(path.join(webDir, 'public/icons/task-blocker.png')),
-    'web/public/icons/task-blocker.png must exist',
-  )
-  assert.ok(
-    swSrc.includes('/icons/task-done.png'),
-    'sw.js must support contextual task-done icon',
-  )
-  assert.ok(
-    swSrc.includes('/icons/task-review.png'),
-    'sw.js must support contextual task-review icon',
-  )
-  assert.ok(
-    swSrc.includes('/icons/task-blocker.png'),
-    'sw.js must support contextual task-blocker icon',
   )
 
   // showNotification uses dynamic title and body
@@ -310,22 +286,24 @@ test('2. Functional Verification: real sw.js push payload parsing & deep link re
   assert.equal(parsed3.title, 'Pesan Baru')
   assert.equal(parsed3.body, '')
   assert.equal(parsed3.badge, '/icons/cuan-badge-96.png')
-  assert.equal(parsed3.icon, '/icons/cuan-192.png')
+  assert.equal(parsed3.icon, undefined)
   assert.equal(parsed3.href, '/inbox')
 
-  // Case 3b: Legacy static @cuan approval replaces with dynamic action title
+  // Case 3b: Legacy static @cuan approval replaces with dynamic action title and omits large icon even if supplied
   const legacyApproval = {
     title: '@cuan',
     body: 'Perbaikan Alur Pembatalan Sesi',
     href: '/inbox/rm_01h9xyz789',
     tag: 'approval:rm_01h9xyz789:msg_003',
     kind: 'approval',
+    icon: '/icons/task-review.png',
   }
   const parsedLegacy = executePushHandler({ json: () => legacyApproval }, origin)
   assert.equal(parsedLegacy.title, 'Butuh Persetujuan')
-  assert.equal(parsedLegacy.icon, '/icons/task-review.png')
+  assert.equal(parsedLegacy.icon, undefined)
+  assert.equal(parsedLegacy.badge, '/icons/cuan-badge-96.png')
 
-  // Case 4: Task done payload (contextual checkmark icon)
+  // Case 4: Task done payload (no large right-side icon, badge preserved)
   const taskDonePayload = {
     title: '✓ Selesai: Fitur Pembayaran',
     body: 'Integrasi payment gateway selesai diverifikasi.',
@@ -334,10 +312,11 @@ test('2. Functional Verification: real sw.js push payload parsing & deep link re
     kind: 'completed',
   }
   const parsedDone = executePushHandler({ json: () => taskDonePayload }, origin)
-  assert.equal(parsedDone.icon, '/icons/task-done.png')
+  assert.equal(parsedDone.icon, undefined)
+  assert.equal(parsedDone.badge, '/icons/cuan-badge-96.png')
   assert.equal(parsedDone.title, '✓ Selesai: Fitur Pembayaran')
 
-  // Case 5: Task review payload (contextual amber review icon)
+  // Case 5: Task review payload (no large right-side icon, badge preserved)
   const taskReviewPayload = {
     title: 'Phase 2: Review Code',
     body: 'Hasil pekerjaan siap ditinjau.',
@@ -346,9 +325,10 @@ test('2. Functional Verification: real sw.js push payload parsing & deep link re
     kind: 'approval',
   }
   const parsedReview = executePushHandler({ json: () => taskReviewPayload }, origin)
-  assert.equal(parsedReview.icon, '/icons/task-review.png')
+  assert.equal(parsedReview.icon, undefined)
+  assert.equal(parsedReview.badge, '/icons/cuan-badge-96.png')
 
-  // Case 6: Task blocker payload (contextual warning icon)
+  // Case 6: Task blocker payload (no large right-side icon, badge preserved)
   const taskBlockerPayload = {
     title: 'Perhatian Diperlukan',
     body: 'Pekerjaan tertahan dan memerlukan perhatian Anda.',
@@ -357,7 +337,8 @@ test('2. Functional Verification: real sw.js push payload parsing & deep link re
     kind: 'blocker',
   }
   const parsedBlocker = executePushHandler({ json: () => taskBlockerPayload }, origin)
-  assert.equal(parsedBlocker.icon, '/icons/task-blocker.png')
+  assert.equal(parsedBlocker.icon, undefined)
+  assert.equal(parsedBlocker.badge, '/icons/cuan-badge-96.png')
 })
 
 test('3. UI Component: NotificationSettings.tsx supports role Member, personal quiet hours, and device registration', () => {

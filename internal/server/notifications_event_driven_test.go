@@ -641,8 +641,11 @@ func TestEventDrivenPush_TaskCompleted(t *testing.T) {
 	if payload["title"] != "✓ Selesai: Auto-scroll ke tugas terakhir" {
 		t.Errorf("expected title '✓ Selesai: Auto-scroll ke tugas terakhir', got %q", payload["title"])
 	}
-	if payload["icon"] != "/icons/task-done.png" {
-		t.Errorf("expected icon '/icons/task-done.png', got %q", payload["icon"])
+	if _, hasIcon := payload["icon"]; hasIcon {
+		t.Errorf("expected push payload to omit large icon, got %q", payload["icon"])
+	}
+	if payload["badge"] != "/icons/cuan-badge-96.png" {
+		t.Errorf("expected badge '/icons/cuan-badge-96.png', got %q", payload["badge"])
 	}
 	if !strings.Contains(payload["body"], "Fitur auto scroll berhasil diuji") {
 		t.Errorf("expected body to contain task summary, got %q", payload["body"])
@@ -827,11 +830,9 @@ func TestEventDrivenPush_FiltersTechnicalAndStaleNotifications(t *testing.T) {
 	}
 }
 // TestPushPayload_ContextualIconsAndLockscreenFormatting verifies:
-// 1. Task done supplies contextual checkmark icon (/icons/task-done.png) and '✓ Selesai: <Nama Singkat>' title.
+// 1. Task done supplies '✓ Selesai: <Nama Singkat>' title and omits large right-side icon while preserving badge.
 // 2. Long task title (>42 chars) is concisely truncated with ellipsis to fit lockscreens without cutoff.
-// 3. Task review supplies amber contextual icon (/icons/task-review.png).
-// 4. Task blocker supplies warning contextual icon (/icons/task-blocker.png).
-// 5. Chat message from agent/customer retains /icons/cuan-192.png, eliminating duplicate Cuan logo on task cards.
+// 3. Task review, blocker, and chat messages omit large right-side icon while preserving monochrome badge.
 func TestPushPayload_ContextualIconsAndLockscreenFormatting(t *testing.T) {
 	// 1. Task Done - standard short title
 	doneItem := ownerNotification{
@@ -842,8 +843,11 @@ func TestPushPayload_ContextualIconsAndLockscreenFormatting(t *testing.T) {
 		Href:    "/tasks/task-done-1",
 	}
 	pDone := buildPushPayload(doneItem)
-	if pDone["icon"] != "/icons/task-done.png" {
-		t.Errorf("expected task done icon '/icons/task-done.png', got %q", pDone["icon"])
+	if _, hasIcon := pDone["icon"]; hasIcon {
+		t.Errorf("expected task done payload to omit icon, got %q", pDone["icon"])
+	}
+	if pDone["badge"] != "/icons/cuan-badge-96.png" {
+		t.Errorf("expected badge '/icons/cuan-badge-96.png', got %q", pDone["badge"])
 	}
 	if pDone["title"] != "✓ Selesai: Update payment webhook" {
 		t.Errorf("expected title '✓ Selesai: Update payment webhook', got %q", pDone["title"])
@@ -889,8 +893,11 @@ func TestPushPayload_ContextualIconsAndLockscreenFormatting(t *testing.T) {
 		Href:    "/tasks/task-rev-1",
 	}
 	pRev := buildPushPayload(reviewItem)
-	if pRev["icon"] != "/icons/task-review.png" {
-		t.Errorf("expected task review icon '/icons/task-review.png', got %q", pRev["icon"])
+	if _, hasIcon := pRev["icon"]; hasIcon {
+		t.Errorf("expected task review payload to omit icon, got %q", pRev["icon"])
+	}
+	if pRev["badge"] != "/icons/cuan-badge-96.png" {
+		t.Errorf("expected badge '/icons/cuan-badge-96.png', got %q", pRev["badge"])
 	}
 
 	// 5. Task Blocker
@@ -902,11 +909,14 @@ func TestPushPayload_ContextualIconsAndLockscreenFormatting(t *testing.T) {
 		Href:    "/tasks/task-blk-1",
 	}
 	pBlk := buildPushPayload(blockerItem)
-	if pBlk["icon"] != "/icons/task-blocker.png" {
-		t.Errorf("expected task blocker icon '/icons/task-blocker.png', got %q", pBlk["icon"])
+	if _, hasIcon := pBlk["icon"]; hasIcon {
+		t.Errorf("expected task blocker payload to omit icon, got %q", pBlk["icon"])
+	}
+	if pBlk["badge"] != "/icons/cuan-badge-96.png" {
+		t.Errorf("expected badge '/icons/cuan-badge-96.png', got %q", pBlk["badge"])
 	}
 
-	// 6. Conversational Chat message (should use cuan-192.png, no duplicate Cuan logo on task)
+	// 6. Conversational Chat message
 	agentMsgItem := ownerNotification{
 		ID:      "agent:room-123:msg-456",
 		Kind:    "completed",
@@ -915,8 +925,11 @@ func TestPushPayload_ContextualIconsAndLockscreenFormatting(t *testing.T) {
 		Href:    "/inbox/room-123",
 	}
 	pAgent := buildPushPayload(agentMsgItem)
-	if pAgent["icon"] != "/icons/cuan-192.png" {
-		t.Errorf("expected agent chat icon '/icons/cuan-192.png', got %q", pAgent["icon"])
+	if _, hasIcon := pAgent["icon"]; hasIcon {
+		t.Errorf("expected agent chat payload to omit icon, got %q", pAgent["icon"])
+	}
+	if pAgent["badge"] != "/icons/cuan-badge-96.png" {
+		t.Errorf("expected badge '/icons/cuan-badge-96.png', got %q", pAgent["badge"])
 	}
 	if pAgent["title"] != "Pesan Baru" {
 		t.Errorf("expected agent chat title 'Pesan Baru', got %q", pAgent["title"])
@@ -1106,9 +1119,12 @@ func TestPushPayload_DynamicActionTitlesAndHumanizedSnippets(t *testing.T) {
 	if !strings.Contains(apprPayload["body"], "Perbaikan Alur Pembatalan Sesi") {
 		t.Errorf("expected body to contain cleaned human title, got %q", apprPayload["body"])
 	}
-	// DoD 3: Maskable review icon
-	if apprPayload["icon"] != "/icons/task-review.png" {
-		t.Errorf("expected icon '/icons/task-review.png', got %q", apprPayload["icon"])
+	// DoD 3: No large right-side icon; monochrome badge preserved
+	if _, hasIcon := apprPayload["icon"]; hasIcon {
+		t.Errorf("expected approval payload to omit icon, got %q", apprPayload["icon"])
+	}
+	if apprPayload["badge"] != "/icons/cuan-badge-96.png" {
+		t.Errorf("expected badge '/icons/cuan-badge-96.png', got %q", apprPayload["badge"])
 	}
 
 	// 2. Chat message from @cuan facade (DoD 1: Dynamic title 'Pesan Baru', never '@cuan')
@@ -1136,8 +1152,11 @@ func TestPushPayload_DynamicActionTitlesAndHumanizedSnippets(t *testing.T) {
 	if donePayload["title"] != "✓ Selesai" {
 		t.Errorf("expected dynamic action title '✓ Selesai', got %q", donePayload["title"])
 	}
-	if donePayload["icon"] != "/icons/task-done.png" {
-		t.Errorf("expected icon '/icons/task-done.png', got %q", donePayload["icon"])
+	if _, hasIcon := donePayload["icon"]; hasIcon {
+		t.Errorf("expected done payload to omit icon, got %q", donePayload["icon"])
+	}
+	if donePayload["badge"] != "/icons/cuan-badge-96.png" {
+		t.Errorf("expected badge '/icons/cuan-badge-96.png', got %q", donePayload["badge"])
 	}
 
 	// 4. Verify physical icon assets on disk have zero black (#191919) corner pixels
