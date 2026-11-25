@@ -18,45 +18,33 @@ import { ChatContact, chatApi } from '../../api/chat'
 import { Bot, User, CheckCircle2, CheckCheck, Plus, Eye } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { getContactInitials } from './contact-initials'
-import { TASK_STATUS_THEMES, workStatus, workDisplayStatus } from '../tasks/task-ui'
-import { isTaskActive } from './task-progress'
-import { getRoomActiveSubstage, setRoomActiveSubstage } from './task-substage'
+import { TASK_STATUS_THEMES, workDisplayStatus } from '../tasks/task-ui'
+import { setRoomActiveSubstage } from './task-substage'
+import { resolveConversationStatus, resolveScopedSubstage, pickPriorityTask } from './conversation-status'
 import './chat-calm.css'
 
 export function conversationPreview(message?: string, counts?: ChatContact, t: (value: string) => string = value => value) {
-  const activeTasks = typeof counts?.active_tasks === 'number' ? counts.active_tasks : Number(counts?.active_tasks) || 0
-  const queuedTasks = typeof counts?.queued_tasks === 'number' ? counts.queued_tasks : Number(counts?.queued_tasks) || 0
-  const reviewTasks = typeof counts?.review_tasks === 'number' ? counts.review_tasks : Number(counts?.review_tasks) || 0
+  const resolved = resolveConversationStatus(counts, message)
+  const { activeTasks, queuedTasks, reviewTasks, substage } = resolved
+  const scopedSubstage = resolveScopedSubstage(resolved.status, substage)
 
-  const roomId = counts?.conversation_id || counts?.id
-  const cachedSubstage = roomId ? getRoomActiveSubstage(roomId) : undefined
-  const substage = counts?.active_substage || cachedSubstage
-
-  if (activeTasks > 0) {
-    if (substage) {
-      return t(substage) || substage
+  if (resolved.status === 'active') {
+    if (scopedSubstage) {
+      return t(scopedSubstage) || scopedSubstage
     }
     return t('Sedang dikerjakan')
   }
-  if (reviewTasks > 0) {
-    if (substage) {
-      return t(substage) || substage
-    }
-    return t('Siap ditinjau')
-  }
-
-  const isQueuedNotice = message ? /(?:Work queued|The work is (?:queued waiting|waiting for an available AI session|waiting to start)|Pekerjaan (?:masuk dalam antrean|sedang menunggu ketersediaan sesi AI|sedang menunggu untuk dimulai))/i.test(message) : false
-  const totalTasks = counts?.task_count !== undefined
-    ? Math.max(0, counts.task_count - (counts.canceled_tasks || 0))
-    : 0
-  const doneTasks = typeof counts?.done_tasks === 'number' ? counts.done_tasks : Number(counts?.done_tasks) || 0
-  const allTasksDone = totalTasks > 0 && doneTasks >= totalTasks
-
-  if (queuedTasks > 0 || (!allTasksDone && !counts?.resolved && (isQueuedNotice || substage === 'Menunggu antrean' || substage === 'Queued'))) {
-    if (substage && substage !== 'Queued' && substage !== 'Menunggu antrean') {
-      return t(substage) || substage
+  if (resolved.status === 'queued') {
+    if (scopedSubstage) {
+      return t(scopedSubstage) || scopedSubstage
     }
     return t('Menunggu antrean')
+  }
+  if (resolved.status === 'review') {
+    if (scopedSubstage) {
+      return t(scopedSubstage) || scopedSubstage
+    }
+    return t('Siap ditinjau')
   }
 
   if (!message?.trim()) return 'No messages yet.'
@@ -193,11 +181,23 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
   )
   const id = contact.conversation_id || contact.id
   const unread = contact.only_system_notices ? 0 : archive.unreadCount(id, contact.unread_count, contact.last_message_at || contact.updated_at)
-  const activeTasks = typeof contact.active_tasks === 'number' ? contact.active_tasks : Number(contact.active_tasks) || 0
-  const reviewTasks = Number(contact.review_tasks) || 0
-  const failedTasks = Number(contact.failed_tasks) || 0
-  const doneTasks = typeof contact.done_tasks === 'number' ? contact.done_tasks : Number(contact.done_tasks) || 0
-  const queuedTasks = typeof contact.queued_tasks === 'number' ? contact.queued_tasks : Number(contact.queued_tasks) || 0
+  const resolvedStatus = resolveConversationStatus(contact)
+  const {
+    status: convStatus,
+    activeTasks,
+    queuedTasks,
+    reviewTasks,
+    failedTasks,
+    doneTasks,
+    totalTasks,
+    hasTasks,
+    isResolved,
+    isWorking,
+    isQueued,
+    hasReview,
+    hasFailed,
+    fraction,
+  } = resolvedStatus
   const progress = {
     total: contact.task_count === undefined ? undefined : contact.task_count - (contact.canceled_tasks || 0),
     done: doneTasks,
@@ -208,47 +208,23 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
     blocked: failedTasks,
   }
   const progModel = taskProgressModel(progress)
-  const hasActiveWork = activeTasks > 0
-  const totalTasks = contact.task_count !== undefined
-    ? Math.max(0, contact.task_count - (contact.canceled_tasks || 0))
-    : (progModel?.total ?? 0)
-  const hasTasks = totalTasks > 0 || !!progModel
   const allTasksDone = hasTasks && (progModel ? progModel.complete : doneTasks >= totalTasks)
-  const isCompletionNotice = /(?:Hasil pekerjaan (?:memenuhi kriteria|ini sudah diterima)|Pekerjaan (?:telah (?:berhasil )?diselesaikan|ditandai selesai)|The work has been completed and verified)/i.test(contact.last_message || '')
-  const isResolved = Boolean(contact.resolved)
-  const isComplete = isResolved || allTasksDone || (!hasActiveWork && !reviewTasks && !failedTasks && isCompletionNotice)
-  const isWorking = hasActiveWork
-
-  const cachedSubstage = id ? getRoomActiveSubstage(id) : undefined
-  const substage = contact.active_substage || cachedSubstage
-  const isQueuedNotice = /(?:Work queued|The work is (?:queued waiting|waiting for an available AI session|waiting to start)|Pekerjaan (?:masuk dalam antrean|sedang menunggu ketersediaan sesi AI|sedang menunggu untuk dimulai))/i.test(contact.last_message || '')
-  const isQueued = !hasActiveWork && !reviewTasks && !allTasksDone && !isResolved && (
-    queuedTasks > 0 ||
-    Boolean(isQueuedNotice) ||
-    substage === 'Menunggu antrean' ||
-    substage === 'Queued'
-  )
-
-  const fraction = progModel ? progModel.fraction : (totalTasks > 0 ? doneTasks / totalTasks : 0)
-  const angle = fraction * Math.PI * 2
-  const pieX = 8 + 4.5 * Math.sin(angle)
-  const pieY = 8 - 4.5 * Math.cos(angle)
-
-  const hasFailed = failedTasks > 0
-  const hasReview = reviewTasks > 0
+  const isComplete = isResolved || allTasksDone || resolvedStatus.isComplete
+  const pieX = 8 + 4.5 * Math.sin(fraction * Math.PI * 2)
+  const pieY = 8 - 4.5 * Math.cos(fraction * Math.PI * 2)
 
   const statusTitle = isResolved
     ? t('Resolved (click to reopen)')
     : allTasksDone
       ? t('All tasks completed')
-      : isWorking
+      : convStatus === 'active'
         ? t('Working on tasks')
-        : hasReview
-          ? t('Siap ditinjau')
-          : hasFailed
-            ? t('Action required / paused')
-            : isQueued
-              ? t('Task queued in background')
+        : convStatus === 'queued'
+          ? t('Task queued in background')
+          : convStatus === 'review'
+            ? t('Siap ditinjau')
+            : convStatus === 'failed'
+              ? t('Action required / paused')
               : hasTasks
                 ? t('{{done}} of {{total}} tasks completed')
                     .replace('{{done}}', String(doneTasks))
@@ -259,19 +235,19 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
     ? t('Resolved')
     : allTasksDone
       ? t('All tasks completed')
-      : isWorking
+      : convStatus === 'active'
         ? t('Working on tasks')
-        : hasReview
-          ? t('Ready for review')
-          : isQueued
-            ? t('Menunggu antrean')
+        : convStatus === 'queued'
+          ? t('Menunggu antrean')
+          : convStatus === 'review'
+            ? t('Ready for review')
             : hasTasks
               ? t('Task progress')
               : t('Unresolved')
 
   const isAgentConnectionIssue =
     contact.type === 'agent' && contact.agent_id !== 'agent_cuan' &&
-    !hasActiveWork &&
+    !isWorking &&
     ['login_required', 'quota_limited', 'unavailable'].includes(status.state)
 
   const subject = [contact.product, contact.page_title].find(value =>
@@ -292,7 +268,7 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
       if (data && data.messages) {
         try {
           if (data.tasks?.length) {
-            const activeTask = data.tasks.find(t => isTaskActive(t)) || data.tasks.find(t => workStatus(t) === 'Ready for review') || data.tasks[0]
+            const activeTask = pickPriorityTask(data.tasks)
             if (activeTask) {
               setRoomActiveSubstage(id, workDisplayStatus(activeTask))
             }
@@ -427,14 +403,14 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
                 'workflow-status-toggle absolute -bottom-0.5 -right-0.5 rounded-full bg-transparent flex items-center justify-center transition-transform hover:scale-110 cursor-pointer select-none',
                 isComplete
                   ? TASK_STATUS_THEMES.done.textColor
-                  : isWorking
+                  : convStatus === 'active'
                     ? TASK_STATUS_THEMES.working.textColor
-                    : hasReview
-                      ? TASK_STATUS_THEMES.review.textColor
-                      : hasFailed
-                        ? TASK_STATUS_THEMES.attention.textColor
-                        : isQueued
-                          ? 'text-amber-500/80 dark:text-amber-400/80'
+                    : convStatus === 'queued'
+                      ? 'text-amber-500/80 dark:text-amber-400/80'
+                      : convStatus === 'review'
+                        ? TASK_STATUS_THEMES.review.textColor
+                        : convStatus === 'failed'
+                          ? TASK_STATUS_THEMES.attention.textColor
                           : 'text-muted-foreground/60 hover:text-foreground',
               )}
             >
@@ -442,8 +418,6 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
                 <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
               ) : isWorking ? (
                 <StatusDot status="working" size="md" className="m-0.5" />
-              ) : hasReview ? (
-                <Eye className="h-3.5 w-3.5" strokeWidth={2} aria-label={t('Ready for review')} />
               ) : isQueued ? (
                 <svg
                   viewBox="0 0 16 16"
@@ -468,6 +442,8 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
                     />
                   )}
                 </svg>
+              ) : convStatus === 'review' ? (
+                <Eye className="h-3.5 w-3.5" strokeWidth={2} aria-label={t('Ready for review')} />
               ) : hasTasks ? (
                 <svg
                   viewBox="0 0 16 16"

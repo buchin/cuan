@@ -24,12 +24,56 @@ const substageUrl = 'data:text/javascript;base64,' + Buffer.from(substageTranspi
 
 const { getRoomActiveSubstage, setRoomActiveSubstage } = await import(substageUrl)
 
+const taskProgressModelSource = fs.readFileSync(path.resolve(__dirname, '../src/components/ui/TaskProgress.tsx'), 'utf8')
+const taskProgressModelTranspiled = ts.transpileModule(taskProgressModelSource, {
+  compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
+}).outputText
+const taskProgressModelStub = `export function taskProgressModel(p) {
+  if (!p) return null
+  const total = typeof p.total === 'number' ? Math.max(0, p.total) : 0
+  const done = Math.max(0, p.done || 0)
+  return { total, done, complete: total > 0 && done >= total, fraction: total > 0 ? done / total : 0 }
+}`
+const taskProgressModelUrl = 'data:text/javascript;base64,' + Buffer.from(taskProgressModelStub).toString('base64')
+void taskProgressModelTranspiled
+
+const taskProgressSource = fs.readFileSync(path.resolve(__dirname, '../src/features/inbox/task-progress.ts'), 'utf8')
+const taskProgressTranspiled = ts.transpileModule(taskProgressSource, {
+  compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+}).outputText
+const taskProgressUrl = 'data:text/javascript;base64,' + Buffer.from(taskProgressTranspiled).toString('base64')
+
+const taskUiStub = `export function workStatus(task) {
+  if (task.status === 'done') return 'Completed'
+  if (task.launch?.state === 'queued' || task.launch?.state === 'claimed') return 'Queued'
+  const attempt = task.latest_attempt?.status || task.execution_status
+  if (attempt === 'running') return 'Working'
+  if (attempt === 'queued') return 'Queued'
+  if (task.status === 'review') return 'Ready for review'
+  if (task.status === 'blocked' || ['failed', 'interrupted'].includes(attempt || '')) return 'Needs attention'
+  if (task.status === 'queued' || task.status === 'pending') return 'Queued'
+  return 'Not started'
+}`
+const taskUiUrl = 'data:text/javascript;base64,' + Buffer.from(taskUiStub).toString('base64')
+
+const convStatusSource = fs.readFileSync(path.resolve(__dirname, '../src/features/inbox/conversation-status.ts'), 'utf8')
+  .replace("'../../components/ui/TaskProgress'", `'${taskProgressModelUrl}'`)
+  .replace("'../tasks/task-ui'", `'${taskUiUrl}'`)
+  .replace("'./task-progress'", `'${taskProgressUrl}'`)
+  .replace("'./task-substage'", `'${substageUrl}'`)
+const convStatusTranspiled = ts.transpileModule(convStatusSource, {
+  compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+}).outputText
+const convStatusUrl = 'data:text/javascript;base64,' + Buffer.from(convStatusTranspiled).toString('base64')
+
+const { resolveConversationStatus, resolveScopedSubstage, pickPriorityTask } = await import(convStatusUrl)
+
 const subPanelSource = fs.readFileSync(path.resolve(__dirname, '../src/features/inbox/InboxSubPanel.tsx'), 'utf8')
 const fnMatch = subPanelSource.match(/export function conversationPreview[\s\S]*?\n\}/)
 if (!fnMatch) throw new Error('conversationPreview not found in InboxSubPanel.tsx')
 
 const previewTranspiled = ts.transpileModule(
-  `import { workConversationPreview } from '${workPreviewUrl}';\nimport { getRoomActiveSubstage, setRoomActiveSubstage } from '${substageUrl}';\n${fnMatch[0]}`,
+  `import { workConversationPreview } from '${workPreviewUrl}';\nimport { getRoomActiveSubstage, setRoomActiveSubstage } from '${substageUrl}';\nimport { resolveConversationStatus, resolveScopedSubstage } from '${convStatusUrl}';\n${fnMatch[0]}`,
   { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }
 ).outputText
 const previewUrl = 'data:text/javascript;base64,' + Buffer.from(previewTranspiled).toString('base64')
@@ -261,4 +305,95 @@ test('10. conversationPreview normalizes "Queued" substage to "Menunggu antrean"
     'Menunggu antrean',
     '"Queued" substage must be localized to "Menunggu antrean"'
   )
+})
+
+test('11. Mixed queued + review tasks prioritize queued status and queue text consistently', () => {
+  const mixedContact = {
+    id: 'room-queued-and-review',
+    conversation_id: 'room-queued-and-review',
+    name: 'Perbaiki Validasi Respons Review Task yang Tertahan',
+    task_count: 2,
+    active_tasks: 0,
+    queued_tasks: 1,
+    review_tasks: 1,
+    active_substage: 'Queued',
+    last_message: 'Pekerjaan masuk dalam antrean menunggu giliran.',
+  }
+  const resolved = resolveConversationStatus(mixedContact)
+  assert.equal(resolved.status, 'queued', 'Avatar status priority must choose queued over review')
+  assert.equal(resolved.isQueued, true)
+  assert.equal(
+    conversationPreview(mixedContact.last_message, mixedContact, tId),
+    'Menunggu antrean',
+    'Preview text must match queued priority and not show review label'
+  )
+})
+
+test('12. Stale queued substage never leaks into review-only conversation status', () => {
+  const reviewWithStaleQueueSubstage = {
+    id: 'room-review-stale-substage',
+    conversation_id: 'room-review-stale-substage',
+    name: 'Investigasi Penyebab Task Gagal Berulang',
+    task_count: 1,
+    active_tasks: 0,
+    queued_tasks: 0,
+    review_tasks: 1,
+    active_substage: 'Queued',
+    last_message: 'Files from this work session',
+  }
+  const resolved = resolveConversationStatus(reviewWithStaleQueueSubstage)
+  assert.equal(resolved.status, 'review')
+  assert.equal(resolveScopedSubstage('review', 'Queued'), undefined)
+  assert.equal(resolveScopedSubstage('review', 'Dalam antrean'), undefined)
+  assert.equal(resolveScopedSubstage('review', 'Menunggu antrean'), undefined)
+  assert.equal(
+    conversationPreview(reviewWithStaleQueueSubstage.last_message, reviewWithStaleQueueSubstage, tId),
+    'Siap ditinjau',
+    'Review-only conversation must display "Siap ditinjau" even if stale queued substage is present'
+  )
+
+  const reviewWithCheckingSubstage = {
+    ...reviewWithStaleQueueSubstage,
+    active_substage: 'Checking result',
+  }
+  assert.equal(
+    conversationPreview(reviewWithCheckingSubstage.last_message, reviewWithCheckingSubstage, tId),
+    'Memeriksa hasil'
+  )
+})
+
+test('13. Unified status priority follows active -> queued -> review -> failed -> done and pickPriorityTask matches', () => {
+  assert.equal(
+    resolveConversationStatus({ id: 'r1', task_count: 3, active_tasks: 1, queued_tasks: 1, review_tasks: 1 }).status,
+    'active'
+  )
+  assert.equal(
+    resolveConversationStatus({ id: 'r2', task_count: 3, active_tasks: 0, queued_tasks: 1, review_tasks: 1, failed_tasks: 1 }).status,
+    'queued'
+  )
+  assert.equal(
+    resolveConversationStatus({ id: 'r3', task_count: 2, active_tasks: 0, queued_tasks: 0, review_tasks: 1, failed_tasks: 1 }).status,
+    'review'
+  )
+  assert.equal(
+    resolveConversationStatus({ id: 'r4', task_count: 2, active_tasks: 0, queued_tasks: 0, review_tasks: 0, failed_tasks: 1, done_tasks: 1 }).status,
+    'failed'
+  )
+  assert.equal(
+    resolveConversationStatus({ id: 'r5', task_count: 1, done_tasks: 1 }).status,
+    'done'
+  )
+
+  const picked = pickPriorityTask([
+    { id: 't-review', status: 'review' },
+    { id: 't-queued', status: 'queued' },
+    { id: 't-working', status: 'doing', latest_attempt: { status: 'running' } },
+  ])
+  assert.equal(picked?.id, 't-working')
+
+  const pickedQueued = pickPriorityTask([
+    { id: 't-review', status: 'review' },
+    { id: 't-queued', status: 'queued' },
+  ])
+  assert.equal(pickedQueued?.id, 't-queued')
 })

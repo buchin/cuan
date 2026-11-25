@@ -20,6 +20,7 @@ const extraContacts=[
   {id:'c-agent',conversation_id:'c-agent',name:'Penyederhanaan Timeline Task Chat',type:'agent',agent_id:'agent_cuan',avatar:'🤖',unread_count:0,status:'online',last_message:'Termasuk posisi judul task lain sejajar itu...',updated_at:now,task_count:1,active_tasks:1,active_substage:'Checking result'},
   {id:'c-review',conversation_id:'c-review',name:'Peringatan Kapasitas Server',type:'agent',agent_id:'agent_cuan',avatar:'🤖',unread_count:0,status:'online',last_message:'Hasil optimasi selesai diperiksa.',updated_at:now,task_count:1,active_tasks:0,review_tasks:1},
   {id:'c-queued',conversation_id:'c-queued',name:'Pindahkan Tombol New Work',type:'agent',agent_id:'agent_cuan',avatar:'🤖',unread_count:0,status:'online',last_message:'The work is queued waiting for the active project task to complete.',updated_at:now,task_count:1,queued_tasks:1,active_tasks:0},
+  {id:'c-queued-review',conversation_id:'c-queued-review',name:'Perbaiki Validasi Respons Review',type:'agent',agent_id:'agent_cuan',avatar:'🤖',unread_count:0,status:'online',last_message:'Pekerjaan masuk dalam antrean',updated_at:now,task_count:2,queued_tasks:1,review_tasks:1,active_tasks:0,active_substage:'Queued'},
   {id:'c-sys1',conversation_id:'c-sys1',name:'Rotasi Dinamis Kata Status Kerja Asisten',type:'agent',agent_id:'agent_cuan',avatar:'🤖',unread_count:0,status:'online',resolved:true,only_system_notices:true,last_message:'Sistem baru saja diperbarui. Pekerjaan Anda tersimpan aman dan dilanjutkan secara otomatis...',updated_at:now,task_count:1,active_tasks:0,done_tasks:1},
   {id:'c-sys2',conversation_id:'c-sys2',name:'Penyelarasan Desain UI Chat Reference',type:'agent',agent_id:'agent_cuan',avatar:'🤖',unread_count:0,status:'online',resolved:true,only_system_notices:true,last_message:'Sistem baru saja diperbarui. Pekerjaan Anda tersimpan aman dan dilanjutkan secara otomatis...',updated_at:now,task_count:1,active_tasks:0,done_tasks:1},
   {id:'c-sys3',conversation_id:'c-sys3',name:'Standarisasi Warna & Ikon Status Task',type:'agent',agent_id:'agent_cuan',avatar:'🤖',unread_count:0,status:'online',resolved:true,only_system_notices:true,last_message:'Sistem baru saja diperbarui. Pekerjaan Anda tersimpan aman dan dilanjutkan secara otomatis...',updated_at:now,task_count:1,active_tasks:0,done_tasks:1},
@@ -266,6 +267,13 @@ try{
       assert.ok(await page.locator('[data-testid="conversation-item"]:has-text("Menunggu antrean")').count()>=1,'Mobile list must show "Menunggu antrean" for queued task')
       const mobileQueuedItem = page.locator('[data-testid="conversation-item"]:has-text("Menunggu antrean")').first()
       assert.ok(await mobileQueuedItem.locator('[data-testid="task-pie-progress"] circle[stroke-dasharray="2.5 1.5"]').count() >= 1, 'Mobile queued item must show dashed amber ring')
+      const mobileMixedItem = page.locator('[data-testid="conversation-item"]:has-text("Perbaiki Validasi Respons Review")').first()
+      assert.ok(await mobileMixedItem.locator(':text("Menunggu antrean")').count() >= 1, 'Mixed queued+review item must show "Menunggu antrean"')
+      assert.ok(await mobileMixedItem.locator('[data-testid="task-pie-progress"] circle[stroke-dasharray="2.5 1.5"]').count() >= 1, 'Mixed queued+review item must show dashed amber ring')
+      assert.equal(await mobileMixedItem.locator('svg.lucide-eye').count(), 0, 'Mixed queued+review item must not show purple eye icon')
+      const mobileReviewItem = page.locator('[data-testid="conversation-item"]:has-text("Peringatan Kapasitas Server")').first()
+      assert.ok(await mobileReviewItem.locator(':text("Siap ditinjau")').count() >= 1, 'Review-only item must show "Siap ditinjau"')
+      assert.ok(await mobileReviewItem.locator('svg.lucide-eye').count() >= 1, 'Review-only item must show eye icon')
       assert.ok(await page.locator('[data-testid="conversation-item"]:has-text("Biar kami aktifkan")').count()>=1,'Mobile list must fall back to last_message for idle contact')
       // Verify system lifecycle notice unread prevention:
       const bottomNav = page.locator('nav.bottom-navigation')
