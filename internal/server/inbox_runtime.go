@@ -29,6 +29,7 @@ type inboxRuntimeStream struct {
 	extractor                               *streamReplyExtractor
 	maxToolCalls                            int
 	disallowTools                           bool
+	attachmentOnlyTools                     bool
 	adaptiveBatching                        bool
 	inspectionBatchFactor                   int
 	toolCalls                               int
@@ -84,6 +85,16 @@ func isSafeInboxTool(tool string) bool {
 	default:
 		return false
 	}
+}
+
+func isAttachmentReadTool(tool string) bool {
+	clean := tool
+	if idx := strings.Index(clean, "/"); idx != -1 {
+		clean = clean[idx+1:]
+	} else if idx := strings.Index(clean, ":"); idx != -1 {
+		clean = clean[idx+1:]
+	}
+	return clean == "read_file" || clean == "view_file"
 }
 
 func isInspectionTool(tool string) bool {
@@ -311,7 +322,7 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 				s.unsafeTool = true
 			}
 			if cleanTool != "finish" && u.Index != nil {
-				if s.disallowTools {
+				if s.disallowTools || (s.attachmentOnlyTools && !isAttachmentReadTool(u.Tool)) {
 					s.toolBudgetExceeded = true
 					s.emit("runtime_tool_budget_exceeded", "Tools are disallowed for this response stage. Finishing response.")
 					if s.cancel != nil {

@@ -1,9 +1,13 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"github.com/buchin/cuan/internal/db"
+	"image"
+	"image/png"
+	"mime/multipart"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -149,5 +153,130 @@ func TestInboxUncertainRetryReevaluatesOldMessageOnce(t *testing.T) {
 	prompt, err := os.ReadFile(filepath.Join(home, "prompts"))
 	if err != nil || strings.Count(string(prompt), "---TURN---") != 1 || !strings.Contains(string(prompt), "OLD_ORIGINAL_QUESTION") || !strings.Contains(string(prompt), inboxRetryReconcileInstruction) {
 		t.Fatal("fresh original-context evaluation missing", err)
+	}
+}
+
+func TestInboxUncertainRetryPreservesImageAttachmentAndContext(t *testing.T) {
+	s, token, call, home := inboxFixture(t)
+	ctx := context.Background()
+	owner, _ := s.authSvc.ValidateToken(ctx, token)
+
+	// Upload a real PNG image attachment for the owner.
+	var imgBuf bytes.Buffer
+	if err := png.Encode(&imgBuf, image.NewRGBA(image.Rect(0, 0, 2, 2))); err != nil {
+		t.Fatal(err)
+	}
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	part, err := mw.CreateFormFile("file", "screenshot.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := part.Write(imgBuf.Bytes()); err != nil {
+		t.Fatal(err)
+	}
+	mw.Close()
+	uploadReq := httptest.NewRequest("POST", "/api/v1/chat/attachments", &body)
+	uploadReq.Header.Set("Content-Type", mw.FormDataContentType())
+	uploadReq.Header.Set("Authorization", "Bearer "+token)
+	uploadRec := httptest.NewRecorder()
+	s.Router().ServeHTTP(uploadRec, uploadReq)
+	if uploadRec.Code != 201 {
+		t.Fatalf("attachment upload failed: %d %s", uploadRec.Code, uploadRec.Body.String())
+	}
+	var att conversationAttachment
+	if err := json.Unmarshal(uploadRec.Body.Bytes(), &att); err != nil || att.ID == "" {
+		t.Fatalf("unexpected attachment response: %v %s", err, uploadRec.Body.String())
+	}
+
+	conversation := s.resolveConversationContext(ctx, "agent_lifecycle", "")
+	now := time.Now().UTC()
+	q := db.InboxRequest{
+		OwnerID:     owner.ID,
+		AgentID:     "agent_lifecycle",
+		RoomID:      conversation.RoomID,
+		RequestID:   db.GenerateUUID(),
+		MessageID:   db.GenerateUUID(),
+		ReplyID:     db.GenerateUUID(),
+		PayloadHash: "retained-image-retry",
+		State:       "queued",
+		CreatedAt:   now,
+		Deadline:    now.Add(time.Hour),
+	}
+	store := s.projectStudioRepo.(db.InboxLifecycleRepository)
+	origMsg := &db.ProjectMessage{
+		ID:         q.MessageID,
+		RoomID:     q.RoomID,
+		AuthorType: "user",
+		Content:    encodeAttachmentMessage("Ini harusnya done ga sih kok iconnya masih mata ungu", []string{att.ID}),
+		CreatedAt:  now.Add(-time.Hour),
+	}
+	if _, _, err := store.AcceptInboxRequest(ctx, q, origMsg); err != nil {
+		t.Fatal(err)
+	}
+	// Add >20 newer user messages to verify retry still retains the target message's attachment.
+	for i := 0; i < 22; i++ {
+		msgID := db.GenerateUUID()
+		laterReq := db.InboxRequest{
+			OwnerID:     owner.ID,
+			AgentID:     "agent_lifecycle",
+			RoomID:      q.RoomID,
+			RequestID:   db.GenerateUUID(),
+			MessageID:   msgID,
+			ReplyID:     db.GenerateUUID(),
+			PayloadHash: db.GenerateUUID(),
+			State:       "completed",
+			CreatedAt:   now.Add(time.Duration(i+1) * time.Millisecond),
+			Deadline:    now.Add(time.Hour),
+		}
+		if _, _, err := store.AcceptInboxRequest(ctx, laterReq, &db.ProjectMessage{
+			ID:         msgID,
+			RoomID:     q.RoomID,
+			AuthorType: "user",
+			Content:    "Later follow-up",
+			CreatedAt:  now.Add(time.Duration(i+1) * time.Millisecond),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	store.AppendInboxStep(ctx, q.RoomID, q.RequestID, "runtime_tool_started", "Uncertain previous action")
+	q.State = "failed"
+	q.SafeError = "The provider reached a usage limit after tool activity that cannot be safely repeated."
+	if err := store.FinishInboxRequest(ctx, q, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	path := "/api/v1/chat/conversations/" + q.RoomID + "/requests/" + q.RequestID + "/retry"
+	w := call("POST", path, "{}")
+	if w.Code != 200 && w.Code != 202 {
+		t.Fatalf("retry failed: %d %s", w.Code, w.Body.String())
+	}
+	waitInboxState(t, s, q.RoomID, db.InboxRetryID(q.RequestID), "completed")
+
+	rows, _ := s.projectStudioRepo.(db.InboxRequestRepository).ListInboxRequests(ctx, q.RoomID)
+	var retryReq *db.InboxRequest
+	for i := range rows {
+		if rows[i].RequestID == db.InboxRetryID(q.RequestID) {
+			retryReq = &rows[i]
+			break
+		}
+	}
+	if retryReq == nil || !db.InboxRetryNeedsReconciliation(*retryReq) {
+		t.Fatalf("expected reconciliation retry request, got %+v", retryReq)
+	}
+	if gotPaths := s.inboxAttachmentPaths(ctx, *retryReq); len(gotPaths) == 0 {
+		t.Fatalf("expected inboxAttachmentPaths to retain attachment for retried message")
+	}
+
+	prompt, err := os.ReadFile(filepath.Join(home, "prompts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := string(prompt)
+	if !strings.Contains(p, "Ini harusnya done ga sih kok iconnya masih mata ungu") ||
+		!strings.Contains(p, att.ID) ||
+		!strings.Contains(p, "You may ONLY inspect the supplied user attachments using read_file") ||
+		strings.Contains(p, "Do not call inspection or execution tools in chat.") {
+		t.Fatalf("reconcile retry prompt missing attachment context or tool guidance: %s", p)
 	}
 }

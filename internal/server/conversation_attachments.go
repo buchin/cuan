@@ -570,6 +570,18 @@ func (s *Server) inboxAttachmentIDs(ctx context.Context, q db.InboxRequest) []st
 	}
 	if len(selected) > 20 {
 		selected = selected[len(selected)-20:]
+		targetPresent := false
+		for _, m := range selected {
+			if m.ID == q.MessageID {
+				targetPresent = true
+				break
+			}
+		}
+		if !targetPresent {
+			if target, e := s.projectStudioRepo.GetMessageByID(ctx, q.MessageID); e == nil && target != nil && target.RoomID == q.RoomID && target.AuthorType == "user" {
+				selected = append([]db.ProjectMessage{*target}, selected...)
+			}
+		}
 	}
 	ids := []string{}
 	seen := map[string]bool{}

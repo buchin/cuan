@@ -262,7 +262,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			system = inboxCoordinatorInstruction + "\n\nResponse schema:\n" + inboxCoordinatorSchema + streamingInstruction + "\n\n" + inboxProposalDecisionInstruction + "\n\nContext data:\n" + prompt
 		}
 		if reconcileRetry && !analysisRecovery {
-			system = inboxRetryReconcileInstruction + "\n\nResponse schema:\n" + inboxRetryReconcileSchema + "\n\nContext data:\n" + prompt
+			system = buildInboxRetryReconcileInstruction(len(attachmentPaths) > 0) + "\n\nResponse schema:\n" + inboxRetryReconcileSchema + "\n\nContext data:\n" + prompt
 		}
 		if snapshotReview {
 			system = reviewInstruction + "\n\n" + inboxPhaseReviewInstruction + "\n\n" + inboxReviewChangesInstruction + "\n\n" + cuanPrompt.GetReviewPromptAdditions(workspace) + "\n\nReport data:\n" + prompt
@@ -420,22 +420,26 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	default:
 		binary = normHarness
 	}
-	if snapshotReview && len(attachmentPaths) > 0 && binary == "claude" {
+	if (snapshotReview || directCoordinator) && len(attachmentPaths) > 0 && binary == "claude" {
 		args = []string{"-p", "--tools", "Read", "--allowedTools", "Read", "--output-format", "text", system}
 	} else if (answerOnly || snapshotReview || directCoordinator || formatRepair) && binary == "claude" {
 		args = []string{"-p", "--tools", "", "--output-format", "text", system}
 	}
+	addedAttachmentDirs := map[string]bool{}
 	for _, file := range attachmentPaths {
 		if binary == "codex" {
 			ext := strings.ToLower(filepath.Ext(file))
 			if ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif" || ext == ".webp" {
 				args = append(args, "--image", file)
 			}
-		} else if !directCoordinator && !formatRepair {
-			// Reconcile/direct-coordinator turns do not advertise file inspection:
-			// attachments are still sandbox-mounted for context but the CLI must
-			// not discover them through --add-dir to prevent replay of old work.
-			args = append(args, "--add-dir", filepath.Dir(file))
+		} else if !formatRepair {
+			// Expose only each attachment's directory (never the project workspace)
+			// so sandboxed CLIs can inspect user attachments via read_file.
+			dir := filepath.Dir(file)
+			if !addedAttachmentDirs[dir] {
+				addedAttachmentDirs[dir] = true
+				args = append(args, "--add-dir", dir)
+			}
 		}
 	}
 	path, err := exec.LookPath(binary)
@@ -675,6 +679,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			adaptiveBatching:      !snapshotReview,
 			inspectionBatchFactor: getChatInspectionBatchFactor(),
 			disallowTools:         (directCoordinator && len(attachmentPaths) == 0) || formatRepair || (snapshotReview && len(attachmentPaths) == 0),
+			attachmentOnlyTools:   directCoordinator && len(attachmentPaths) > 0,
 			cancel: func() {
 				if cmd.Cancel != nil {
 					_ = cmd.Cancel()
