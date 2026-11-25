@@ -325,9 +325,10 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			s.projectSvc != nil && detail.ProjectID != "" {
 			if proj, err := s.projectSvc.Get(ctx, detail.ProjectID); err == nil && proj != nil {
 				if project.SettingsFromMetadata(proj.Metadata).IsAutoDeployEnabled() {
-					log.Printf("[Watchdog AI Orchestrator] Autonomously triggering auto-deploy for verified publication task %s", detail.ID)
-					s.autoApplyAndDeployTask(ctx, detail.ID, detail.ProjectID)
-					continue
+					if s.autoApplyAndDeployTask(ctx, detail.ID, detail.ProjectID) {
+						log.Printf("[Watchdog AI Orchestrator] Autonomously triggered auto-deploy for verified publication task %s", detail.ID)
+						continue
+					}
 				}
 			}
 		}
