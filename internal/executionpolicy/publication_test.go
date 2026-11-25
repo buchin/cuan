@@ -174,3 +174,25 @@ func TestCompletedNativeInspectionHeaderDoesNotRestrictNextDeveloper(t *testing.
 		}
 	}
 }
+
+func TestManualDeployCautionDoesNotBlockAutomatedPipeline(t *testing.T) {
+	for _, tc := range []struct {
+		text       string
+		push, deny bool
+	}{
+		{"Jangan deploy manual.", false, false},
+		{"Do not deploy manually.", false, false},
+		{"Jangan lakukan deploy secara manual ke production.", false, false},
+		{"Do not manually deploy to production.", false, false},
+		{"Tolong perbaiki bug ini. Commit dan push ke dev. Jangan deploy manual.", false, false},
+		{"Jangan deploy manual. Jangan deploy.", false, true},
+		{"Jangan deploy manual atau otomatis.", false, true},
+		{"Jangan deploy manual atau push.", true, true},
+		{"Do not deploy to production.", false, true},
+	} {
+		got := FromInstructions(tc.text)
+		if got.DenyPush != tc.push || got.DenyDeploy != tc.deny {
+			t.Errorf("%q: got %+v, want push=%v deny=%v", tc.text, got, tc.push, tc.deny)
+		}
+	}
+}

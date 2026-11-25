@@ -267,33 +267,40 @@ func (s *Server) triggerAutoDeploy(ctx context.Context, projectID, taskID string
 }
 
 // autoApplyAndDeployTask is called when an agent completes a task on a project with auto_deploy enabled.
-func (s *Server) autoApplyAndDeployTask(ctx context.Context, taskID, projectID string) {
+// Returns true if auto-apply/deploy was attempted, or false if skipped by policy/preconditions.
+func (s *Server) autoApplyAndDeployTask(ctx context.Context, taskID, projectID string) bool {
 	taskDetail, err := s.taskSvc.GetTaskDetail(ctx, taskID)
 	if err != nil || taskDetail == nil {
-		return
+		return false
 	}
 	if taskDetail.LatestAttempt == nil || taskDetail.LatestAttempt.Status != task.AttemptStatusSucceeded {
-		return // Never publish from an unverified agent report or failed attempt.
+		log.Printf("[AutoDeploy] Skipping auto-apply and deploy for task %s: latest attempt not succeeded", taskID)
+		return false // Never publish from an unverified agent report or failed attempt.
 	}
 	policy, err := s.taskPublicationPolicy(ctx, taskDetail)
-	if err != nil || taskApplyPermission(policy) != nil {
-		return
+	if err != nil {
+		log.Printf("[AutoDeploy] Skipping auto-apply and deploy for task %s: policy error: %v", taskID, err)
+		return false
+	}
+	if permErr := taskApplyPermission(policy); permErr != nil {
+		log.Printf("[AutoDeploy] Skipping auto-apply and deploy for task %s: %v", taskID, permErr)
+		return false
 	}
 	if taskDetail.ExecutionCategory != "" && taskDetail.ExecutionCategory != task.ExecutionCategoryCode {
 		log.Printf("[AutoDeploy] Skipping auto-apply and deploy for non-code task %s (category: %s)", taskID, taskDetail.ExecutionCategory)
-		return
+		return false
 	}
 	if taskDetail.ExecutionCategory != task.ExecutionCategoryCode && isInvestigationOrNonCodeText(taskDetail.Title) {
 		log.Printf("[AutoDeploy] Skipping auto-apply and deploy for non-code investigation task %s", taskID)
-		return
+		return false
 	}
 	if taskDetail.PRNumber <= 0 && taskDetail.BranchName == "" {
 		log.Printf("[AutoDeploy] Skipping auto-apply and deploy for task %s without branch or PR", taskID)
-		return
+		return false
 	}
 	if !releaseObjectID.MatchString(taskDetail.CommitSHA) {
 		log.Printf("[AutoDeploy] Skipping auto-apply and deploy for task %s without valid commit SHA", taskID)
-		return
+		return false
 	}
 	branch := taskDetail.BranchName
 	mergeRes, err := s.applyTaskInternal(ctx, taskDetail.ID, taskDetail.ProjectID, taskDetail.Title, taskDetail.Summary, branch, taskDetail.PRNumber)
@@ -309,7 +316,7 @@ func (s *Server) autoApplyAndDeployTask(ctx context.Context, taskID, projectID s
 			Status:       &reviewStatus,
 			CompleteNote: &failNote,
 		})
-		return
+		return true
 	}
 	appliedSHA := ""
 	if mergeRes != nil {
@@ -337,6 +344,7 @@ func (s *Server) autoApplyAndDeployTask(ctx context.Context, taskID, projectID s
 	}
 	_, _ = s.taskSvc.UpdateTask(ctx, taskID, "system", autoUpdateReq)
 	s.triggerAutoDeploy(ctx, projectID, taskID)
+	return true
 }
 
 func isInvestigationOrNonCodeText(texts ...string) bool {

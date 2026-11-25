@@ -589,8 +589,9 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 		if s.projectSvc != nil && d.ProjectID != "" {
 			if proj, err := s.projectSvc.Get(ctx, d.ProjectID); err == nil && proj != nil {
 				if project.SettingsFromMetadata(proj.Metadata).IsAutoDeployEnabled() {
-					s.autoApplyAndDeployTask(ctx, d.ID, d.ProjectID)
-					return "Hasil perubahan sudah diperiksa secara independen. Cuan sedang menerapkannya melalui jalur rilis proyek.\n\n[View work](/tasks/" + d.ID + ")"
+					if s.autoApplyAndDeployTask(ctx, d.ID, d.ProjectID) {
+						return "Hasil perubahan sudah diperiksa secara independen. Cuan sedang menerapkannya melalui jalur rilis proyek.\n\n[View work](/tasks/" + d.ID + ")"
+					}
 				}
 			}
 		}
@@ -664,8 +665,9 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 					if proj, err := s.projectSvc.Get(ctx, d.ProjectID); err == nil && proj != nil && project.SettingsFromMetadata(proj.Metadata).IsAutoDeployEnabled() {
 						observation := s.inboxReviewPublication(ctx, d)
 						if observation != nil && observation.Required && !observation.Verified {
-							s.autoApplyAndDeployTask(ctx, d.ID, d.ProjectID)
-							return "Hasil perubahan sudah diperiksa secara independen. Cuan sedang menerapkannya melalui jalur rilis proyek.\n\n[View work](/tasks/" + d.ID + ")"
+							if s.autoApplyAndDeployTask(ctx, d.ID, d.ProjectID) {
+								return "Hasil perubahan sudah diperiksa secara independen. Cuan sedang menerapkannya melalui jalur rilis proyek.\n\n[View work](/tasks/" + d.ID + ")"
+							}
 						}
 					}
 				}

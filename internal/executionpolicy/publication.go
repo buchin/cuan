@@ -44,6 +44,10 @@ var inspectBehaviorLimit = regexp.MustCompile("(?i)^\\s*(?:jangan\\s+(?:jalankan
 // request. Original bans, read-only scope and unknown qualifiers still win.
 var publicationEvidenceLimit = regexp.MustCompile(`(?i)^\s*(?:do not repeat deployment solely to obtain evidence|jangan (?:lakukan|melakukan) deploy (?:buta|secara buta)(?: atau menandai task selesai sebelum ada bukti valid)?|jangan mengulang (?:broad suite atau )?deploy hanya demi bukti(?: bila bukti native yang sah sudah ada)?)\s*$`)
 
+// Prohibiting manual deployment (e.g. "Jangan deploy manual") forbids ad-hoc
+// manual releases, not Cuan's automated apply/merge and deployment pipeline.
+var manualDeployCaution = regexp.MustCompile(`(?i)^\s*(?:jangan|dilarang|tanpa|tidak|do not|don't|must not|never|no)\s+(?:(?:lakukan|melakukan|jalankan|menjalankan|run|execute|perform)\s+)?(?:manual\s+(?:deploy|deployment|deploying)|(?:deploy|deployment|deploying)\s+(?:manual|secara\s+manual|manually)|manually\s+(?:deploy|deployment|deploying))(?:\s+(?:ke|to)\s+(?:production|produksi|live|prod|server|vps))?\s*$`)
+
 func FromInstructions(instructions string) PublicationPolicy {
 	instructions = publicationScope(instructions)
 	instructions = completedNativeInspection.ReplaceAllString(instructions, "${1}${2}")
@@ -55,7 +59,7 @@ func FromInstructions(instructions string) PublicationPolicy {
 	clauses := publicationClauseTransition.ReplaceAllString(instructions, "\n$0")
 	for _, clause := range publicationProhibition.FindAllString(clauses, -1) {
 		policy.DenyPush = policy.DenyPush || pushAction.MatchString(clause)
-		policy.DenyDeploy = policy.DenyDeploy || (deployAction.MatchString(clause) && !((inspectBehaviorLimit.MatchString(clause) || publicationEvidenceLimit.MatchString(clause)) && managedPublicationRequested(instructions)))
+		policy.DenyDeploy = policy.DenyDeploy || (deployAction.MatchString(clause) && !manualDeployCaution.MatchString(clause) && !((inspectBehaviorLimit.MatchString(clause) || publicationEvidenceLimit.MatchString(clause)) && managedPublicationRequested(instructions)))
 	}
 	if policy.DenyDeploy && standaloneArtifactShape(instructions) {
 		policy.DenyPush = true
