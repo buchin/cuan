@@ -42,75 +42,71 @@ test('1. S63-T3 & S68: Clean Top Header Action & Zero Visual Clutter Architectur
   )
 })
 
-test('2. S63-T3: 5-Pillar Mobile Bottom Navigation Architecture', () => {
+test('2. S63-T3: 5-Pillar Mobile Bottom Navigation Architecture (Inbox, Projects, New work, Contacts, Settings)', () => {
   const appShellSource = fs.readFileSync(appShellPath, 'utf8')
 
-  // Pillar 1: Chat (/chat, /inbox)
+  // Pillar 1: Inbox (/inbox)
   assert.ok(
     appShellSource.includes('data-testid="bottom-nav-inbox"'),
-    'Bottom navigation must render Pillar 1: Chat with data-testid="bottom-nav-inbox"'
+    'Bottom navigation must render Pillar 1: Inbox with data-testid="bottom-nav-inbox"'
   )
   assert.ok(
     appShellSource.includes("navigate('inbox')"),
     'Pillar 1 must navigate to inbox/chat'
   )
 
-  // Pillar 2: Tasks (/tasks)
-  assert.ok(
-    appShellSource.includes('data-testid="bottom-nav-tasks"'),
-    'Bottom navigation must render Pillar 2: Tasks with data-testid="bottom-nav-tasks"'
-  )
-  assert.ok(
-    appShellSource.includes("navigate('tasks')"),
-    'Pillar 2 must navigate to tasks'
-  )
-  assert.ok(
-    appShellSource.includes("currentTab === 'tasks'"),
-    'Pillar 2 must indicate active state when on tasks route'
-  )
-
-  // Pillar 3: Projects (/projects) — restored before Contacts
+  // Pillar 2: Projects (/projects)
   assert.ok(
     appShellSource.includes('data-testid="bottom-nav-projects"'),
-    'Bottom navigation must render Pillar 3: Projects with data-testid="bottom-nav-projects"'
+    'Bottom navigation must render Pillar 2: Projects with data-testid="bottom-nav-projects"'
   )
   assert.ok(
     appShellSource.includes("navigate('projects')"),
-    'Pillar 3 must navigate to projects'
+    'Pillar 2 must navigate to projects'
+  )
+
+  // Pillar 3: New work (/studio)
+  assert.ok(
+    appShellSource.includes('data-testid="bottom-nav-studio"'),
+    'Bottom navigation must render Pillar 3: New work with data-testid="bottom-nav-studio"'
+  )
+  assert.ok(
+    appShellSource.includes("navigate('studio')"),
+    'Pillar 3 must navigate to studio'
   )
 
   // Pillar 4: Contacts (/contacts)
   assert.ok(
-    appShellSource.includes('data-testid="bottom-nav-studio"'),
-    'Bottom navigation must render Pillar 4: Contacts with data-testid="bottom-nav-studio"'
+    appShellSource.includes('data-testid="bottom-nav-contacts"'),
+    'Bottom navigation must render Pillar 4: Contacts with data-testid="bottom-nav-contacts"'
   )
   assert.ok(
-    appShellSource.includes("navigate('studio')"),
+    appShellSource.includes("navigate('contacts')"),
     'Pillar 4 must navigate to contacts'
   )
 
-  // Pillar 5: User Avatar (NavUser compact in bottom nav)
+  // Pillar 5: Settings (/settings)
   assert.ok(
-    appShellSource.includes('data-testid="bottom-nav-user"'),
-    'Bottom navigation must render Pillar 5: User Profile with data-testid="bottom-nav-user"'
+    appShellSource.includes('data-testid="bottom-nav-settings"'),
+    'Bottom navigation must render Pillar 5: Settings with data-testid="bottom-nav-settings"'
   )
   assert.ok(
-    appShellSource.includes('<NavUser\n                bottomNavigation'),
-    'Pillar 5 must mount NavUser with bottomNavigation={true}'
+    appShellSource.includes("navigate('settings')"),
+    'Pillar 5 must navigate to settings'
   )
 
-  // Verify symmetrical ordering: Inbox -> Tasks -> Studio (+) -> Projects -> NavUser
-  const chatIdx = appShellSource.indexOf('data-testid="bottom-nav-inbox"')
-  const tasksIdx = appShellSource.indexOf('data-testid="bottom-nav-tasks"')
-  const studioIdx = appShellSource.indexOf('data-testid="bottom-nav-studio"')
+  // Verify symmetrical ordering: Inbox -> Projects -> New work (+) -> Contacts -> Settings
+  const inboxIdx = appShellSource.indexOf('data-testid="bottom-nav-inbox"')
   const projectsIdx = appShellSource.indexOf('data-testid="bottom-nav-projects"')
-  const userIdx = appShellSource.indexOf('data-testid="bottom-nav-user"')
+  const studioIdx = appShellSource.indexOf('data-testid="bottom-nav-studio"')
+  const contactsIdx = appShellSource.indexOf('data-testid="bottom-nav-contacts"')
+  const settingsIdx = appShellSource.indexOf('data-testid="bottom-nav-settings"')
 
-  assert.ok(chatIdx !== -1 && tasksIdx !== -1 && studioIdx !== -1 && projectsIdx !== -1 && userIdx !== -1, 'All bottom navigation items must exist')
-  assert.ok(chatIdx < tasksIdx, 'Inbox must be before Tasks')
-  assert.ok(tasksIdx < studioIdx, 'Tasks must be before Studio (New work +)')
-  assert.ok(studioIdx < projectsIdx, 'Studio (New work +) must be before Projects')
-  assert.ok(projectsIdx < userIdx, 'Projects must be before NavUser')
+  assert.ok(inboxIdx !== -1 && projectsIdx !== -1 && studioIdx !== -1 && contactsIdx !== -1 && settingsIdx !== -1, 'All bottom navigation items must exist')
+  assert.ok(inboxIdx < projectsIdx, 'Inbox must be before Projects')
+  assert.ok(projectsIdx < studioIdx, 'Projects must be before Studio (New work +)')
+  assert.ok(studioIdx < contactsIdx, 'Studio (New work +) must be before Contacts')
+  assert.ok(contactsIdx < settingsIdx, 'Contacts must be before Settings')
 })
 
 test('3. S63-T3: Compact NavUser Profile Popover (Account, Password, Language, Reload, Logout)', () => {

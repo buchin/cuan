@@ -59,50 +59,53 @@ test('1. S59-T3: Desktop Sidebar 3-Group Information Architecture (NAV_GROUPS)',
   )
 })
 
-test('2. S59-T3: 4-Pillar Mobile Bottom Navigation (Chat, Tasks, Projects, Menu)', () => {
+test('2. S59-T3: Mobile Bottom Navigation (Inbox, Projects, New work, Contacts, Settings)', () => {
   const appShellSource = fs.readFileSync(appShellPath, 'utf8')
 
-  // Pillar 1: Chat (/inbox)
+  // Pillar 1: Inbox (/inbox)
   assert.ok(
     appShellSource.includes('data-testid="bottom-nav-inbox"'),
-    'Bottom navigation must render Pillar 1: Chat with data-testid="bottom-nav-inbox"'
+    'Bottom navigation must render Pillar 1: Inbox with data-testid="bottom-nav-inbox"'
   )
   assert.ok(
     appShellSource.includes('navigate(\'inbox\')'),
-    'Pillar 1 Chat must navigate to inbox tab'
+    'Pillar 1 Inbox must navigate to inbox tab'
   )
   assert.ok(
     appShellSource.includes('data-testid="inbox-unread-badge-bottom"'),
-    'Pillar 1 Chat must render unread badge counter'
+    'Pillar 1 Inbox must render unread badge counter'
   )
 
-  // Pillar 2: Tasks (/tasks)
+  // Pillar 2: Projects (/projects)
   assert.ok(
-    appShellSource.includes('data-testid="bottom-nav-tasks"'),
-    'Bottom navigation must render Pillar 2: Tasks with data-testid="bottom-nav-tasks"'
+    appShellSource.includes('data-testid="bottom-nav-projects"'),
+    'Bottom navigation must render Pillar 2: Projects with data-testid="bottom-nav-projects"'
   )
   assert.ok(
-    appShellSource.includes('navigate(\'tasks\')'),
-    'Pillar 2 Tasks must navigate to tasks tab'
-  )
-
-  // Pillar 3: Contacts (/contacts) in S62 or Projects (/projects) in legacy S59
-  assert.ok(
-    appShellSource.includes('data-testid="bottom-nav-contacts"') ||
-      appShellSource.includes('data-testid="bottom-nav-projects"'),
-    'Bottom navigation must render Pillar 3 with valid testid'
-  )
-  assert.ok(
-    appShellSource.includes('navigate(\'contacts\')') ||
-      appShellSource.includes('navigate(\'projects\')'),
-    'Pillar 3 must navigate to active tab'
+    appShellSource.includes('navigate(\'projects\')'),
+    'Pillar 2 Projects must navigate to projects tab'
   )
 
-  // Pillar 4 / 5: Navigation actions (Menu in legacy S59 or NavUser in S63)
+  // Pillar 3: New work (/studio)
   assert.ok(
-    appShellSource.includes('data-testid="bottom-nav-menu"') ||
-      appShellSource.includes('data-testid="bottom-nav-user"'),
-    'Bottom navigation must render navigation pillar'
+    appShellSource.includes('data-testid="bottom-nav-studio"'),
+    'Bottom navigation must render Pillar 3: New work with data-testid="bottom-nav-studio"'
+  )
+
+  // Pillar 4: Contacts (/contacts)
+  assert.ok(
+    appShellSource.includes('data-testid="bottom-nav-contacts"'),
+    'Bottom navigation must render Pillar 4: Contacts with data-testid="bottom-nav-contacts"'
+  )
+  assert.ok(
+    appShellSource.includes('navigate(\'contacts\')'),
+    'Pillar 4 must navigate to contacts'
+  )
+
+  // Pillar 5: Settings (/settings)
+  assert.ok(
+    appShellSource.includes('data-testid="bottom-nav-settings"'),
+    'Bottom navigation must render Pillar 5: Settings with data-testid="bottom-nav-settings"'
   )
 })
 

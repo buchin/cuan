@@ -491,10 +491,11 @@ export function AppShell({
           >
             {/* Pillar 1: Inbox */}
             <button
-              key="chat"
+              key="inbox"
+              type="button"
               data-nav-tone="inbox"
               data-testid="bottom-nav-inbox"
-              aria-label={t('Inbox')}
+              aria-label="Inbox"
               aria-current={isTabActive('inbox') ? 'page' : undefined}
               onClick={() => {
                 setMobileMenuOpen(false)
@@ -519,39 +520,41 @@ export function AppShell({
                   </span>
                 )}
               </span>
-              <span>{t('Inbox')}</span>
+              <span className="truncate max-w-full px-0.5">Inbox</span>
             </button>
 
-            {/* Pillar 2: Tasks */}
+            {/* Pillar 2: Projects */}
             <button
-              key="tasks"
-              data-nav-tone="tasks"
-              data-testid="bottom-nav-tasks"
-              aria-label={t('Tasks')}
-              aria-current={currentTab === 'tasks' ? 'page' : undefined}
+              key="projects"
+              type="button"
+              data-nav-tone="projects"
+              data-testid="bottom-nav-projects"
+              aria-label="Projects"
+              aria-current={isTabActive('projects') ? 'page' : undefined}
               onClick={() => {
                 setMobileMenuOpen(false)
-                navigate('tasks')
+                navigate('projects')
               }}
               className={cn(
                 'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs transition-colors',
-                currentTab === 'tasks'
+                isTabActive('projects')
                   ? 'font-semibold text-primary'
                   : 'text-muted-foreground hover:text-foreground',
               )}
             >
               <span className="flex h-7 w-7 items-center justify-center">
-                <CheckSquare className="h-5 w-5 text-inherit" />
+                <FolderGit2 className="h-5 w-5 text-inherit" />
               </span>
-              <span>{t('Tasks')}</span>
+              <span className="truncate max-w-full px-0.5">Projects</span>
             </button>
 
             {/* Pillar 3: New work (+) */}
             <button
+              key="studio"
               type="button"
               data-nav-tone="studio"
               data-testid="bottom-nav-studio"
-              aria-label={t('New work')}
+              aria-label="New work"
               aria-current={currentTab === 'studio' ? 'page' : undefined}
               onClick={() => {
                 setMobileMenuOpen(false)
@@ -576,46 +579,58 @@ export function AppShell({
               >
                 <Plus aria-hidden="true" className="h-4.5 w-4.5 text-inherit" />
               </span>
-              <span>{t('New work')}</span>
+              <span className="truncate max-w-full px-0.5">New work</span>
             </button>
 
-            {/* Pillar 4: Projects */}
+            {/* Pillar 4: Contacts */}
             <button
-              key="projects"
-              data-nav-tone="projects"
-              data-testid="bottom-nav-projects"
-              aria-label={t('Projects')}
-              aria-current={currentTab === 'projects' ? 'page' : undefined}
+              key="contacts"
+              type="button"
+              data-nav-tone="contacts"
+              data-testid="bottom-nav-contacts"
+              aria-label="Contacts"
+              aria-current={isTabActive('contacts') ? 'page' : undefined}
               onClick={() => {
                 setMobileMenuOpen(false)
-                navigate('projects')
+                navigate('contacts')
               }}
               className={cn(
                 'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs transition-colors',
-                currentTab === 'projects'
+                isTabActive('contacts')
                   ? 'font-semibold text-primary'
                   : 'text-muted-foreground hover:text-foreground',
               )}
             >
               <span className="flex h-7 w-7 items-center justify-center">
-                <FolderGit2 className="h-5 w-5 text-inherit" />
+                <Users className="h-5 w-5 text-inherit" />
               </span>
-              <span>{t('Projects')}</span>
+              <span className="truncate max-w-full px-0.5">Contacts</span>
             </button>
 
-            {/* Pillar 5: Avatar Profil Pengguna (NavUser compact) */}
-            <div
-              data-testid="bottom-nav-user"
-              className="flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center"
+            {/* Pillar 5: Settings */}
+            <button
+              key="settings"
+              type="button"
+              data-nav-tone="settings"
+              data-testid="bottom-nav-settings"
+              aria-label="Settings"
+              aria-current={isTabActive('settings') ? 'page' : undefined}
+              onClick={() => {
+                setMobileMenuOpen(false)
+                navigate('settings')
+              }}
+              className={cn(
+                'flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs transition-colors',
+                isTabActive('settings')
+                  ? 'font-semibold text-primary'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
             >
-              <NavUser
-                bottomNavigation
-                active={currentTab === 'account'}
-                dropdownPosition="top-right"
-                onSettings={() => navigate('settings')}
-                onWork={() => navigate('tasks')}
-              />
-            </div>
+              <span className="flex h-7 w-7 items-center justify-center">
+                <Settings className="h-5 w-5 text-inherit" />
+              </span>
+              <span className="truncate max-w-full px-0.5">Settings</span>
+            </button>
           </nav>
 
           {/* Mobile Menu Drawer */}
