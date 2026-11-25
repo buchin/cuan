@@ -1012,18 +1012,18 @@ export function TerminalComposer({
             <button
               key={label}
               type="button"
-              className="flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-accent text-neutral-100 transition-colors"
+              className="flex min-h-12 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
               onClick={() => {
                 ref.current?.click()
                 setShowAttachmentMenu(false)
               }}
             >
-              <div className="h-9 w-9 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0">
+              <div className="h-9 w-9 rounded-full bg-emerald-500/10 dark:bg-emerald-500/15 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
                 <Icon className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex flex-col">
-                <span className="text-sm font-medium text-neutral-100">{label}</span>
-                <span className="text-xs text-neutral-400">{description}</span>
+                <span className="text-sm font-medium text-foreground">{label}</span>
+                <span className="text-xs text-muted-foreground">{description}</span>
               </div>
             </button>
           ))}
