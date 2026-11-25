@@ -146,18 +146,7 @@ func (s *Server) notificationSnapshot(ctx context.Context, owner string) ([]owne
 			if t.LatestAttempt != nil {
 				attempt = t.LatestAttempt.ID
 			}
-			href := "/tasks/" + url.PathEscape(t.ID)
-			if t.ProjectID != "" {
-				href = "/projects/" + url.PathEscape(t.ProjectID) + "/tasks/" + url.PathEscape(t.ID)
-			}
-			action := "View work"
-			if t.SourceRoomID != "" {
-				href = "/inbox/" + url.PathEscape(t.SourceRoomID)
-				if t.Status == "review" || t.Status == "blocked" {
-					href += "?work=" + url.PathEscape(t.ID)
-				}
-				action = "Open conversation"
-			}
+			href, action := taskNotificationTarget(t.ID, t.ProjectID, t.SourceRoomID, t.Status)
 			state := notificationTaskState{Status: t.Status, Attempt: attempt, Title: notificationText(t.Title, 160), Context: notificationText(t.ProjectName, 120), Href: href}
 			states[t.ID] = state
 			kind, status, summary := "", "", ""
@@ -657,37 +646,78 @@ func (s *Server) DispatchAgentUpdatePush(ctx context.Context, roomID, messageID,
 	s.broadcastPushNotification(pushCtx, item)
 }
 
+// taskNotificationTarget resolves the destination href and action label for a task notification.
+// Tasks originating from an Inbox room route directly back to that conversation;
+// standalone or project-created tasks fall back to their project task or task detail route.
+func taskNotificationTarget(taskID, projectID, sourceRoomID, status string) (href string, actionLabel string) {
+	if roomID := strings.TrimSpace(sourceRoomID); roomID != "" {
+		href = "/inbox/" + url.PathEscape(roomID)
+		if status == task.TaskStatusReview || status == task.TaskStatusBlocked {
+			href += "?work=" + url.PathEscape(taskID)
+		}
+		return href, "Open conversation"
+	}
+	if pid := strings.TrimSpace(projectID); pid != "" {
+		return "/projects/" + url.PathEscape(pid) + "/tasks/" + url.PathEscape(taskID), "View work"
+	}
+	return "/tasks/" + url.PathEscape(taskID), "View work"
+}
+
+func (s *Server) resolveTaskSourceRoomID(ctx context.Context, taskID string) string {
+	if s.projectStudioRepo == nil || strings.TrimSpace(taskID) == "" {
+		return ""
+	}
+	recentMap, err := s.projectStudioRepo.ListRecentMessages(ctx, 20)
+	if err != nil {
+		return ""
+	}
+	taskPattern := "/tasks/" + taskID
+	var targetRoom string
+	var earliestTime time.Time
+	for rID, msgs := range recentMap {
+		for _, m := range msgs {
+			if strings.Contains(m.Content, taskPattern) {
+				if targetRoom == "" || m.CreatedAt.Before(earliestTime) {
+					targetRoom = rID
+					earliestTime = m.CreatedAt
+				}
+			}
+		}
+	}
+	return targetRoom
+}
+
 // DispatchTaskCompletedPush sends an instant push notification when a task reaches 'done'.
 func (s *Server) DispatchTaskCompletedPush(ctx context.Context, t *task.Task) {
 	if t == nil || t.Status != task.TaskStatusDone {
 		return
 	}
-	_ = s.PostTaskCompletionMessage(ctx, t)
-	href := "/tasks/" + url.PathEscape(t.ID)
-	if t.ProjectID != "" {
-		href = "/projects/" + url.PathEscape(t.ProjectID) + "/tasks/" + url.PathEscape(t.ID)
+	resolvedTask := *t
+	if strings.TrimSpace(resolvedTask.SourceRoomID) == "" {
+		if roomID := s.resolveTaskSourceRoomID(ctx, resolvedTask.ID); roomID != "" {
+			resolvedTask.SourceRoomID = roomID
+		}
 	}
-	if t.SourceRoomID != "" {
-		href = "/inbox/" + url.PathEscape(t.SourceRoomID)
-	}
+	_ = s.PostTaskCompletionMessage(ctx, &resolvedTask)
+	href, actionLabel := taskNotificationTarget(resolvedTask.ID, resolvedTask.ProjectID, resolvedTask.SourceRoomID, resolvedTask.Status)
 
 	title := "Pekerjaan Selesai"
-	if strings.TrimSpace(t.Title) != "" {
-		title = t.Title
+	if strings.TrimSpace(resolvedTask.Title) != "" {
+		title = resolvedTask.Title
 	}
 	summary := "Pekerjaan telah selesai dan aktif berjalan."
-	if strings.TrimSpace(t.Summary) != "" {
-		summary = cleanNotificationSnippet(t.Summary)
+	if strings.TrimSpace(resolvedTask.Summary) != "" {
+		summary = cleanNotificationSnippet(resolvedTask.Summary)
 	}
 
 	item := ownerNotification{
-		ID:          "task:" + t.ID + ":done",
+		ID:          "task:" + resolvedTask.ID + ":done",
 		Kind:        "completed",
 		Title:       title,
-		Context:     t.ProjectID,
+		Context:     resolvedTask.ProjectID,
 		Summary:     summary,
 		Status:      "Completed",
-		ActionLabel: "View work",
+		ActionLabel: actionLabel,
 		Href:        href,
 		At:          time.Now().UTC(),
 	}

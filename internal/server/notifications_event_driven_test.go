@@ -650,6 +650,125 @@ func TestEventDrivenPush_TaskCompleted(t *testing.T) {
 	if payload["href"] != "/inbox/"+roomID {
 		t.Errorf("expected href '/inbox/%s', got %q", roomID, payload["href"])
 	}
+	if item.ActionLabel != "Open conversation" {
+		t.Errorf("expected ActionLabel 'Open conversation', got %q", item.ActionLabel)
+	}
+}
+
+func TestEventDrivenPush_TaskCompleted_FallbacksAndRoomResolution(t *testing.T) {
+	s, ownerID, _, _, _ := setupStaffPushTest(t)
+	ctx := context.Background()
+
+	spy := &pushPayloadSpyClient{status: 201}
+	prevHTTPClient := notificationHTTPClient
+	notificationHTTPClient = &http.Client{Transport: spy}
+	defer func() { notificationHTTPClient = prevHTTPClient }()
+
+	// 1. Task without SourceRoomID on struct, but linked in a room message -> resolves to /inbox/<roomID>
+	linkedRoomID := db.GenerateUUID()
+	if s.projectStudioRepo != nil {
+		if err := s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
+			ID:        linkedRoomID,
+			ProjectID: "default",
+			Title:     "Linked Room",
+		}); err != nil {
+			t.Fatalf("CreateRoom: %v", err)
+		}
+		if err := s.projectStudioRepo.CreateMessage(ctx, &db.ProjectMessage{
+			ID:         db.GenerateUUID(),
+			RoomID:     linkedRoomID,
+			AuthorType: "agent",
+			AuthorID:   "agent_cuan",
+			AuthorName: "@cuan",
+			Content:    "Pekerjaan dimulai. [View work](/tasks/task-linked-no-source)",
+			CreatedAt:  time.Now().UTC(),
+			UpdatedAt:  time.Now().UTC(),
+		}); err != nil {
+			t.Fatalf("CreateMessage: %v", err)
+		}
+	}
+	s.DispatchTaskCompletedPush(ctx, &task.Task{
+		ID:        "task-linked-no-source",
+		ProjectID: "proj-linked",
+		Title:     "Perbaikan link push",
+		Status:    task.TaskStatusDone,
+	})
+
+	// 2. Project task without any Inbox room -> falls back to /projects/<projectID>/tasks/<taskID>
+	s.DispatchTaskCompletedPush(ctx, &task.Task{
+		ID:        "task-proj-only",
+		ProjectID: "proj-standalone",
+		Title:     "Backup harian terjadwal",
+		Status:    task.TaskStatusDone,
+	})
+
+	// 3. Standalone task without Inbox room or ProjectID -> falls back to /tasks/<taskID>
+	s.DispatchTaskCompletedPush(ctx, &task.Task{
+		ID:     "task-bare-fallback",
+		Title:  "Tugas mandiri",
+		Status: task.TaskStatusDone,
+	})
+
+	ownerPrefs, _ := readOwnerPreferences(ownerID)
+	byID := map[string]ownerNotification{}
+	for _, it := range ownerPrefs.Items {
+		byID[it.ID] = it
+	}
+
+	if item, ok := byID["task:task-linked-no-source:done"]; !ok {
+		t.Fatal("expected linked task notification")
+	} else {
+		if item.Href != "/inbox/"+linkedRoomID {
+			t.Errorf("expected resolved inbox href '/inbox/%s', got %q", linkedRoomID, item.Href)
+		}
+		if item.ActionLabel != "Open conversation" {
+			t.Errorf("expected ActionLabel 'Open conversation', got %q", item.ActionLabel)
+		}
+	}
+
+	if item, ok := byID["task:task-proj-only:done"]; !ok {
+		t.Fatal("expected project-only task notification")
+	} else {
+		if item.Href != "/projects/proj-standalone/tasks/task-proj-only" {
+			t.Errorf("expected project fallback href '/projects/proj-standalone/tasks/task-proj-only', got %q", item.Href)
+		}
+		if item.ActionLabel != "View work" {
+			t.Errorf("expected ActionLabel 'View work', got %q", item.ActionLabel)
+		}
+	}
+
+	if item, ok := byID["task:task-bare-fallback:done"]; !ok {
+		t.Fatal("expected standalone task notification")
+	} else {
+		if item.Href != "/tasks/task-bare-fallback" {
+			t.Errorf("expected task fallback href '/tasks/task-bare-fallback', got %q", item.Href)
+		}
+		if item.ActionLabel != "View work" {
+			t.Errorf("expected ActionLabel 'View work', got %q", item.ActionLabel)
+		}
+	}
+}
+
+func TestTaskNotificationTarget_SnapshotAndStates(t *testing.T) {
+	href, action := taskNotificationTarget("t-1", "p-1", "room-9", task.TaskStatusDone)
+	if href != "/inbox/room-9" || action != "Open conversation" {
+		t.Errorf("done inbox task = (%q, %q), want (/inbox/room-9, Open conversation)", href, action)
+	}
+
+	href, action = taskNotificationTarget("t-2", "p-1", "room-9", task.TaskStatusReview)
+	if href != "/inbox/room-9?work=t-2" || action != "Open conversation" {
+		t.Errorf("review inbox task = (%q, %q), want (/inbox/room-9?work=t-2, Open conversation)", href, action)
+	}
+
+	href, action = taskNotificationTarget("t-3", "p-1", "", task.TaskStatusDone)
+	if href != "/projects/p-1/tasks/t-3" || action != "View work" {
+		t.Errorf("project fallback task = (%q, %q), want (/projects/p-1/tasks/t-3, View work)", href, action)
+	}
+
+	href, action = taskNotificationTarget("t-4", "", "", task.TaskStatusDone)
+	if href != "/tasks/t-4" || action != "View work" {
+		t.Errorf("bare fallback task = (%q, %q), want (/tasks/t-4, View work)", href, action)
+	}
 }
 
 // TestEventDrivenPush_FiltersTechnicalAndStaleNotifications verifies:
