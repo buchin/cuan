@@ -823,6 +823,42 @@ var nativeMCPTools = []mcpToolDefinition{
 			},
 		},
 	},
+	{
+		Name:        "list_project_deployments",
+		Description: "List recent deployments (queued, running, success, failed) and step summaries for a project via the Cuan API.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"project_id": map[string]any{
+					"type":        "string",
+					"description": "Project ID (e.g. 'proj_4978b0b914eaaf0d588df037977fb652')",
+				},
+				"limit": map[string]any{
+					"type":        "integer",
+					"description": "Maximum number of deployments to return (default: 20)",
+				},
+			},
+			"required": []string{"project_id"},
+		},
+	},
+	{
+		Name:        "get_project_deployment",
+		Description: "Get detailed status, step logs, and error diagnostics for a single project deployment.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"project_id": map[string]any{
+					"type":        "string",
+					"description": "Project ID",
+				},
+				"deployment_id": map[string]any{
+					"type":        "string",
+					"description": "Deployment ID",
+				},
+			},
+			"required": []string{"project_id", "deployment_id"},
+		},
+	},
 }
 
 // RunMCP implements a Stdio MCP (Model Context Protocol) JSON-RPC 2.0 server.
@@ -1248,6 +1284,17 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 			project, _ := callParams.Arguments["project"].(string)
 			healthURL, _ := callParams.Arguments["health_url"].(string)
 			toolResult, toolErr = InspectDeploymentStatus(ctx, project, pathVal, healthURL)
+		case "list_project_deployments":
+			projectID, _ := callParams.Arguments["project_id"].(string)
+			limit := 20
+			if l, ok := callParams.Arguments["limit"].(float64); ok && l > 0 {
+				limit = int(l)
+			}
+			toolResult, toolErr = GetCuanClient().ListProjectDeployments(ctx, projectID, limit)
+		case "get_project_deployment":
+			projectID, _ := callParams.Arguments["project_id"].(string)
+			deployID, _ := callParams.Arguments["deployment_id"].(string)
+			toolResult, toolErr = GetCuanClient().GetProjectDeployment(ctx, projectID, deployID)
 		default:
 			resp.Error = &jsonRPCError{Code: -32601, Message: fmt.Sprintf("Tool not found: %s", callParams.Name)}
 			sendResponse(out, resp)

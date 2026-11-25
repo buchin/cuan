@@ -29,6 +29,8 @@ func RunProjectCLI(args []string, in io.Reader, out, errOut io.Writer) int {
 Usage:
   cuan project list [--limit N]
   cuan project get PROJECT_ID
+  cuan project deployments PROJECT_ID [--limit N]
+  cuan project deployment PROJECT_ID DEPLOY_ID
   cuan project settings show PROJECT_ID
   cuan project settings set PROJECT_ID [--deploy-script TEXT] [--auto-deploy true|false] [--deploy-branch TEXT]
   cuan project guidance show PROJECT_ID
@@ -53,6 +55,12 @@ Changes apply to new tasks; existing tasks retain their environment snapshot.`
 	}
 	if args[0] == "get" {
 		return runProjectGetCLI(args[1:], out, errOut)
+	}
+	if args[0] == "deployments" {
+		return runProjectDeploymentsCLI(args[1:], out, errOut)
+	}
+	if args[0] == "deployment" {
+		return runProjectDeploymentCLI(args[1:], out, errOut)
 	}
 	if args[0] == "settings" {
 		return runProjectSettingsCLI(args[1:], out, errOut)
@@ -216,5 +224,60 @@ func runProjectGetCLI(args []string, out, errOut io.Writer) int {
 	enc := json.NewEncoder(out)
 	enc.SetIndent("", "  ")
 	_ = enc.Encode(proj)
+	return 0
+}
+
+func runProjectDeploymentsCLI(args []string, out, errOut io.Writer) int {
+	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
+		fmt.Fprintln(errOut, "project ID is required before flags")
+		return 2
+	}
+	fs := flag.NewFlagSet("project deployments", flag.ContinueOnError)
+	fs.SetOutput(errOut)
+	limit := fs.Int("limit", 20, "Maximum number of deployments")
+	if err := fs.Parse(args[1:]); err != nil {
+		if err == flag.ErrHelp {
+			return 0
+		}
+		return 2
+	}
+	client := GetCuanClient()
+	if client == nil || !client.IsConfigured() {
+		fmt.Fprintln(errOut, "configure Cuan API URL and auth token first")
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	res, err := client.ListProjectDeployments(ctx, args[0], *limit)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	enc := json.NewEncoder(out)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(res)
+	return 0
+}
+
+func runProjectDeploymentCLI(args []string, out, errOut io.Writer) int {
+	if len(args) < 2 {
+		fmt.Fprintln(errOut, "project ID and deployment ID are required")
+		return 2
+	}
+	client := GetCuanClient()
+	if client == nil || !client.IsConfigured() {
+		fmt.Fprintln(errOut, "configure Cuan API URL and auth token first")
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	res, err := client.GetProjectDeployment(ctx, args[0], args[1])
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	enc := json.NewEncoder(out)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(res)
 	return 0
 }

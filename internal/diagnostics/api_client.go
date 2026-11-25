@@ -713,6 +713,51 @@ func (c *CuanClient) GetProject(ctx context.Context, projectID string) (map[stri
 	return res, nil
 }
 
+// ListProjectDeployments queries recent deployments for a project from the Cuan API.
+func (c *CuanClient) ListProjectDeployments(ctx context.Context, projectID string, limit int) (map[string]any, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	endpoint := fmt.Sprintf("/api/v1/projects/%s/deployments?limit=%d", url.PathEscape(projectID), limit)
+	resp, err := c.doRequest(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("list project deployments: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("list project deployments failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var res map[string]any
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return nil, fmt.Errorf("unmarshal deployments: %w", err)
+	}
+	return res, nil
+}
+
+// GetProjectDeployment queries a single deployment (including build/deploy logs) from the Cuan API.
+func (c *CuanClient) GetProjectDeployment(ctx context.Context, projectID, deploymentID string) (map[string]any, error) {
+	endpoint := fmt.Sprintf("/api/v1/projects/%s/deployments/%s", url.PathEscape(projectID), url.PathEscape(deploymentID))
+	resp, err := c.doRequest(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("get project deployment: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("get project deployment failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var res map[string]any
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return nil, fmt.Errorf("unmarshal deployment detail: %w", err)
+	}
+	return res, nil
+}
+
 // ListScheduledTasks queries user-defined recurring routines from Cuan.
 func (c *CuanClient) ListScheduledTasks(ctx context.Context) ([]map[string]any, error) {
 	resp, err := c.doRequest(ctx, http.MethodGet, "/api/v1/system/scheduler/tasks", nil)

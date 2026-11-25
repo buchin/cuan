@@ -188,3 +188,38 @@ func TestProjectListAndGetCLI(t *testing.T) {
 		t.Fatalf("expected Alpha Project in get output: %s", out.String())
 	}
 }
+
+func TestRunProjectDeploymentsCLI(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "GET" && r.URL.Path == "/api/v1/projects/proj_alpha/deployments":
+			_, _ = w.Write([]byte(`{"project_id":"proj_alpha","deployments":[{"id":"dep_1","status":"failed","short_sha":"451d24b"}],"total":1}`))
+		case r.Method == "GET" && r.URL.Path == "/api/v1/projects/proj_alpha/deployments/dep_1":
+			_, _ = w.Write([]byte(`{"id":"dep_1","status":"failed","error_message":"build timeout"}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	origClient := globalCuanClient
+	globalCuanClient = &CuanClient{BaseURL: srv.URL, AuthToken: "test-tok", HTTPClient: srv.Client()}
+	defer func() { globalCuanClient = origClient }()
+
+	var out, errOut bytes.Buffer
+	if code := RunProjectCLI([]string{"deployments", "proj_alpha", "--limit", "5"}, strings.NewReader(""), &out, &errOut); code != 0 {
+		t.Fatalf("deployments CLI failed code=%d err=%s", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "dep_1") {
+		t.Fatalf("expected dep_1 in deployments output: %s", out.String())
+	}
+
+	out.Reset()
+	errOut.Reset()
+	if code := RunProjectCLI([]string{"deployment", "proj_alpha", "dep_1"}, strings.NewReader(""), &out, &errOut); code != 0 {
+		t.Fatalf("deployment CLI failed code=%d err=%s", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "build timeout") {
+		t.Fatalf("expected build timeout in deployment detail output: %s", out.String())
+	}
+}
