@@ -15,38 +15,38 @@ const appPath = path.resolve(webSrcRoot, 'App.tsx')
 const settingsViewPath = path.resolve(webSrcRoot, 'features', 'settings', 'SettingsView.tsx')
 const s62DocPath = path.resolve(repoRoot, 'docs', 'sprints', 'S62.md')
 
-test('1. Mobile navigation retains New work, Inbox, tasks and account access', () => {
+test('1. Mobile navigation retains Inbox, Projects, New work, Contacts, and Settings', () => {
   const appShellSource = fs.readFileSync(appShellPath, 'utf8')
 
-  // Pillar 1: Chat (/inbox)
+  // Pillar 1: Inbox (/inbox)
   assert.ok(
     appShellSource.includes('data-testid="bottom-nav-inbox"'),
-    'Bottom navigation must render Pillar 1: Chat with data-testid="bottom-nav-inbox"'
+    'Bottom navigation must render Pillar 1: Inbox with data-testid="bottom-nav-inbox"'
   )
   assert.ok(
     appShellSource.includes("navigate('inbox')"),
-    'Pillar 1 Chat must navigate to inbox tab'
+    'Pillar 1 Inbox must navigate to inbox tab'
   )
   assert.ok(
     appShellSource.includes('Inbox'),
-    'Pillar 1 Chat must render Inbox icon'
+    'Pillar 1 Inbox must render Inbox icon'
   )
 
-  // Pillar 2: Tasks (/tasks)
+  // Pillar 2: Projects (/projects)
   assert.ok(
-    appShellSource.includes('data-testid="bottom-nav-tasks"'),
-    'Bottom navigation must render Pillar 2: Tasks with data-testid="bottom-nav-tasks"'
+    appShellSource.includes('data-testid="bottom-nav-projects"'),
+    'Bottom navigation must render Pillar 2: Projects with data-testid="bottom-nav-projects"'
   )
   assert.ok(
-    appShellSource.includes("navigate('tasks')"),
-    'Pillar 2 Tasks must navigate to tasks tab'
+    appShellSource.includes("navigate('projects')"),
+    'Pillar 2 Projects must navigate to projects tab'
   )
   assert.ok(
-    appShellSource.includes('CheckSquare'),
-    'Pillar 2 Tasks must render CheckSquare icon'
+    appShellSource.includes('FolderGit2'),
+    'Pillar 2 Projects must render FolderGit2 icon'
   )
 
-  // New work keeps the existing creation route and gains the Plus icon.
+  // Pillar 3: New work keeps the existing creation route and gains the Plus icon.
   assert.ok(
     appShellSource.includes('data-testid="bottom-nav-studio"'),
     'Bottom navigation must retain the work entry'
@@ -56,24 +56,27 @@ test('1. Mobile navigation retains New work, Inbox, tasks and account access', (
     'New work must open the existing Studio route'
   )
   const start = appShellSource.indexOf('data-testid="bottom-nav-studio"')
-  const workEntry = appShellSource.slice(start, appShellSource.indexOf('data-testid="bottom-nav-projects"', start))
+  const workEntry = appShellSource.slice(start, appShellSource.indexOf('data-testid="bottom-nav-contacts"', start))
   assert.match(workEntry, /<Plus\b/, 'New work must show the Plus icon')
   assert.ok(
     appShellSource.includes("currentTab === 'studio' ? 'page' : undefined"),
     'New work must expose its active page state'
   )
 
-  // Pillar 4 / 5: Menu (SlideDrawer opener in S62) or NavUser in S63
+  // Pillar 4 & 5: Contacts & Settings
   assert.ok(
-    appShellSource.includes('data-testid="bottom-nav-menu"') ||
-      appShellSource.includes('data-testid="bottom-nav-user"'),
-    'Bottom navigation must render Pillar 4: Menu with data-testid="bottom-nav-menu" or Pillar 5: User with data-testid="bottom-nav-user"'
+    appShellSource.includes('data-testid="bottom-nav-contacts"'),
+    'Bottom navigation must render Pillar 4: Contacts with data-testid="bottom-nav-contacts"'
+  )
+  assert.ok(
+    appShellSource.includes('data-testid="bottom-nav-settings"'),
+    'Bottom navigation must render Pillar 5: Settings with data-testid="bottom-nav-settings"'
   )
 
   // Ensure touch accessibility on all pillars
   const minHeightMatches = appShellSource.match(/min-h-14/g)
   assert.ok(
-    minHeightMatches && minHeightMatches.length >= 4,
+    minHeightMatches && minHeightMatches.length >= 5,
     'All bottom navigation buttons must meet touch target min-h-14 (56px >= 44px)'
   )
 })
