@@ -554,3 +554,41 @@ func TestPruneReconstructedWorkspaces(t *testing.T) {
 		t.Fatalf("expected recent reconstructed workspace to remain: %v", err)
 	}
 }
+
+func TestPrepareTaskWorkspace_RecoversDeletedProcessCwd(t *testing.T) {
+	origCwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd failed: %v", err)
+	}
+	defer func() { _ = os.Chdir(origCwd) }()
+
+	tempDir := t.TempDir()
+	base := filepath.Join(tempDir, "base-repo")
+	createTestBaseRepo(t, base)
+
+	deadCwd := filepath.Join(tempDir, "deleted-release-dir")
+	if err := os.MkdirAll(deadCwd, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(deadCwd); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(deadCwd); err != nil {
+		t.Fatal(err)
+	}
+
+	workspacesDir := filepath.Join(tempDir, "workspaces")
+	client := NewClient()
+	ws, err := client.PrepareTaskWorkspace(context.Background(), WorkspaceConfig{
+		TaskID:            "task_dead_cwd_recovery",
+		BaseRepoDir:       base,
+		WorkspacesBaseDir: workspacesDir,
+		DefaultBranch:     "main",
+	})
+	if err != nil {
+		t.Fatalf("PrepareTaskWorkspace failed after deleted process cwd: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(ws.Path, ".git")); err != nil {
+		t.Fatalf("expected cloned workspace .git to exist: %v", err)
+	}
+}

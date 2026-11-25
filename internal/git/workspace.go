@@ -82,6 +82,18 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 	if workspacesBase == "" {
 		workspacesBase = filepath.Join("data", "workspaces")
 	}
+	if err := os.MkdirAll(workspacesBase, 0755); err != nil {
+		return nil, fmt.Errorf("create workspaces base dir: %w", err)
+	}
+	ensureLiveWorkingDir(workspacesBase, cfg.BaseRepoDir, os.TempDir(), "/")
+	if absBase, err := filepath.Abs(workspacesBase); err == nil {
+		workspacesBase = absBase
+	}
+	if cfg.BaseRepoDir != "" {
+		if absRepo, err := filepath.Abs(cfg.BaseRepoDir); err == nil {
+			cfg.BaseRepoDir = absRepo
+		}
+	}
 
 	// Proactively prune stale and excess workspaces to prevent disk space exhaustion
 	_, _ = c.PruneStaleWorkspaces(workspacesBase, 24*time.Hour, cfg.TaskID, 5)
@@ -151,11 +163,13 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 		if fi, err := os.Stat(baseGitDir); err == nil && (fi.IsDir() || fi.Mode().IsRegular()) {
 			_ = os.RemoveAll(workspacePath)
 			cloneCmd := exec.CommandContext(ctx, c.gitBinary, "-c", "core.hooksPath=/dev/null", "clone", "--local", cfg.BaseRepoDir, workspacePath)
-			cloneCmd.Dir = cfg.BaseRepoDir
+			cloneCmd.Dir = workspacesBase
 			cloneCmd.Env = verificationGitEnvironment()
 			if out, err := cloneCmd.CombinedOutput(); err != nil {
 				_ = os.RemoveAll(workspacePath)
-				return nil, fmt.Errorf("local clone from base repo failed: %s", string(out))
+				if cfg.RemoteURL == "" {
+					return nil, fmt.Errorf("local clone from base repo failed: %s", string(out))
+				}
 			}
 		}
 	}
@@ -579,6 +593,24 @@ func (c *Client) GetDiffSummary(ctx context.Context, workspacePath, baseBranch s
 	return "No file modifications recorded in diff.", nil
 }
 
+// ensureLiveWorkingDir recovers the process working directory if it was unlinked
+// (for example, when a pruned release or workspace directory was the runner's cwd).
+func ensureLiveWorkingDir(fallbacks ...string) {
+	if _, err := os.Getwd(); err == nil {
+		return
+	}
+	for _, dir := range fallbacks {
+		if dir == "" {
+			continue
+		}
+		if info, err := os.Stat(dir); err == nil && info.IsDir() {
+			if os.Chdir(dir) == nil {
+				return
+			}
+		}
+	}
+}
+
 // PruneStaleWorkspaces scans workspacesBase and cleans up stale or excess task workspaces.
 // It skips the current activeTaskID, hidden directories (such as .task-execution-locks),
 // and any workspace whose task execution lock is actively held.
@@ -593,6 +625,7 @@ func (c *Client) PruneStaleWorkspaces(workspacesBase string, maxAge time.Duratio
 	if workspacesBase == "" {
 		return 0, nil
 	}
+	ensureLiveWorkingDir(workspacesBase, os.TempDir(), "/")
 
 	entries, err := os.ReadDir(workspacesBase)
 	if err != nil {
