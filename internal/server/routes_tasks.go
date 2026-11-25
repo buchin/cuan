@@ -418,9 +418,6 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		if updated != nil && (updated.Status == task.TaskStatusDone || updated.Status == task.TaskStatusReview || updated.Status == task.TaskStatusBlocked || updated.Status == "cancelled" || updated.Status == "failed") {
 			if s.terminalManager != nil {
 				_ = s.terminalManager.CloseSession(id)
-				if updated.ProjectID != "" {
-					_ = s.terminalManager.ResetProjectSession(updated.ProjectID)
-				}
 			}
 			if s.taskSvc != nil {
 				_ = s.taskSvc.FinishTaskLaunches(r.Context(), id, "stopped")

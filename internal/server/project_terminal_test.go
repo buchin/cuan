@@ -926,3 +926,78 @@ func TestCancelTaskDoesNotKillProjectTerminal(t *testing.T) {
 		t.Fatalf("cancelling a task must NOT kill the interactive Project Terminal session")
 	}
 }
+
+func TestTaskLifecycleDoesNotKillProjectTerminal(t *testing.T) {
+	srv, token := setupTestChatServer(t)
+	ctx := context.Background()
+	projID := "proj_lifecycle_keep_terminal_alive"
+	if err := srv.projectSvc.Store().CreateProject(ctx, &project.Project{
+		ID:        projID,
+		Name:      "Lifecycle Keep Terminal Alive",
+		LocalPath: t.TempDir(),
+	}); err != nil {
+		t.Fatalf("CreateProject failed: %v", err)
+	}
+
+	// Simulate an active interactive Project Terminal session
+	sess, err := srv.terminalManager.GetOrCreateProjectSession(ctx, projID, t.TempDir(), "/bin/sh", 80, 24)
+	if err != nil {
+		t.Fatalf("GetOrCreateProjectSession failed: %v", err)
+	}
+	defer srv.terminalManager.CloseProjectSession(projID)
+
+	// 1. Updating an unrelated task in the same project to review -> done and blocked must NOT reset Project Terminal
+	reviewTask, err := srv.taskSvc.CreateTask(ctx, "owner", task.CreateTaskRequest{
+		ProjectID:    projID,
+		Title:        "Background task review-done",
+		Instructions: "echo hi",
+	})
+	if err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+	for _, targetStatus := range []string{"review", "done"} {
+		body := `{"status":"` + targetStatus + `"}`
+		if targetStatus == "done" {
+			body = `{"status":"done","summary":"completed","complete_note":"verified"}`
+		}
+		req := httptest.NewRequest("PATCH", "/api/v1/tasks/"+reviewTask.ID, strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		srv.Router().ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("PATCH task status=%s failed with %d: %s", targetStatus, w.Code, w.Body.String())
+		}
+	}
+	blockedTask, err := srv.taskSvc.CreateTask(ctx, "owner", task.CreateTaskRequest{
+		ProjectID:    projID,
+		Title:        "Background task blocked",
+		Instructions: "echo blocked",
+	})
+	if err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+	reqBlocked := httptest.NewRequest("PATCH", "/api/v1/tasks/"+blockedTask.ID, strings.NewReader(`{"status":"blocked"}`))
+	reqBlocked.Header.Set("Authorization", "Bearer "+token)
+	reqBlocked.Header.Set("Content-Type", "application/json")
+	wBlocked := httptest.NewRecorder()
+	srv.Router().ServeHTTP(wBlocked, reqBlocked)
+	if wBlocked.Code != http.StatusOK {
+		t.Fatalf("PATCH task status=blocked failed with %d: %s", wBlocked.Code, wBlocked.Body.String())
+	}
+
+	// 2. Queued task evaluated by evaluateIdleRunnerQueues must NOT reset Project Terminal
+	if _, err := srv.taskSvc.CreateTask(ctx, "owner", task.CreateTaskRequest{
+		ProjectID:    projID,
+		Title:        "Queued background task",
+		Instructions: "echo queued",
+	}); err != nil {
+		t.Fatalf("CreateTask queued failed: %v", err)
+	}
+	srv.evaluateIdleRunnerQueues(ctx)
+
+	got, ok := srv.terminalManager.GetProjectSession(projID)
+	if !ok || got == nil || got.ID() != sess.ID() || got.IsClosed() {
+		t.Fatalf("task lifecycle events (status update / idle queue evaluation) must NOT kill the interactive Project Terminal session")
+	}
+}
