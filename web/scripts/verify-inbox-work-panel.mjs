@@ -375,7 +375,42 @@ try{
   assert.equal(await reviewCard.locator('svg.lucide-eye').count(), 1, 'Task in review must display Eye icon')
   assert.equal(await reviewCard.locator('svg.lucide-check-check').count(), 0, 'Task in review must not display double checkmark')
   assert.equal(await page.locator('.composer-tasks-panel svg.lucide-check-check').count(), 0, 'No task in review should use check-check')
+  const connectorMetrics = await page.evaluate(() => {
+    const item = document.querySelector('.composer-tasks-panel [data-timeline-item]')
+    const connector = item?.querySelector('[data-timeline-connector]')
+    const iconWrap = item?.querySelector('span.h-4.w-4')
+    if (!connector || !iconWrap) return null
+    const cRect = connector.getBoundingClientRect()
+    const iRect = iconWrap.getBoundingClientRect()
+    const style = getComputedStyle(connector)
+    return {
+      width: style.width,
+      rectWidth: cRect.width,
+      connectorCenterX: cRect.left + cRect.width / 2,
+      iconCenterX: iRect.left + iRect.width / 2,
+      backgroundColor: style.backgroundColor,
+    }
+  })
+  assert.ok(connectorMetrics, 'Timeline connector and status icon must exist in ComposerTasks')
+  assert.equal(connectorMetrics.width, '1px', `Timeline connector must be 1px hairline, got ${connectorMetrics.width}`)
+  assert.ok(
+    Math.abs(connectorMetrics.connectorCenterX - connectorMetrics.iconCenterX) <= 1,
+    `Timeline connector center (${connectorMetrics.connectorCenterX}) must align with status icon center (${connectorMetrics.iconCenterX})`
+  )
   await page.screenshot({path:path.join(output,`composer-tasks-expanded-${width}.png`)})
+  if (width === 1440 || width === 390) {
+    await page.evaluate(() => document.documentElement.classList.add('dark'))
+    await page.waitForTimeout(100)
+    const darkConnector = await page.evaluate(() => {
+      const connector = document.querySelector('.composer-tasks-panel [data-timeline-connector]')
+      if (!connector) return null
+      const style = getComputedStyle(connector)
+      return { width: style.width, backgroundColor: style.backgroundColor }
+    })
+    assert.ok(darkConnector && darkConnector.width === '1px', `Dark mode timeline connector must be 1px, got ${darkConnector?.width}`)
+    await page.screenshot({path:path.join(output,`composer-tasks-expanded-dark-${width}.png`)})
+    await page.evaluate(() => document.documentElement.classList.remove('dark'))
+  }
   const drawerScroll = drawer.locator('[data-drawer-scroll]')
   await drawerScroll.waitFor({ state: 'visible' })
   const scrollMetrics = await page.evaluate(() => {
