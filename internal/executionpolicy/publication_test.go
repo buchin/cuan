@@ -93,6 +93,8 @@ func TestHistoricalAuditReferenceAndConversationHistoryDoNotLockCodeTask(t *test
 	cases := []string{
 		"Cuan managed delegation v1.\nProblem Statement:\nBerdasarkan hasil audit read-only (msg_38687bd9), perbaiki GC di repositori.\n\nScope:\n1. Implementasikan perbaikan P0-P2 dan push ke branch dev.\n\n## Authoritative Conversation History (Single Source of Truth)\n- **Coordinator**: Audit read-only selesai pada repositori.\n",
 		"Masalah:\nTask kategori code di room yang memiliki riwayat audit read-only terkunci menjadi read-only.\nSolusi:\nPerbaiki kode di repositori.\n",
+		"Masalah:\n1. Task kategori `code` di room yang memiliki riwayat audit `read-only` terkunci menjadi read-only.\n2. Perbaiki repositori dan push ke dev.\n",
+		"Tindak lanjut dari audit `read-only` sebelumnya: perbaiki bug di repositori dan push.",
 		"Based on the previous read-only audit, implement the repository fix and push to dev.",
 	}
 	for _, tc := range cases {

@@ -64,12 +64,28 @@ func runChatResolution(ctx context.Context, command string, args []string, out, 
 		return 1
 	}
 	defer response.Body.Close()
+	bodyBytes, readErr := io.ReadAll(io.LimitReader(response.Body, 65536))
+	if readErr != nil {
+		fmt.Fprintln(errOut, "Status change was not confirmed. Inspect the same conversation before retrying.")
+		return 1
+	}
+	if response.StatusCode != 200 {
+		var errResp struct {
+			Error string `json:"error"`
+		}
+		if json.Unmarshal(bodyBytes, &errResp) == nil && errResp.Error != "" {
+			fmt.Fprintln(errOut, errResp.Error)
+			return 1
+		}
+		fmt.Fprintln(errOut, "Status change was not confirmed. Inspect the same conversation before retrying.")
+		return 1
+	}
 	var receipt struct {
 		ID         string     `json:"id"`
 		Resolved   *bool      `json:"resolved"`
 		ResolvedAt *time.Time `json:"resolved_at"`
 	}
-	if response.StatusCode != 200 || json.NewDecoder(io.LimitReader(response.Body, 65536)).Decode(&receipt) != nil || receipt.ID != args[0] || receipt.Resolved == nil || *receipt.Resolved != (command == "resolve") || (command == "resolve" && receipt.ResolvedAt == nil) {
+	if json.Unmarshal(bodyBytes, &receipt) != nil || receipt.ID != args[0] || receipt.Resolved == nil || *receipt.Resolved != (command == "resolve") || (command == "resolve" && receipt.ResolvedAt == nil) {
 		fmt.Fprintln(errOut, "Status change was not confirmed. Inspect the same conversation before retrying.")
 		return 1
 	}
