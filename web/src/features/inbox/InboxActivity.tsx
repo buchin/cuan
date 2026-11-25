@@ -481,27 +481,28 @@ export function InboxActivity({
           : CircleAlert
   return (
     <div
+      data-bubble-tail={bubble ? 'incoming' : undefined}
       className={
-        bubble || compact
-          ? 'max-w-full min-w-0 text-xs break-words'
-          : 'mt-2 max-w-full min-w-0 text-xs break-words'
+        bubble
+          ? 'wa-message-bubble wa-incoming relative min-w-[min(100%,272px)] rounded-2xl text-xs break-words'
+          : compact
+            ? 'max-w-full min-w-0 text-xs break-words'
+            : 'mt-2 max-w-full min-w-0 text-xs break-words'
       }
       aria-label={t('Response status')}
       data-response-state={q.state}
     >
       {bubble && (displayedText || streamingText) ? (
-        <div className="calm-message-bubble wa-incoming rounded-2xl px-3.5 py-2 mb-2 text-foreground border border-border/30 shadow-none">
-          <div className="wa-plain-text break-words font-sans">
-            <ChatMarkdown content={displayedText || streamingText || ''} />
-            <span
-              className="inline-block w-1.5 h-3.5 ml-1 align-baseline bg-foreground/60 animate-pulse rounded-xs"
-              aria-hidden="true"
-            />
-          </div>
+        <div className="wa-plain-text break-words font-sans mb-1.5">
+          <ChatMarkdown content={displayedText || streamingText || ''} />
+          <span
+            className="inline-block w-1.5 h-3.5 ml-1 align-baseline bg-foreground/60 animate-pulse rounded-xs"
+            aria-hidden="true"
+          />
         </div>
       ) : null}
       {bubble && !(displayedText || streamingText) && (
-        <div className="flex items-center gap-2 px-2 pt-2 text-sm">
+        <div className="flex items-center gap-2 pt-0.5 pb-1 text-sm">
           {isRunning ? (
             <TypingDots />
           ) : (
@@ -519,7 +520,7 @@ export function InboxActivity({
           )}
           <span
             role="status"
-            className="min-w-0 font-medium break-words"
+            className="min-w-0 flex-1 font-medium break-words"
             aria-live="polite"
           >
             {autoPending || (q.state === 'queued' && autoRecovery)
@@ -548,13 +549,15 @@ export function InboxActivity({
           )}
         </div>
       )}
-      <div className="flex min-w-0 items-start gap-2">
+      <div className={bubble ? 'flex min-w-0 items-center justify-between gap-2' : 'flex min-w-0 items-start gap-2'}>
         <div className="min-w-0 flex-1">
           <button type="button" aria-expanded={expanded} onClick={() => setExpanded(true)}
             className={
               compact
                 ? 'inline-flex min-h-11 cursor-pointer list-none items-center gap-1 px-1 text-xs text-muted-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden'
-                : 'flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md px-2 text-muted-foreground hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden'
+                : bubble
+                  ? '-ml-1.5 inline-flex min-h-10 cursor-pointer list-none items-center gap-1.5 rounded-md px-1.5 text-muted-foreground hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden'
+                  : 'flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md px-2 text-muted-foreground hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden'
             }
           >
             {compact && (
@@ -798,7 +801,11 @@ export function InboxActivity({
           <button
             type="button"
             disabled={cancelling}
-            className="inline-flex min-h-11 shrink-0 items-center gap-1 px-2 text-muted-foreground hover:text-foreground disabled:opacity-50"
+            className={
+              bubble
+                ? '-mr-1.5 inline-flex min-h-10 shrink-0 items-center gap-1 rounded-md px-1.5 text-muted-foreground hover:bg-muted/50 hover:text-foreground disabled:opacity-50'
+                : 'inline-flex min-h-11 shrink-0 items-center gap-1 px-2 text-muted-foreground hover:text-foreground disabled:opacity-50'
+            }
             onClick={async () => {
               setCancelling(true)
               setError('')
@@ -819,7 +826,7 @@ export function InboxActivity({
         )}
       </div>
       {failed && (
-        <div className="px-2 pb-2">
+        <div className={bubble ? 'pt-1 pb-1' : 'px-2 pb-2'}>
           <p className="mb-1 max-w-prose text-muted-foreground">
             {t(
               recovery === 'recovering'

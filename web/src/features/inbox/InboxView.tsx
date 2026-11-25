@@ -2138,9 +2138,13 @@ export function InboxView({
                           aria-label="Agent response progress"
                           className="mt-2.5 flex w-full self-stretch flex-col items-start"
                         >
-                          <div className="inbox-attachment relative">
-                            {activity}
-                          </div>
+                          {!msg.regenerate_reply_id ? (
+                            activity
+                          ) : (
+                            <div className="inbox-attachment relative">
+                              {activity}
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div key={q.request_id} className="max-w-full">
