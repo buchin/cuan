@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -291,6 +292,21 @@ func TerminateProjectWorker(projectID string) error {
 	payloadFile := filepath.Join(statusDir, fmt.Sprintf("project-payload-%s.json", safeID))
 	if pidData, err := os.ReadFile(pidFile); err == nil {
 		if pid, pErr := strconv.Atoi(strings.TrimSpace(string(pidData))); pErr == nil && pid > 0 {
+			caller := "unknown"
+			if pc, file, line, ok := runtime.Caller(1); ok {
+				fn := runtime.FuncForPC(pc)
+				fnName := ""
+				if fn != nil {
+					fnName = fn.Name()
+				}
+				caller = fmt.Sprintf("%s:%d (%s)", filepath.Base(file), line, fnName)
+			}
+			logFile := filepath.Join(statusDir, fmt.Sprintf("project-%s.log", safeID))
+			if lf, lErr := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); lErr == nil {
+				_, _ = fmt.Fprintf(lf, "%s [ProjectWorker] TerminateProjectWorker(%s) pid=%d called from %s\n",
+					time.Now().Format("2006/01/02 15:04:05"), rawID, pid, caller)
+				_ = lf.Close()
+			}
 			if pid == os.Getpid() {
 				_ = syscall.Kill(pid, syscall.SIGTERM)
 			} else {
