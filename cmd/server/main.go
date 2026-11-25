@@ -330,6 +330,7 @@ func main() {
 	srv.StartWorkspaceRetention(inboxCtx)
 	srv.StartGitHubRecovery(inboxCtx)
 	srv.StartRunnerSupervisor(inboxCtx)
+	srv.ReconcileActiveProjectDeployments(inboxCtx)
 	srv.StartProactiveWatchdog(inboxCtx)
 	go server.EnsureRuntimePrerequisites(inboxCtx)
 

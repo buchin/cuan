@@ -109,6 +109,7 @@ type Server struct {
 	terminalManager             *terminal.Manager
 	terminalHandler             *terminal.Handler
 	projectDeploymentRepo       cuanDB.ProjectDeploymentRepository
+	cuanCurrentPath             string
 	projectIntegrationRepo      cuanDB.ProjectIntegrationRepository
 	publisherEngine             *publisher.Engine
 	defaultAgentRoomsOnce       sync.Once

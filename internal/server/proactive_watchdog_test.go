@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -1081,6 +1083,73 @@ func TestProactiveWatchdogDrainQueuedDeploymentsHandlesStaleBuilding(t *testing.
 	}
 	if updated.Status != db.DeploymentStatusFailed {
 		t.Fatalf("expected stale deployment to be failed, got: %s", updated.Status)
+	}
+}
+
+func TestProactiveWatchdogDrainQueuedDeployments_ReconcilesActiveReleaseBeforeTimeout(t *testing.T) {
+	ctx := context.Background()
+	tempDir := t.TempDir()
+
+	activeSHA := "abcdef0123456789abcdef0123456789abcdef01"
+	releaseDir := filepath.Join(tempDir, "releases", activeSHA)
+	if err := os.MkdirAll(releaseDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	currentLink := filepath.Join(tempDir, "current")
+	if err := os.Symlink(releaseDir, currentLink); err != nil {
+		t.Fatal(err)
+	}
+
+	pStore := project.NewMemoryStore()
+	projSvc := project.NewService(pStore, nil, "", tempDir)
+	deployRepo := db.NewMemoryProjectDeploymentRepository()
+
+	p := &project.Project{
+		ID:       "default",
+		Name:     "Cuan",
+		RepoName: "cuan",
+	}
+	if err := pStore.CreateProject(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+
+	// Even if started >30m ago, if activeSHA matches current release symlink, watchdog must reconcile to success
+	staleTime := time.Now().UTC().Add(-35 * time.Minute)
+	activeDep := &db.ProjectDeployment{
+		ID:        "dep_active_reconcile",
+		ProjectID: p.ID,
+		Status:    db.DeploymentStatusBuilding,
+		Branch:    "dev",
+		CommitSHA: activeSHA,
+		ShortSHA:  activeSHA[:7],
+		StartedAt: staleTime,
+		CreatedAt: staleTime,
+		UpdatedAt: staleTime,
+		Steps:     generateStandardDeploymentSteps("dev", activeSHA, "feat: self-deploy", db.DeploymentStatusBuilding),
+	}
+	if err := deployRepo.Create(ctx, activeDep); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := &Server{
+		projectSvc:            projSvc,
+		projectDeploymentRepo: deployRepo,
+		cuanCurrentPath:       currentLink,
+	}
+
+	srv.drainQueuedProjectDeployments(ctx)
+
+	updated, err := deployRepo.GetByID(ctx, activeDep.ID)
+	if err != nil || updated == nil {
+		t.Fatalf("failed to get deployment: %v", err)
+	}
+	if updated.Status != db.DeploymentStatusSuccess {
+		t.Fatalf("expected active release deployment to be reconciled to success, got: %s", updated.Status)
+	}
+	for i, step := range updated.Steps {
+		if step.Status != db.StepStatusSuccess {
+			t.Errorf("step %d (%s) expected status success, got %s", i+1, step.ID, step.Status)
+		}
 	}
 }
 
