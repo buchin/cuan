@@ -24,12 +24,20 @@ def live_staging_names(staging):
 
 
 def staging_candidates(base, staging, now=None, only_names=None):
-    """Only redundant upload copies with a byte-verified installed counterpart."""
+    """Prune verified redundant or orphaned upload copies older than one hour."""
     now = time.time() if now is None else now
     paths = sorted((p for p in staging.iterdir() if p.is_dir() and not p.is_symlink()
                     and re.fullmatch('[0-9a-f]{40}', p.name)),
                    key=lambda p: p.stat().st_mtime, reverse=True)
     live = live_staging_names(staging)
+    active = set()
+    for name in ('current', 'previous'):
+        ref = base / name
+        if ref.is_symlink():
+            try:
+                active.add(ref.resolve().name)
+            except OSError:
+                pass
     result = []
     for path in paths:
         if only_names is not None and path.name not in only_names:
@@ -37,24 +45,30 @@ def staging_candidates(base, staging, now=None, only_names=None):
         if path.name in live or now - path.stat().st_mtime < 3600:
             continue
         installed = base / 'releases' / path.name
-        if installed.is_symlink() or not installed.is_dir():
+        if installed.is_symlink():
+            continue
+        has_installed = installed.is_dir()
+        if not has_installed and path.name in active:
             continue
         try:
             raw = (path / 'release.json').read_bytes()
             manifest = json.loads(raw)
             checks = manifest.get('sha256')
-            if manifest.get('sha') != path.name or not isinstance(checks, dict) or not checks or raw != (installed / 'release.json').read_bytes():
+            if manifest.get('sha') != path.name or not isinstance(checks, dict) or not checks:
+                continue
+            if has_installed and raw != (installed / 'release.json').read_bytes():
                 continue
             entries = list(path.rglob('*'))
             if any(p.is_symlink() for p in entries):
                 continue
             if not {str(p.relative_to(path)) for p in entries if p.is_file()} <= set(checks) | {'release.json'}:
                 continue  # Unknown files might be saved work, not payload.
+            roots = (path, installed) if has_installed else (path,)
             for name, digest in checks.items():
                 relative = Path(name)
                 if relative.is_absolute() or '..' in relative.parts:
                     raise ValueError('Unsafe manifest path')
-                for root in (path, installed):
+                for root in roots:
                     file = root / relative
                     if root == path and not file.exists():
                         continue  # Partial upload is safe only if installed copy is complete.

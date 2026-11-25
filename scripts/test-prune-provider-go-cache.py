@@ -218,6 +218,29 @@ class CachePruneTest(unittest.TestCase):
             self.assertEqual(credentials.read_text(), 'private fixture')
             self.assertTrue((account / '.execution.lock').exists())
 
+    def test_idle_caches_cleans_only_old_idle_regenerable_caches_and_preserves_credentials(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            account, _, credentials = self.fixture(root)
+            cache_root = account / 'home/.cache'
+            targets = [cache_root / name for name in module.IDLE_CACHE_DIRS]
+            for target in targets:
+                target.mkdir(parents=True, exist_ok=True)
+                (target / 'artifact').write_text('cached')
+            now = targets[0].stat().st_mtime + 25 * 3600
+            with (account / '.execution.lock').open('r+b') as held:
+                fcntl.flock(held, fcntl.LOCK_SH)
+                busy = module.prune(root, apply=True, now=now, in_use=lambda _: False, idle_caches=True)
+                self.assertEqual(busy['idle_caches_removed'], 0)
+            self.assertEqual(module.prune(root, apply=True, now=now - 24 * 3600, in_use=lambda _: False, idle_caches=True)['idle_caches_removed'], 0)
+            preview = module.prune(root, apply=False, now=now, in_use=lambda _: False, idle_caches=True)
+            self.assertEqual(preview['idle_caches_eligible'], len(targets))
+            self.assertTrue(all(t.exists() for t in targets))
+            applied = module.prune(root, apply=True, now=now, in_use=lambda _: False, idle_caches=True)
+            self.assertEqual(applied['idle_caches_removed'], len(targets))
+            self.assertTrue(all(not t.exists() for t in targets))
+            self.assertEqual(credentials.read_text(), 'private fixture')
+
 
 if __name__ == '__main__':
     unittest.main()

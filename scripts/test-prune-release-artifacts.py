@@ -118,4 +118,24 @@ class FrequentDeploymentRetention(unittest.TestCase):
     self.assertTrue(paths[2].exists())
    finally:
     process.terminate(); process.wait()
+
+ def test_orphaned_staging_without_installed_counterpart_is_pruned_safely(self):
+  with tempfile.TemporaryDirectory() as tmp:
+   base=Path(tmp);releases=base/'releases';releases.mkdir();staging=base/'staging';staging.mkdir();now=time.time()
+   for i in range(2):
+    r=releases/format(i,'040x');r.mkdir();(r/'release.json').write_text(json.dumps({'sha':r.name}))
+   (base/'current').symlink_to(releases/format(0,'040x'))
+   (base/'previous').symlink_to(releases/format(1,'040x'))
+   orphan=staging/format(9,'040x');orphan.mkdir()
+   (orphan/'payload').write_bytes(b'old orphan payload')
+   (orphan/'release.json').write_text(json.dumps({'sha':orphan.name,'sha256':{'payload':hashlib.sha256(b'old orphan payload').hexdigest()}}))
+   os.utime(orphan,(now-7200,now-7200))
+   unknown=staging/format(10,'040x');unknown.mkdir()
+   (unknown/'payload').write_bytes(b'old orphan payload')
+   (unknown/'release.json').write_text(json.dumps({'sha':unknown.name,'sha256':{'payload':hashlib.sha256(b'old orphan payload').hexdigest()}}))
+   (unknown/'extra-note.txt').write_text('keep me')
+   os.utime(unknown,(now-7200,now-7200))
+   self.assertEqual(prune.staging_candidates(base,staging,now=now),[orphan])
+   os.utime(orphan,(now-60,now-60))
+   self.assertEqual(prune.staging_candidates(base,staging,now=now),[])
 unittest.main()

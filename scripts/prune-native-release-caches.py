@@ -62,6 +62,10 @@ def prune(base, apply=False, force=False):
                 # Resolve every ancestor, not just the final cache directory.
                 if any(path.exists() and not private_directory(path) for path in paths):
                     continue
+                has_go = any(p.is_dir() and any(p.iterdir()) for p in (paths[0], paths[2]))
+                has_npm = paths[1].is_dir() and any(paths[1].iterdir())
+                if not has_go and not has_npm:
+                    continue
                 result['eligible'].append(root.name)
                 if not apply:
                     continue
@@ -71,9 +75,10 @@ def prune(base, apply=False, force=False):
                 if helpers.referenced(root):
                     result['busy'] += 1
                     continue
-                subprocess.run(['/usr/bin/go', 'clean', '-cache', '-modcache'], cwd='/', env=env,
-                               capture_output=True, timeout=120, check=True, **credentials)
-                if paths[1].is_dir():
+                if has_go:
+                    subprocess.run(['/usr/bin/go', 'clean', '-cache', '-modcache'], cwd='/', env=env,
+                                   capture_output=True, timeout=120, check=True, **credentials)
+                if has_npm:
                     spec = importlib.util.spec_from_file_location('build_cache', Path(__file__).with_name('prune-runtime-build-cache.py'))
                     build_cache = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(build_cache)
