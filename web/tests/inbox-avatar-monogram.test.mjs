@@ -9,7 +9,9 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const initialsPath = path.resolve(__dirname, '../src/features/inbox/contact-initials.ts')
+const avatarPath = path.resolve(__dirname, '../src/components/ui/Avatar.tsx')
 const subPanelPath = path.resolve(__dirname, '../src/features/inbox/InboxSubPanel.tsx')
+const contactsViewPath = path.resolve(__dirname, '../src/features/contacts/ContactsView.tsx')
 const inboxViewPath = path.resolve(__dirname, '../src/features/inbox/InboxView.tsx')
 const newMessageDialogPath = path.resolve(__dirname, '../src/features/inbox/NewMessageDialog.tsx')
 const chatHandlersPath = path.resolve(__dirname, '../../internal/server/chat_handlers.go')
@@ -69,37 +71,55 @@ test('DoD 2: isAnonymousContact and fallback handling for anonymous or placehold
   assert.equal(getContactInitials('12345'), '')
 })
 
-test('DoD 3: InboxSubPanel renders monogram initials with calm neutral palette and preserves status badges', () => {
+test('DoD 3: Shared Avatar component, InboxSubPanel, and ContactsView unify avatar rendering and preserve status badges', () => {
+  const avatarSource = fs.readFileSync(avatarPath, 'utf8')
   const subPanelSource = fs.readFileSync(subPanelPath, 'utf8')
+  const contactsViewSource = fs.readFileSync(contactsViewPath, 'utf8')
 
-  // Imports contact-initials helper
+  // Shared Avatar component implements monogram initials, emoji/photo, Bot, and User fallback
   assert.ok(
-    subPanelSource.includes("getContactInitials"),
-    'InboxSubPanel must use getContactInitials helper'
+    avatarSource.includes('getContactInitials'),
+    'Avatar must use getContactInitials helper'
+  )
+  assert.ok(
+    avatarSource.includes("!== '👤'"),
+    'Avatar must ignore generic silhouette emoji 👤'
+  )
+  assert.ok(
+    avatarSource.includes('getContactInitials(name)'),
+    'Avatar must extract and display monogram initials for contact name'
+  )
+  assert.ok(
+    avatarSource.includes('User className={cn(iconSize, \'text-muted-foreground\')}') ||
+      avatarSource.includes('<User className='),
+    'Avatar must render minimal User icon for anonymous contacts'
+  )
+  assert.ok(
+    avatarSource.includes('Bot className={cn(iconSize, \'text-primary\')}') ||
+      avatarSource.includes('<Bot className='),
+    'Avatar must render Bot icon for agent contacts'
+  )
+  assert.ok(
+    avatarSource.includes('bg-secondary/80') &&
+      avatarSource.includes('text-foreground') &&
+      avatarSource.includes('border-border/50'),
+    'Avatar circle must use calm neutral secondary background, border, and high-contrast foreground text'
   )
 
-  // Ignores generic blue silhouette emoji 👤
+  // Both InboxSubPanel and ContactsView use the shared Avatar component
   assert.ok(
-    subPanelSource.includes("contact.avatar !== '👤'"),
-    'InboxSubPanel must ignore generic silhouette emoji 👤'
+    subPanelSource.includes("from '../../components/ui/Avatar'") &&
+      subPanelSource.includes('<Avatar'),
+    'InboxSubPanel must render the shared Avatar component'
   )
-
-  // Renders monogram initials for named contacts
   assert.ok(
-    subPanelSource.includes("getContactInitials(contact.name)"),
-    'InboxSubPanel must extract and display monogram initials for contact name'
+    contactsViewSource.includes("from '../../components/ui/Avatar'") &&
+      contactsViewSource.includes('<Avatar'),
+    'ContactsView must render the shared Avatar component'
   )
-
-  // Preserves anonymous fallback silhouette
   assert.ok(
-    subPanelSource.includes("<User className=\"h-4 w-4 text-muted-foreground\" />"),
-    'InboxSubPanel must render minimal User icon for anonymous contacts'
-  )
-
-  // Uses muted neutral styling matching Things 3 / Bear Notes (no neon)
-  assert.ok(
-    subPanelSource.includes("bg-secondary/80") && subPanelSource.includes("text-foreground"),
-    'Avatar circle must use calm neutral secondary background and high-contrast foreground text'
+    !contactsViewSource.includes("Array.from(label(c)).slice(0,2).join('').toUpperCase()"),
+    'ContactsView must not slice raw 2 characters for avatar initials (prevents "VI" for Visitor)'
   )
 
   // Preserves workflow status indicator position at bottom-right corner of avatar

@@ -1,6 +1,7 @@
 import { BackAction } from '../../components/layout/DetailLayout'
 import { ListSearch, ListRowContent } from '../../components/layout/ListControls'
 import { IconButton } from '../../components/ui/IconButton'
+import { Avatar } from '../../components/ui/Avatar'
 import { ListCreateAction } from '../../components/layout/ListCreateAction'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useArchivedItems, ArchiveNotice } from '../../hooks/useArchivedItems'
@@ -28,6 +29,8 @@ type Contact = {
   id: string
   name: string
   email: string
+  avatar?: string
+  type?: 'agent' | 'customer' | string
   product: string
   conversation_id: string
   tags: string[]
@@ -486,7 +489,7 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
                           selectedId === c.id ? 'bg-muted/50 font-medium' : ''
                         }`}
                       >
-                        <ListRowContent leading={<span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-foreground/80">{Array.from(label(c)).slice(0,2).join('').toUpperCase()}</span>} title={label(c)} description={c.email || t(source(c))}>
+                        <ListRowContent leading={<Avatar name={label(c)} avatar={c.avatar} type={c.type} />} title={label(c)} description={c.email || t(source(c))}>
                           {c.search_note && query.trim() && <span className="mt-1 block text-xs text-muted-foreground"><span className="font-medium">{t('Note')}:</span> {c.search_note.snippet}</span>}
                         </ListRowContent>
                       </button>
