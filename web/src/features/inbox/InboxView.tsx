@@ -2479,7 +2479,7 @@ export function InboxView({
                             setInputMessage(t('Hello! Anything we can help you with today?'))
                             textareaRef.current?.focus()
                           }}
-                          className="px-2.5 py-1 text-xs rounded-full border border-border bg-background hover:bg-accent hover:text-accent-foreground transition active:scale-95"
+                          className="px-2.5 py-1 text-xs rounded-lg border border-border bg-background hover:bg-accent hover:text-accent-foreground transition active:scale-95"
                         >
                           👋 {t('Say hello')}
                         </button>
@@ -2489,7 +2489,7 @@ export function InboxView({
                             setInputMessage(t('Hi there! Looking for specific information or need help?'))
                             textareaRef.current?.focus()
                           }}
-                          className="px-2.5 py-1 text-xs rounded-full border border-border bg-background hover:bg-accent hover:text-accent-foreground transition active:scale-95"
+                          className="px-2.5 py-1 text-xs rounded-lg border border-border bg-background hover:bg-accent hover:text-accent-foreground transition active:scale-95"
                         >
                           💬 {t('Offer assistance')}
                         </button>
@@ -2539,7 +2539,7 @@ export function InboxView({
                               setInputMessage(item.text)
                               textareaRef.current?.focus()
                             }}
-                            className="px-2.5 py-1 text-xs rounded-full border border-border/60 bg-muted/20 hover:bg-muted/50 text-foreground transition active:scale-95 text-left inline-flex items-center gap-1.5 cursor-pointer"
+                            className="px-2.5 py-1 text-xs rounded-lg border border-border/60 bg-muted/20 hover:bg-muted/50 text-foreground transition active:scale-95 text-left inline-flex items-center gap-1.5 cursor-pointer"
                           >
                             <span>{item.emoji}</span>
                             <span>{item.label}</span>

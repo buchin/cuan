@@ -13,6 +13,7 @@ import (
 )
 
 func (s *Server) publishInbox(room string) {
+	s.invalidateTaskCounts()
 	if s.roomEventBroker != nil {
 		s.roomEventBroker.Broadcast(room, "inbox.updated", nil)
 	}

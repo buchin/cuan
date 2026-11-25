@@ -25,7 +25,7 @@ test('1. S59-T4 ProjectsView: Card Diet & Progressive Disclosure with HairlineLi
 
   // Quick actions preserved
   assert.match(content, /handleOpenProjectTerminal/, 'ProjectsView must preserve handleOpenProjectTerminal')
-  assert.match(content, /Terminal className="h-3\.5 w-3\.5 text-emerald-500"/, 'ProjectsView must have emerald terminal icon')
+  assert.match(content, /Terminal className="h-3\.5 w-3\.5 text-muted-foreground/, 'ProjectsView must have calm terminal icon')
   assert.match(content, /title=\{t\('Open terminal for this project'\)\}/, 'ProjectsView must have terminal accessible title')
   assert.match(content, /onSelectProject/, 'ProjectsView must provide direct quick open board action')
 

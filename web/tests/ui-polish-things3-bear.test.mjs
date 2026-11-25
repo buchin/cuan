@@ -64,14 +64,14 @@ test('1. Splash Screen & Login: warm monochrome / deep graphite (#121214) and hi
 test('2. Inbox Room List: visual differentiation of Unread (bold + 6px micro-dot) vs Unresolved (open ring ○)', () => {
   const inboxSubPanelSrc = fs.readFileSync(inboxSubPanelPath, 'utf8')
 
-  // Workflow status on left side: open ring (Circle) for unresolved, CheckCircle2 for resolved
+  // Workflow status on left side: CheckCircle2 for resolved
   assert.ok(
     inboxSubPanelSrc.includes('data-testid="workflow-status-indicator"'),
     'ConversationItem must include workflow-status-indicator'
   )
   assert.ok(
-    inboxSubPanelSrc.includes('<Circle') && inboxSubPanelSrc.includes('<CheckCircle2'),
-    'ConversationItem must differentiate unresolved with Circle (○) and resolved with CheckCircle2 (✓)'
+    inboxSubPanelSrc.includes('<CheckCircle2'),
+    'ConversationItem must render resolved with CheckCircle2 (✓)'
   )
   assert.ok(
     inboxSubPanelSrc.includes('setConversationResolved'),

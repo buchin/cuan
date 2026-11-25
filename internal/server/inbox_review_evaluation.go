@@ -510,8 +510,15 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 	if d != nil && (d.Status == "cancelled" || d.Status == "canceled") {
 		return "Pekerjaan sudah dibatalkan. Riwayat dan hasil sementara tetap tersimpan; review lama tidak menjalankannya kembali.\n\n[View work](/tasks/" + d.ID + ")"
 	}
-	if d != nil && d.Status == task.TaskStatusDone {
-		return "Hasil pekerjaan ini sudah diterima. Bukti dan hasil tersimpan; pembaruan review lama tidak membuka ulang pekerjaan.\n\n[View work](/tasks/" + d.ID + ")"
+	if d != nil && d.Status == task.TaskStatusDone && !isCustomerReplyDelivery(q, d) {
+		if s.isCustomerRoom(ctx, q.RoomID) {
+			return acceptedCustomerTaskResult(d, d.Summary)
+		}
+		summary := strings.TrimSpace(d.Summary)
+		if summary != "" {
+			return fmt.Sprintf("Pekerjaan telah selesai dan diverifikasi.\n\n%s\n\n[View work](/tasks/%s)", summary, d.ID)
+		}
+		return "Pekerjaan telah selesai dan seluruh hasil telah diverifikasi.\n\n[View work](/tasks/" + d.ID + ")"
 	}
 	if d != nil && d.Status != task.TaskStatusDone && d.LatestAttempt != nil && d.LatestAttempt.Status == task.AttemptStatusCanceled {
 		return "Pekerjaan dibatalkan. Hasil dan kriteria selesai belum diverifikasi. Konteks task tetap tersimpan; tidak ada pekerjaan yang dijalankan ulang dari laporan ini.\n\n[View work](/tasks/" + d.ID + ")"
@@ -717,7 +724,14 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 		}
 	}
 	if d.Status == task.TaskStatusDone {
-		return "Hasil pekerjaan ini sudah diterima. Bukti dan hasil tersimpan; pembaruan review lama tidak membuka ulang pekerjaan.\n\n[View work](/tasks/" + d.ID + ")"
+		if s.isCustomerRoom(ctx, q.RoomID) {
+			return acceptedCustomerTaskResult(d, d.Summary)
+		}
+		summary := strings.TrimSpace(d.Summary)
+		if summary != "" {
+			return fmt.Sprintf("Pekerjaan telah selesai dan diverifikasi.\n\n%s\n\n[View work](/tasks/%s)", summary, d.ID)
+		}
+		return "Pekerjaan telah selesai dan seluruh hasil telah diverifikasi.\n\n[View work](/tasks/" + d.ID + ")"
 	}
 	if (decision.ManagerAction == "wait" || decision.ManagerAction == "needs_owner") && decision.Decision != "pass" {
 		decision.Decision = "blocked"
@@ -739,7 +753,14 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 			// ordinary developer execution or accept the worker's own report.
 			if d.Status != "cancelled" && d.Status != "canceled" && d.Status != task.TaskStatusDone && !d.LatestAttempt.CancelRequested && d.LatestAttempt.CanceledAt == nil {
 				if fresh, err := s.taskSvc.GetTaskDetail(ctx, d.ID); err == nil && fresh != nil && fresh.Status == task.TaskStatusDone {
-					return "Hasil pekerjaan ini sudah diterima. Bukti dan hasil tersimpan; pembaruan review lama tidak membuka ulang pekerjaan.\n\n[View work](/tasks/" + d.ID + ")"
+					if s.isCustomerRoom(ctx, q.RoomID) {
+						return acceptedCustomerTaskResult(fresh, fresh.Summary)
+					}
+					summary := strings.TrimSpace(fresh.Summary)
+					if summary != "" {
+						return fmt.Sprintf("Pekerjaan telah selesai dan diverifikasi.\n\n%s\n\n[View work](/tasks/%s)", summary, fresh.ID)
+					}
+					return "Pekerjaan telah selesai dan seluruh hasil telah diverifikasi.\n\n[View work](/tasks/" + fresh.ID + ")"
 				}
 				blocked := task.TaskStatusBlocked
 				_, _ = s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{Status: &blocked})
@@ -766,7 +787,14 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 			}
 			if d.Status != task.TaskStatusDone {
 				if fresh, err := s.taskSvc.GetTaskDetail(ctx, d.ID); err == nil && fresh != nil && fresh.Status == task.TaskStatusDone {
-					return "Hasil pekerjaan ini sudah diterima. Bukti dan hasil tersimpan; pembaruan review lama tidak membuka ulang pekerjaan.\n\n[View work](/tasks/" + d.ID + ")"
+					if s.isCustomerRoom(ctx, q.RoomID) {
+						return acceptedCustomerTaskResult(fresh, fresh.Summary)
+					}
+					summary := strings.TrimSpace(fresh.Summary)
+					if summary != "" {
+						return fmt.Sprintf("Pekerjaan telah selesai dan diverifikasi.\n\n%s\n\n[View work](/tasks/%s)", summary, fresh.ID)
+					}
+					return "Pekerjaan telah selesai dan seluruh hasil telah diverifikasi.\n\n[View work](/tasks/" + fresh.ID + ")"
 				}
 				blocked := task.TaskStatusBlocked
 				_, _ = s.taskSvc.UpdateTask(ctx, d.ID, "coordinator", task.UpdateTaskRequest{Status: &blocked})

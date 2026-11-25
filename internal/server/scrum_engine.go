@@ -154,7 +154,26 @@ func (s *Server) ensureTaskCompletionDelivered(ctx context.Context, detail *task
 	if summary == "" {
 		summary = "Pekerjaan telah diselesaikan dan diverifikasi."
 	}
-	content := fmt.Sprintf("Hasil pekerjaan memenuhi kriteria yang disepakati.\n\n%s\n\n[View work](/tasks/%s)", summary, detail.ID)
+	var content string
+	if s.isCustomerRoom(ctx, targetRoom) {
+		draft := extractCustomerReplyDraft(detail.CompleteNote)
+		if draft == "" {
+			draft = extractCustomerReplyDraft(detail.Summary)
+		}
+		if draft == "" {
+			title := strings.TrimSpace(detail.Title)
+			if title != "" && summary != "" && summary != "Pekerjaan telah diselesaikan dan diverifikasi." {
+				draft = fmt.Sprintf("Halo kak, terkait %s sudah kami tangani dan verifikasi: %s. Saat ini sudah normal kembali. Silakan dicek kembali ya kak. Terima kasih!", title, summary)
+			} else if title != "" {
+				draft = fmt.Sprintf("Halo kak, terkait %s sudah selesai kami tangani dan verifikasi. Saat ini sudah normal kembali. Silakan dicek kembali ya kak. Terima kasih!", title)
+			} else {
+				draft = "Halo kak, pekerjaan sudah selesai kami tangani dan verifikasi. Saat ini sudah normal kembali. Silakan dicek kembali ya kak. Terima kasih!"
+			}
+		}
+		content = fmt.Sprintf("Investigasi dan penanganan tugas selesai diverifikasi.\n\n**Draf balasan untuk pengunjung:**\n> %s\n\n[View work](/tasks/%s)", strings.ReplaceAll(draft, "\n", "\n> "), detail.ID)
+	} else {
+		content = fmt.Sprintf("Hasil pekerjaan memenuhi kriteria yang disepakati.\n\n%s\n\n[View work](/tasks/%s)", summary, detail.ID)
+	}
 	now := time.Now().UTC()
 	msg := &db.ProjectMessage{
 		ID:         db.GenerateUUID(),

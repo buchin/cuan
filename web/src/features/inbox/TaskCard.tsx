@@ -433,7 +433,7 @@ export const TaskCard = memo(function TaskCard({
           {isCustomerRoom && <InternalVisibility className="-ml-3 -my-2" />}
           <span
             className={cn(
-              'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors',
+              'inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-0.5 text-[11px] font-semibold transition-colors',
               statusBadge
             )}
           >

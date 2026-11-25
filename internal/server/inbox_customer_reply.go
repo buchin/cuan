@@ -74,7 +74,7 @@ func (s *Server) customerReplyAuthorized(ctx context.Context, q db.InboxRequest,
 		}
 	}
 	for _, origin := range requests {
-		if origin.MessageID != d.SourceMessageID || origin.OwnerID != q.OwnerID || origin.AgentID != q.AgentID {
+		if (!matchMessageID(origin.MessageID, d.SourceMessageID) && origin.MessageID != d.SourceMessageID) || origin.OwnerID != q.OwnerID || origin.AgentID != q.AgentID {
 			continue
 		}
 		_, authorized, err := s.authorizeSavedTaskLaunch(ctx, task.TaskLaunch{OwnerID: origin.OwnerID, RoomID: origin.RoomID, SourceRequestID: origin.RequestID, CreatedAt: time.Now().UTC()}, d)
@@ -109,7 +109,7 @@ func (s *Server) queueAcceptedCustomerReplies(ctx context.Context) {
 		}
 		var origin *db.InboxRequest
 		for i := range requests {
-			if requests[i].MessageID == d.SourceMessageID {
+			if requests[i].MessageID == d.SourceMessageID || matchMessageID(requests[i].MessageID, d.SourceMessageID) {
 				origin = &requests[i]
 				break
 			}

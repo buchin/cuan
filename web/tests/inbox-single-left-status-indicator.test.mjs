@@ -37,12 +37,7 @@ test('DoD 1: Indikator status percakapan dan task terintegrasi rapi pada sudut a
   )
 })
 
-test('DoD 2: Percakapan biasa tanpa task menampilkan ring terbuka (○) saat aktif dan centang (✓) saat resolved', () => {
-  // Unresolved without tasks renders Circle (○)
-  assert.ok(
-    subPanelSource.includes('<Circle className="h-4 w-4" strokeWidth={1.5} />'),
-    'Active conversation without tasks must render open ring Circle with strokeWidth 1.5'
-  )
+test('DoD 2: Percakapan biasa tanpa task bersih tanpa visual noise saat idle dan centang (✓) saat resolved', () => {
   // Resolved renders CheckCircle2 (✓)
   assert.ok(
     subPanelSource.includes('<CheckCircle2 className="h-4 w-4" strokeWidth={2} />'),

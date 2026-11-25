@@ -381,9 +381,9 @@ export function ProjectsView({
                         title={t('Open terminal for this project')}
                       >
                         {openingTerminalId === project.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-500" />
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                         ) : (
-                          <Terminal className="h-3.5 w-3.5 text-emerald-500" />
+                          <Terminal className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground transition-colors" />
                         )}
                         <span className="hidden sm:inline">
                           {openingTerminalId === project.id ? t('Opening…') : t('Terminal')}

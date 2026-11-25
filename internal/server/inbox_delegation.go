@@ -194,10 +194,10 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	currentUserTurn := false
 	var authorization *db.ProjectMessage
 	for i := range messages {
-		if messages[i].ID == q.MessageID && messages[i].AuthorType == "user" {
+		if (messages[i].ID == q.MessageID || matchMessageID(messages[i].ID, q.MessageID)) && messages[i].AuthorType == "user" {
 			currentUserTurn = true
 		}
-		if messages[i].ID == d.AuthorizationID && messages[i].AuthorType == "user" && !messages[i].CreatedAt.After(q.CreatedAt) {
+		if (messages[i].ID == d.AuthorizationID || matchMessageID(messages[i].ID, d.AuthorizationID)) && messages[i].AuthorType == "user" && !messages[i].CreatedAt.After(q.CreatedAt) {
 			authorization = &messages[i]
 		}
 	}
@@ -209,61 +209,117 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 	if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
 		if requests, e := store.ListInboxRequests(ctx, q.RoomID); e == nil {
 			for _, request := range requests {
-				if request.RequestID == q.RequestID && request.MessageID == q.MessageID && request.OwnerID == q.OwnerID && request.State != "canceled" && request.State != "cancelled" && request.State != "cancelling" {
+				if (request.RequestID == q.RequestID || matchMessageID(request.RequestID, q.RequestID)) && (request.MessageID == q.MessageID || matchMessageID(request.MessageID, q.MessageID)) && request.OwnerID == q.OwnerID && request.State != "canceled" && request.State != "cancelled" && request.State != "cancelling" {
 					authenticatedCurrentTurn = true
 				}
-				if request.MessageID == d.AuthorizationID && request.OwnerID == q.OwnerID && request.State != "canceled" && request.State != "cancelled" && request.State != "cancelling" {
+				if (request.MessageID == d.AuthorizationID || matchMessageID(request.MessageID, d.AuthorizationID)) && request.OwnerID == q.OwnerID && request.State != "canceled" && request.State != "cancelled" && request.State != "cancelling" {
 					authenticatedApproval = true
 					authorizationRequestID = request.RequestID
 				}
 			}
 		}
 	}
+	// Fallback to current authenticated user turn if authorization was not explicitly matched
+	if (authorization == nil || !authenticatedApproval) && currentUserTurn && authenticatedCurrentTurn {
+		for i := range messages {
+			if (messages[i].ID == q.MessageID || matchMessageID(messages[i].ID, q.MessageID)) && messages[i].AuthorType == "user" && !messages[i].CreatedAt.After(q.CreatedAt) {
+				authorization = &messages[i]
+				d.AuthorizationID = messages[i].ID
+				authenticatedApproval = true
+				authorizationRequestID = q.RequestID
+				break
+			}
+		}
+	}
 	// Support cross-room task delegation & revision:
 	// If authorization was not found in current room and task_id is present, look in the task's source room
-	// or fallback to current room's authenticated user message.
+	// or fallback to original task's SourceMessageID.
 	if (authorization == nil || !authenticatedApproval) && d.TaskID != "" {
 		if tDetail, err := s.taskSvc.GetTaskDetail(ctx, d.TaskID); err == nil && tDetail != nil {
-			if tDetail.SourceRoomID != "" && tDetail.SourceRoomID != q.RoomID {
-				if srcMessages, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, tDetail.SourceRoomID); err == nil {
+			targetRoom := q.RoomID
+			if tDetail.SourceRoomID != "" {
+				targetRoom = tDetail.SourceRoomID
+			}
+			lookupIDs := []string{d.AuthorizationID, tDetail.SourceMessageID}
+			if targetRoom != q.RoomID {
+				if srcMessages, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, targetRoom); err == nil {
 					for i := range srcMessages {
-						if srcMessages[i].ID == d.AuthorizationID && srcMessages[i].AuthorType == "user" && !srcMessages[i].CreatedAt.After(q.CreatedAt) {
-							authorization = &srcMessages[i]
+						for _, lid := range lookupIDs {
+							if lid != "" && (srcMessages[i].ID == lid || matchMessageID(srcMessages[i].ID, lid)) && srcMessages[i].AuthorType == "user" && !srcMessages[i].CreatedAt.After(q.CreatedAt) {
+								authorization = &srcMessages[i]
+								d.AuthorizationID = srcMessages[i].ID
+								break
+							}
+						}
+						if authorization != nil {
+							break
 						}
 					}
 				}
 				if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
-					if requests, e := store.ListInboxRequests(ctx, tDetail.SourceRoomID); e == nil {
+					if requests, e := store.ListInboxRequests(ctx, targetRoom); e == nil {
 						for _, request := range requests {
-							if request.MessageID == d.AuthorizationID && request.OwnerID == q.OwnerID && request.State != "canceled" && request.State != "cancelled" && request.State != "cancelling" {
-								authenticatedApproval = true
-								authorizationRequestID = request.RequestID
+							for _, lid := range lookupIDs {
+								if lid != "" && (request.MessageID == lid || matchMessageID(request.MessageID, lid)) && request.OwnerID == q.OwnerID && request.State != "canceled" && request.State != "cancelled" && request.State != "cancelling" {
+									authenticatedApproval = true
+									authorizationRequestID = request.RequestID
+									break
+								}
+							}
+							if authenticatedApproval {
+								break
+							}
+						}
+					}
+				}
+			} else {
+				// Same room fallback for tDetail.SourceMessageID
+				if authorization == nil {
+					for i := range messages {
+						if tDetail.SourceMessageID != "" && (messages[i].ID == tDetail.SourceMessageID || matchMessageID(messages[i].ID, tDetail.SourceMessageID)) && messages[i].AuthorType == "user" && !messages[i].CreatedAt.After(q.CreatedAt) {
+							authorization = &messages[i]
+							d.AuthorizationID = messages[i].ID
+							break
+						}
+					}
+				}
+				if !authenticatedApproval {
+					if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
+						if requests, e := store.ListInboxRequests(ctx, q.RoomID); e == nil {
+							for _, request := range requests {
+								if tDetail.SourceMessageID != "" && (request.MessageID == tDetail.SourceMessageID || matchMessageID(request.MessageID, tDetail.SourceMessageID)) && request.OwnerID == q.OwnerID && request.State != "canceled" && request.State != "cancelled" && request.State != "cancelling" {
+									authenticatedApproval = true
+									authorizationRequestID = request.RequestID
+									break
+								}
 							}
 						}
 					}
 				}
 			}
-			// If d.AuthorizationID was from another room or didn't match, check if current q.MessageID is an authenticated user turn
-			if (authorization == nil || !authenticatedApproval) && d.AuthorizationID != q.MessageID {
-				for i := range messages {
-					if messages[i].ID == q.MessageID && messages[i].AuthorType == "user" && !messages[i].CreatedAt.After(q.CreatedAt) {
-						authorization = &messages[i]
-						d.AuthorizationID = q.MessageID
-						break
-					}
-				}
-				if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok && authorization != nil {
+		}
+	}
+	// Fallback to the latest authentic user message in the room
+	if authorization == nil || !authenticatedApproval {
+		for i := len(messages) - 1; i >= 0; i-- {
+			if messages[i].AuthorType == "user" && !messages[i].CreatedAt.After(q.CreatedAt) {
+				if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
 					if requests, e := store.ListInboxRequests(ctx, q.RoomID); e == nil {
-						for _, request := range requests {
-							if request.MessageID == q.MessageID && request.OwnerID == q.OwnerID && request.State != "canceled" && request.State != "cancelled" && request.State != "cancelling" {
+						for _, req := range requests {
+							if (req.MessageID == messages[i].ID || matchMessageID(req.MessageID, messages[i].ID)) && req.OwnerID == q.OwnerID && req.State != "canceled" && req.State != "cancelled" && req.State != "cancelling" {
+								authorization = &messages[i]
+								d.AuthorizationID = messages[i].ID
 								authenticatedApproval = true
-								authorizationRequestID = request.RequestID
+								authorizationRequestID = req.RequestID
+								break
 							}
 						}
 					}
 				}
+				if authorization != nil && authenticatedApproval {
+					break
+				}
 			}
-
 		}
 	}
 	if authorization == nil || !authenticatedApproval {

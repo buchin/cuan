@@ -85,8 +85,8 @@ test('5. Quick Project Terminal button in ProjectsView (Grid & List)', () => {
   )
   assert.match(
     content,
-    /Terminal className="h-3\.5 w-3\.5 text-emerald-500"/,
-    'ProjectsView must render emerald Terminal icon button',
+    /Terminal className="h-3\.5 w-3\.5 text-muted-foreground/,
+    'ProjectsView must render calm Terminal icon button',
   )
   assert.match(
     content,

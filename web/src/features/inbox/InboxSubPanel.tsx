@@ -15,8 +15,7 @@ import { agentForContact, connectionStatus } from '../agents/connection'
 import { useState, useEffect, memo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { ChatContact, chatApi } from '../../api/chat'
-import { Bot, User, CheckCircle2, CheckCheck, Plus, Circle, Eye } from 'lucide-react'
-import { NotificationsPopover } from '../notifications/NotificationsPopover'
+import { Bot, User, CheckCircle2, CheckCheck, Plus, Eye } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { getContactInitials } from './contact-initials'
 import { TASK_STATUS_THEMES, workStatus, workDisplayStatus } from '../tasks/task-ui'
@@ -62,6 +61,23 @@ export function conversationPreview(message?: string, counts?: ChatContact, t: (
 
   if (!message?.trim()) return 'No messages yet.'
   let text = message.trim()
+
+  // Customer reply draft indicator
+  const draftMatch = text.match(/\*\*(?:Customer reply draft|Draf balasan(?: untuk pengunjung)?|Draft balasan)\*\*:\s*(?:> )?([^\n]+)/i)
+  if (draftMatch) {
+    const cleanedDraft = draftMatch[1].replace(/^[>"\s]+|[>"\s]+$/g, '').trim()
+    if (cleanedDraft) return `Draf balasan: ${cleanedDraft}`
+  }
+
+  // Strip repetitive robotic boilerplate prefixes so user sees the actual task summary / context
+  text = text
+    .replace(/^Hasil pekerjaan memenuhi kriteria(?: yang disepakati)?\.?\s*/i, '')
+    .replace(/^Hasil pekerjaan ini sudah diterima\.?\s*(?:Bukti dan hasil tersimpan;[^\n]*\n*)?/i, '')
+    .replace(/^Pekerjaan ditandai selesai\.?\s*/i, '')
+    .replace(/^Pekerjaan telah (?:berhasil )?diselesaikan(?: dan diverifikasi)?\.?\s*/i, '')
+    .replace(/^The work has been completed and verified\.?\s*/i, '')
+    .replace(/^I could not start the work:\s*/i, '')
+    .trim()
   if (/^Files from this work session/i.test(text)) {
     if (substage) return t(substage) || substage
     if (reviewTasks > 0) return t('Siap ditinjau')
@@ -198,8 +214,9 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
     : (progModel?.total ?? 0)
   const hasTasks = totalTasks > 0 || !!progModel
   const allTasksDone = hasTasks && (progModel ? progModel.complete : doneTasks >= totalTasks)
+  const isCompletionNotice = /(?:Hasil pekerjaan (?:memenuhi kriteria|ini sudah diterima)|Pekerjaan (?:telah (?:berhasil )?diselesaikan|ditandai selesai)|The work has been completed and verified)/i.test(contact.last_message || '')
   const isResolved = Boolean(contact.resolved)
-  const isComplete = isResolved || allTasksDone
+  const isComplete = isResolved || allTasksDone || (!hasActiveWork && !reviewTasks && !failedTasks && isCompletionNotice)
   const isWorking = hasActiveWork
 
   const cachedSubstage = id ? getRoomActiveSubstage(id) : undefined
@@ -379,109 +396,109 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
             )}
           </div>
 
-          {/* Overlaid Status Badge at Bottom-Right */}
-          <span
-            role="button"
-            tabIndex={0}
-            onClick={async (e) => {
-              e.stopPropagation()
-              try {
-                await handleResolveAction()
-              } catch (err) {
-                console.error('Failed to toggle conversation resolved state:', err)
-              }
-            }}
-            onKeyDown={async (e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
+          {/* Overlaid Status Badge at Bottom-Right - Only when status is active, in-review, queued, or complete */}
+          {(isComplete || isWorking || hasReview || isQueued || hasTasks || (contact.type === 'customer' && contact.is_online === true)) && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={async (e) => {
                 e.stopPropagation()
                 try {
                   await handleResolveAction()
                 } catch (err) {
                   console.error('Failed to toggle conversation resolved state:', err)
                 }
-              }
-            }}
-            title={statusTitle}
-            aria-label={statusAriaLabel}
-            data-testid="workflow-status-indicator"
-            className={cn(
-              'workflow-status-toggle absolute -bottom-0.5 -right-0.5 rounded-full bg-transparent flex items-center justify-center transition-transform hover:scale-110 cursor-pointer select-none',
-              isComplete
-                ? TASK_STATUS_THEMES.done.textColor
-                : isWorking
-                  ? TASK_STATUS_THEMES.working.textColor
-                  : hasReview
-                    ? TASK_STATUS_THEMES.review.textColor
-                    : hasFailed
-                      ? TASK_STATUS_THEMES.attention.textColor
-                      : isQueued
-                        ? 'text-amber-500/80 dark:text-amber-400/80'
-                        : 'text-muted-foreground/60 hover:text-foreground',
-            )}
-          >
-            {isComplete ? (
-              <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
-            ) : isWorking ? (
-              <StatusDot status="working" size="md" className="m-0.5" />
-            ) : hasReview ? (
-              <Eye className="h-3.5 w-3.5" strokeWidth={2} aria-label={t('Ready for review')} />
-            ) : isQueued ? (
-              <svg
-                viewBox="0 0 16 16"
-                className="h-4 w-4"
-                data-testid="task-pie-progress"
-                aria-label={t('Menunggu antrean')}
-              >
-                <circle
-                  cx="8"
-                  cy="8"
-                  r="6.5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeDasharray="2.5 1.5"
-                  opacity="0.9"
-                />
-                {fraction > 0 && (
-                  <path
-                    d={`M 8 8 L 8 3.5 A 4.5 4.5 0 ${fraction > 0.5 ? 1 : 0} 1 ${pieX} ${pieY} Z`}
-                    fill="currentColor"
+              }}
+              onKeyDown={async (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  try {
+                    await handleResolveAction()
+                  } catch (err) {
+                    console.error('Failed to toggle conversation resolved state:', err)
+                  }
+                }
+              }}
+              title={statusTitle}
+              aria-label={statusAriaLabel}
+              data-testid="workflow-status-indicator"
+              className={cn(
+                'workflow-status-toggle absolute -bottom-0.5 -right-0.5 rounded-full bg-transparent flex items-center justify-center transition-transform hover:scale-110 cursor-pointer select-none',
+                isComplete
+                  ? TASK_STATUS_THEMES.done.textColor
+                  : isWorking
+                    ? TASK_STATUS_THEMES.working.textColor
+                    : hasReview
+                      ? TASK_STATUS_THEMES.review.textColor
+                      : hasFailed
+                        ? TASK_STATUS_THEMES.attention.textColor
+                        : isQueued
+                          ? 'text-amber-500/80 dark:text-amber-400/80'
+                          : 'text-muted-foreground/60 hover:text-foreground',
+              )}
+            >
+              {isComplete ? (
+                <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
+              ) : isWorking ? (
+                <StatusDot status="working" size="md" className="m-0.5" />
+              ) : hasReview ? (
+                <Eye className="h-3.5 w-3.5" strokeWidth={2} aria-label={t('Ready for review')} />
+              ) : isQueued ? (
+                <svg
+                  viewBox="0 0 16 16"
+                  className="h-4 w-4"
+                  data-testid="task-pie-progress"
+                  aria-label={t('Menunggu antrean')}
+                >
+                  <circle
+                    cx="8"
+                    cy="8"
+                    r="6.5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeDasharray="2.5 1.5"
+                    opacity="0.9"
                   />
-                )}
-              </svg>
-            ) : hasTasks ? (
-              <svg
-                viewBox="0 0 16 16"
-                className="h-4 w-4"
-                data-testid="task-pie-progress"
-              >
-                <circle
-                  cx="8"
-                  cy="8"
-                  r="6.5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  opacity={hasFailed || hasReview ? "0.9" : "0.65"}
-                />
-                {fraction > 0 && (
-                  <path
-                    d={`M 8 8 L 8 3.5 A 4.5 4.5 0 ${fraction > 0.5 ? 1 : 0} 1 ${pieX} ${pieY} Z`}
-                    fill="currentColor"
+                  {fraction > 0 && (
+                    <path
+                      d={`M 8 8 L 8 3.5 A 4.5 4.5 0 ${fraction > 0.5 ? 1 : 0} 1 ${pieX} ${pieY} Z`}
+                      fill="currentColor"
+                    />
+                  )}
+                </svg>
+              ) : hasTasks ? (
+                <svg
+                  viewBox="0 0 16 16"
+                  className="h-4 w-4"
+                  data-testid="task-pie-progress"
+                >
+                  <circle
+                    cx="8"
+                    cy="8"
+                    r="6.5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    opacity={hasFailed || hasReview ? "0.9" : "0.65"}
                   />
-                )}
-              </svg>
-            ) : contact.type === 'customer' && contact.is_online === true ? (
-              <span
-                className="h-2.5 w-2.5 bg-emerald-500 rounded-full status-dot m-0.5"
-                aria-label="Online"
-                title="Online"
-              />
-            ) : (
-              <Circle className="h-4 w-4" strokeWidth={1.5} />
-            )}
-          </span>
+                  {fraction > 0 && (
+                    <path
+                      d={`M 8 8 L 8 3.5 A 4.5 4.5 0 ${fraction > 0.5 ? 1 : 0} 1 ${pieX} ${pieY} Z`}
+                      fill="currentColor"
+                    />
+                  )}
+                </svg>
+              ) : contact.type === 'customer' && contact.is_online === true ? (
+                <span
+                  className="h-2.5 w-2.5 bg-emerald-500 rounded-full status-dot m-0.5"
+                  aria-label="Online"
+                  title="Online"
+                />
+              ) : null}
+            </span>
+          )}
         </div>
 
         {/* Content Body */}
@@ -686,7 +703,6 @@ export function InboxSubPanel({
       <PageHeader>
         <div className="flex min-w-0 items-center gap-2"><PageHeaderBrand /><PageTitle>{t('Inbox')}</PageTitle></div>
         <div className="flex items-center gap-1">
-          <NotificationsPopover />
           {onNewMessage && (
             <IconButton
               type="button"

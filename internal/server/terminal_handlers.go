@@ -561,13 +561,7 @@ func (s *Server) handleProjectTerminalWebSocket(w http.ResponseWriter, r *http.R
 				}
 				if brain.Provider != "" {
 					env = append(env, "CUAN_AGENT_PROVIDER="+brain.Provider)
-				}
-				harness := brain.Harness
-				if harness == "" {
-					harness = brain.Provider
-				}
-				if harness != "" {
-					env = append(env, "CUAN_AGENT_HARNESS="+harness)
+					env = append(env, "CUAN_AGENT_HARNESS="+brain.Provider)
 				}
 			}
 			if release != nil {

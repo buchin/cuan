@@ -611,7 +611,7 @@ function TaskDetailView({
           {detail.title}
         </h2>
         <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
-          <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border", taskStatusBadgeClass(detail.status))}>
+          <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-xs font-semibold border", taskStatusBadgeClass(detail.status))}>
             {detail.status === 'done' ? (
               <CheckCircle2 className="h-3.5 w-3.5 text-[color:var(--status-success)]" aria-hidden />
             ) : taskExecutionActive(detail) ? (
@@ -894,7 +894,7 @@ function TaskDetailView({
                       <div className="flex items-center min-h-10">
                         <span
                           className={cn(
-                            'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border capitalize',
+                            'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border capitalize',
                             taskPriorityBadgeClass(detail.priority),
                           )}
                         >
@@ -908,7 +908,7 @@ function TaskDetailView({
                         Assignee
                       </span>
                       <div className="flex items-center min-h-10">
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-muted/60 border border-border/50 text-foreground">
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-muted/60 border border-border/50 text-foreground">
                           <Bot className="h-3.5 w-3.5 text-primary" />
                           <span className="truncate max-w-[140px] font-mono">
                             {authorName(
@@ -1154,7 +1154,7 @@ function TaskDetailView({
 
                           <span
                             className={cn(
-                              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border',
+                              'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-xs font-semibold border',
                               isAllDone
                                 ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
                                 : 'bg-muted text-muted-foreground border-border/60',

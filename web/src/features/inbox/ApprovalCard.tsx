@@ -134,7 +134,7 @@ const MemoizedApprovalCard = memo(function MemoizedApprovalCard({
 
         {plan.project_name && (
           <span
-            className="inline-flex items-center gap-1 text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground shrink-0 max-w-[160px] truncate"
+            className="inline-flex items-center gap-1 text-[10px] font-mono font-medium px-2 py-0.5 rounded-md bg-secondary text-secondary-foreground shrink-0 max-w-[160px] truncate"
             title={plan.project_name}
           >
             <Folder className="h-2.5 w-2.5 opacity-70 shrink-0" />
