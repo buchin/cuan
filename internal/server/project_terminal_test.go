@@ -926,3 +926,142 @@ func TestCancelTaskDoesNotKillProjectTerminal(t *testing.T) {
 		t.Fatalf("cancelling a task must NOT kill the interactive Project Terminal session")
 	}
 }
+
+func TestTaskDoneAndRunnerCompleteDoNotKillProjectTerminal(t *testing.T) {
+	srv, token := setupTestChatServer(t)
+	ctx := context.Background()
+	projID := "proj_keep_terminal_on_done"
+	if err := srv.projectSvc.Store().CreateProject(ctx, &project.Project{
+		ID:        projID,
+		Name:      "Keep Terminal On Done",
+		LocalPath: t.TempDir(),
+	}); err != nil {
+		t.Fatalf("CreateProject failed: %v", err)
+	}
+
+	// Simulate an active in-process project terminal session
+	sess, err := srv.terminalManager.GetOrCreateProjectSession(ctx, projID, t.TempDir(), "/bin/sh", 80, 24)
+	if err != nil {
+		t.Fatalf("GetOrCreateProjectSession failed: %v", err)
+	}
+	defer srv.terminalManager.CloseProjectSession(projID)
+
+	// 1. Mark a normal task as done via PATCH /api/v1/tasks/{id}
+	doneTask, err := srv.taskSvc.CreateTask(ctx, "owner", task.CreateTaskRequest{
+		ProjectID:    projID,
+		Title:        "Normal task marked done",
+		Instructions: "echo done",
+	})
+	if err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+	doing := task.TaskStatusDoing
+	if _, err := srv.taskSvc.UpdateTask(ctx, doneTask.ID, "owner", task.UpdateTaskRequest{Status: &doing}); err != nil {
+		t.Fatalf("UpdateTask doing failed: %v", err)
+	}
+
+	reqReview := httptest.NewRequest("PATCH", "/api/v1/tasks/"+doneTask.ID, strings.NewReader(`{"status":"review"}`))
+	reqReview.Header.Set("Authorization", "Bearer "+token)
+	reqReview.Header.Set("Content-Type", "application/json")
+	wReview := httptest.NewRecorder()
+	srv.Router().ServeHTTP(wReview, reqReview)
+	if wReview.Code != http.StatusOK {
+		t.Fatalf("PATCH task review failed with %d: %s", wReview.Code, wReview.Body.String())
+	}
+
+	gotReview, okReview := srv.terminalManager.GetProjectSession(projID)
+	if !okReview || gotReview == nil || gotReview.ID() != sess.ID() || gotReview.IsClosed() {
+		t.Fatalf("moving a task to review must NOT kill the interactive Project Terminal session")
+	}
+
+	reqDone := httptest.NewRequest("PATCH", "/api/v1/tasks/"+doneTask.ID, strings.NewReader(`{"status":"done","complete_note":"Verified and done","summary":"Task completed"}`))
+	reqDone.Header.Set("Authorization", "Bearer "+token)
+	reqDone.Header.Set("Content-Type", "application/json")
+	wDone := httptest.NewRecorder()
+	srv.Router().ServeHTTP(wDone, reqDone)
+	if wDone.Code != http.StatusOK {
+		t.Fatalf("PATCH task done failed with %d: %s", wDone.Code, wDone.Body.String())
+	}
+
+	got, ok := srv.terminalManager.GetProjectSession(projID)
+	if !ok || got == nil || got.ID() != sess.ID() || got.IsClosed() {
+		t.Fatalf("marking a task done must NOT kill the interactive Project Terminal session")
+	}
+
+	// 2. Complete a runner attempt via POST /api/v1/runners/attempts/{id}/complete
+	runnerTask, err := srv.taskSvc.CreateTask(ctx, "owner", task.CreateTaskRequest{
+		ProjectID:    projID,
+		Title:        "Runner task completed",
+		Instructions: "echo complete",
+	})
+	if err != nil {
+		t.Fatalf("CreateTask runnerTask failed: %v", err)
+	}
+	if _, err := srv.taskSvc.UpdateTask(ctx, runnerTask.ID, "owner", task.UpdateTaskRequest{Status: &doing}); err != nil {
+		t.Fatalf("UpdateTask doing failed: %v", err)
+	}
+	att := &task.TaskAttempt{
+		ID:            "att_complete_keep_proj_term",
+		TaskID:        runnerTask.ID,
+		RunnerID:      "cuan-runner",
+		AttemptNumber: 1,
+		Status:        task.AttemptStatusRunning,
+		CreatedAt:     time.Now().UTC(),
+	}
+	if err := srv.taskSvc.Store().CreateAttempt(ctx, att); err != nil {
+		t.Fatalf("CreateAttempt failed: %v", err)
+	}
+
+	reqComplete := httptest.NewRequest("POST", "/api/v1/runner/attempts/"+att.ID+"/complete", strings.NewReader(`{"runner_id":"cuan-runner","status":"succeeded","exit_code":0,"summary":"All done"}`))
+	reqComplete.Header.Set("Authorization", "Bearer "+token)
+	reqComplete.Header.Set("Content-Type", "application/json")
+	wComplete := httptest.NewRecorder()
+	srv.Router().ServeHTTP(wComplete, reqComplete)
+	if wComplete.Code != http.StatusOK {
+		t.Fatalf("runner complete failed with %d: %s", wComplete.Code, wComplete.Body.String())
+	}
+
+	got2, ok2 := srv.terminalManager.GetProjectSession(projID)
+	if !ok2 || got2 == nil || got2.ID() != sess.ID() || got2.IsClosed() {
+		t.Fatalf("completing a runner attempt must NOT kill the interactive Project Terminal session")
+	}
+}
+
+func TestZombieReaper_NormalTaskDoesNotAliasOrKillProjectTerminal(t *testing.T) {
+	srv, _ := setupTestChatServer(t)
+	ctx := context.Background()
+	projID := "proj_no_alias_leak"
+	if err := srv.projectSvc.Store().CreateProject(ctx, &project.Project{
+		ID:        projID,
+		Name:      "No Alias Leak",
+		LocalPath: t.TempDir(),
+	}); err != nil {
+		t.Fatalf("CreateProject failed: %v", err)
+	}
+
+	sess, err := srv.terminalManager.GetOrCreateProjectSession(ctx, projID, t.TempDir(), "/bin/sh", 80, 24)
+	if err != nil {
+		t.Fatalf("GetOrCreateProjectSession failed: %v", err)
+	}
+	defer srv.terminalManager.CloseProjectSession(projID)
+
+	normalTask, err := srv.taskSvc.CreateTask(ctx, "owner", task.CreateTaskRequest{
+		ProjectID:    projID,
+		Title:        "Normal background task",
+		Instructions: "echo work",
+	})
+	if err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+
+	if srv.isTaskActiveOnHost(normalTask.ID) {
+		t.Fatalf("isTaskActiveOnHost must return false for a normal task with no active runner session even when project terminal is open")
+	}
+
+	_ = srv.terminalManager.CloseSession(normalTask.ID)
+
+	got, ok := srv.terminalManager.GetProjectSession(projID)
+	if !ok || got == nil || got.ID() != sess.ID() || got.IsClosed() {
+		t.Fatalf("CloseSession on a normal task must NOT kill the interactive Project Terminal session")
+	}
+}

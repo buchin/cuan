@@ -418,7 +418,7 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		if updated != nil && (updated.Status == task.TaskStatusDone || updated.Status == task.TaskStatusReview || updated.Status == task.TaskStatusBlocked || updated.Status == "cancelled" || updated.Status == "failed") {
 			if s.terminalManager != nil {
 				_ = s.terminalManager.CloseSession(id)
-				if updated.ProjectID != "" {
+				if task.IsDedicatedTerminalTitle(updated.Title) && updated.ProjectID != "" {
 					_ = s.terminalManager.ResetProjectSession(updated.ProjectID)
 				}
 			}

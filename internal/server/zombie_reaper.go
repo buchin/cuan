@@ -19,12 +19,12 @@ func (s *Server) isTaskActiveOnHost(taskID string) bool {
 	}
 	sess, exists := s.terminalManager.GetSession(taskID)
 	if !exists || sess == nil || sess.IsClosed() {
-		// Fallback check if task belongs to a project with an active persistent terminal session
+		// Fallback check only for dedicated terminal tasks belonging to a project with an active persistent terminal session
 		if s.taskSvc != nil {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			t, err := s.taskSvc.Store().GetTask(ctx, taskID)
 			cancel()
-			if err == nil && t != nil {
+			if err == nil && t != nil && task.IsDedicatedTerminalTitle(t.Title) {
 				targetProjID := t.ProjectID
 				if targetProjID == "" && len(t.ProjectIDs) > 0 {
 					targetProjID = t.ProjectIDs[0]
