@@ -414,7 +414,8 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 						if db.InboxRetryNeedsReconciliation(q) {
 							step("reconciliation", "Checking the saved message against current recorded state without replaying earlier actions.")
 							reconcileCtx := context.WithValue(ctx, inboxRetryReconcileKey{}, true)
-							output, failure = s.executeInboxWithFailover(reconcileCtx, q.OwnerID, registered, prompt, home, "", status == "quota_limited", step)
+							attachments := s.inboxAttachmentPaths(ctx, q)
+							output, failure = s.executeInboxWithFailover(reconcileCtx, q.OwnerID, registered, prompt, home, "", status == "quota_limited", step, attachments...)
 						} else if planErr != nil {
 							failure = "Could not read the approved plan. No new execution was started."
 						} else if plan != nil {

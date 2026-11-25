@@ -563,3 +563,17 @@ func TestInboxRuntimeStreamProgressiveDeltasNoFinishDuplicate(t *testing.T) {
 		t.Fatalf("expected exactly 2 deltas during progressive streaming without finish duplication, got %d: %#v", len(deltas), deltas)
 	}
 }
+
+func TestInboxRuntimeStreamAttachmentOnlyToolsRejectsNonAttachmentTools(t *testing.T) {
+	canceled := false
+	stream := &inboxRuntimeStream{
+		step:                func(string, string) {},
+		maxToolCalls:        2,
+		attachmentOnlyTools: true,
+		cancel:              func() { canceled = true },
+	}
+	stream.Write([]byte(`{"event":"step_update","step_update":{"step_index":1,"state":"DONE","step_type":"tool","tool_name":"grep_search"}}` + "\n"))
+	if !canceled || !stream.toolBudgetExceeded {
+		t.Fatalf("expected grep_search to be rejected in attachmentOnlyTools mode, canceled=%v toolBudgetExceeded=%v", canceled, stream.toolBudgetExceeded)
+	}
+}

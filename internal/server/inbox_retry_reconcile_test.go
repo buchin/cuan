@@ -18,7 +18,7 @@ import (
 )
 
 func TestInboxReconciliationRejectsToolsAndUnscopedActions(t *testing.T) {
-	for _, scenario := range []string{"answer", "tool", "delegation", "memory", "reconcile"} {
+	for _, scenario := range []string{"answer", "no_attachment", "read_attachment", "search_tool", "tool", "delegation", "memory", "reconcile"} {
 		t.Run(scenario, func(t *testing.T) {
 			bin, home := t.TempDir(), t.TempDir()
 			reply := coordinatorJSON("Current evidence checked; previous actions were not replayed.", "", nil)
@@ -35,6 +35,32 @@ func TestInboxReconciliationRejectsToolsAndUnscopedActions(t *testing.T) {
 			prefix := ""
 			if scenario == "tool" {
 				prefix = `{"event":"step_update","step_update":{"step_index":1,"step_type":"tool","state":"DONE","tool_name":"run_command"}}` + "\n"
+			} else if scenario == "read_attachment" {
+				prefix = `{"event":"step_update","step_update":{"step_index":1,"step_type":"tool","state":"DONE","tool_name":"read_file","tool_info":{"parameters":{"Path":"receipt.jpg"}}}}` + "\n"
+			} else if scenario == "search_tool" {
+				prefix = `{"event":"step_update","step_update":{"step_index":1,"step_type":"tool","state":"DONE","tool_name":"grep_search","tool_info":{"parameters":{"Query":"secret"}}}}` + "\n"
+			}
+			attachmentDir := t.TempDir()
+			attachment := filepath.Join(attachmentDir, "receipt.jpg")
+			if err := os.WriteFile(attachment, []byte("private receipt fixture"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			attachments := []string{attachment}
+			addDirCheck := `previous=""
+saw_attachment_dir=0
+for arg in "$@"; do
+ if [ "$previous" = "--add-dir" ]; then
+  [ "$arg" = "` + attachmentDir + `" ] || exit 25
+  saw_attachment_dir=1
+ fi
+ previous="$arg"
+done
+[ "$saw_attachment_dir" = "1" ] || exit 27
+`
+			if scenario == "no_attachment" {
+				attachments = nil
+				addDirCheck = `for arg in "$@"; do [ "$arg" != "--add-dir" ] || exit 25; done
+`
 			}
 			schemaCheck := `previous=""
 for arg in "$@"; do
@@ -44,7 +70,7 @@ for arg in "$@"; do
  previous="$arg"
 done
 `
-			script := "#!/bin/sh\n" + schemaCheck + "for arg in \"$@\"; do [ \"$arg\" != \"--add-dir\" ] || exit 25; done\ncat <<'RESULT'\n" + prefix + string(result) + "\nRESULT\n"
+			script := "#!/bin/sh\n" + schemaCheck + addDirCheck + "cat <<'RESULT'\n" + prefix + string(result) + "\nRESULT\n"
 			if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
 				t.Fatal(err)
 			}
@@ -52,14 +78,10 @@ done
 			t.Setenv("PATH", bin+":/usr/bin:/bin")
 			s := &Server{cfg: &config.Config{Environment: "staging"}}
 			ctx := context.WithValue(context.Background(), inboxRetryReconcileKey{}, true)
-			attachment := filepath.Join(t.TempDir(), "receipt.jpg")
-			if err := os.WriteFile(attachment, []byte("private receipt fixture"), 0600); err != nil {
-				t.Fatal(err)
-			}
-			out, failure := s.executeInboxCLI(ctx, "@cuan", "agy", "Saved facts", home, "", nil, attachment)
-			if scenario == "answer" || scenario == "reconcile" {
+			out, failure := s.executeInboxCLI(ctx, "@cuan", "agy", "Saved facts", home, "/tmp/unused-workspace", nil, attachments...)
+			if scenario == "answer" || scenario == "no_attachment" || scenario == "read_attachment" || scenario == "reconcile" {
 				if out == "" || failure != "" {
-					t.Fatal("fresh answer rejected", failure)
+					t.Fatal("fresh answer rejected", scenario, failure)
 				}
 			} else if failure == "" || out != "" {
 				t.Fatal("uncertain activity replay was accepted", scenario)
