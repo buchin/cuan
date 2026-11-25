@@ -3,8 +3,10 @@ package server
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/buchin/cuan/internal/git"
 	"github.com/buchin/cuan/internal/project"
 )
 
@@ -352,5 +355,49 @@ func (s *Server) handleGetProjectCommitDetail(w http.ResponseWriter, r *http.Req
 		PatchPreview: patchPreview,
 		TaskID:       taskID,
 		TaskRef:      taskRef,
+	})
+}
+
+// POST /api/v1/projects/{id}/repo/push
+func (s *Server) handlePushProjectRepo(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	if id == "" {
+		respondJSONError(w, http.StatusBadRequest, "project id is required")
+		return
+	}
+	if s.projectSvc == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "project service unavailable")
+		return
+	}
+
+	var body struct {
+		Branch       string `json:"branch"`
+		AllowDefault bool   `json:"allow_default"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 16*1024)).Decode(&body); err != nil && !errors.Is(err, io.EOF) {
+		respondJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	branch, commit, err := s.projectSvc.PushProjectBranch(r.Context(), id, body.Branch, body.AllowDefault)
+	if err != nil {
+		switch {
+		case errors.Is(err, project.ErrProjectNotFound):
+			respondJSONError(w, http.StatusNotFound, "Project not found")
+		case errors.Is(err, git.ErrDefaultBranchProtected), errors.Is(err, project.ErrGitHubConnectionRequired):
+			respondJSONError(w, http.StatusBadRequest, err.Error())
+		case errors.Is(err, git.ErrRemoteBranchDiverged):
+			respondJSONError(w, http.StatusConflict, err.Error())
+		default:
+			respondJSONError(w, http.StatusBadRequest, err.Error())
+		}
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]any{
+		"pushed":     true,
+		"project_id": id,
+		"branch":     branch,
+		"commit":     commit,
 	})
 }

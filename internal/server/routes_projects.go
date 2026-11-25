@@ -30,6 +30,7 @@ func (s *Server) registerProjectRoutes(pr chi.Router) {
 	pr.Get("/projects/{id}/git-log", s.handleGetProjectGitLog)
 	pr.Get("/projects/{id}/activity", s.handleGetProjectGitLog)
 	pr.Get("/projects/{id}/commits/{sha}", s.handleGetProjectCommitDetail)
+	pr.Post("/projects/{id}/repo/push", s.handlePushProjectRepo)
 	pr.Get("/projects/{id}/deployments", s.handleGetProjectDeployments)
 	pr.Post("/projects/{id}/deployments", s.handleTriggerProjectDeployment)
 	pr.Get("/projects/{id}/deployments/{dep_id}", s.handleGetProjectDeploymentDetail)

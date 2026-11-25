@@ -1033,6 +1033,32 @@ func (c *CuanClient) UpdateProjectDeploymentConfig(ctx context.Context, id strin
 	return res, nil
 }
 
+// PushProjectRepo pushes a branch from a project's workspace via the server's saved GitHub connection.
+func (c *CuanClient) PushProjectRepo(ctx context.Context, id, branch string, allowDefault bool) (map[string]any, error) {
+	payload := map[string]any{}
+	if strings.TrimSpace(branch) != "" {
+		payload["branch"] = strings.TrimSpace(branch)
+	}
+	if allowDefault {
+		payload["allow_default"] = true
+	}
+	endpoint := fmt.Sprintf("/api/v1/projects/%s/repo/push", url.PathEscape(id))
+	resp, err := c.doRequest(ctx, http.MethodPost, endpoint, payload)
+	if err != nil {
+		return nil, fmt.Errorf("push project repo: %w", err)
+	}
+	defer resp.Body.Close()
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("push project repo failed (status %d): %s", resp.StatusCode, strings.TrimSpace(string(bodyBytes)))
+	}
+	var res map[string]any
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return nil, fmt.Errorf("unmarshal push result: %w", err)
+	}
+	return res, nil
+}
+
 // CreateContact creates a new contact in Cuan.
 func (c *CuanClient) CreateContact(ctx context.Context, name, email, phone, role, company, notes string) (map[string]any, error) {
 	reqID := db.GenerateUUID()
