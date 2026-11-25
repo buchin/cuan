@@ -257,13 +257,14 @@ Subcommands:
   free           Inspect host RAM memory availability
   tsc            Run static typecheck (tsc --noEmit or go vet)
   health         Inspect full host health (disk, memory, load, uptime)
-  push           Push current (or specified) non-default branch via Cuan server
+  push           Push current (or specified) branch via Cuan server
 
 Flags:
-  --path <dir>   Target directory (default: current working directory)
-  --json         Output structured JSON response
-  --limit <n>    Number of commits to display for 'log' (default: 10, max: 100)
-  --help         Show this help message
+  --path <dir>      Target directory (default: current working directory)
+  --allow-default   Allow pushing to the project's default branch (for 'push')
+  --json            Output structured JSON response
+  --limit <n>       Number of commits to display for 'log' (default: 10, max: 100)
+  --help            Show this help message
 
 Inspection commands are strictly read-only; 'push' delegates to the Cuan server with branch protection.`)
 }
@@ -274,6 +275,7 @@ func runRepoPush(args []string, out, errOut io.Writer) int {
 	projectFlag := fs.String("project", "", "Project ID (default: matched from --path)")
 	pathFlag := fs.String("path", "", "Target repository directory (default: current working directory)")
 	branchFlag := fs.String("branch", "", "Branch to push (default: current checked-out branch)")
+	allowDefaultFlag := fs.Bool("allow-default", false, "Allow pushing to the project's default branch")
 	jsonFlag := fs.Bool("json", false, "Output structured JSON response")
 
 	if err := fs.Parse(args); err != nil {
@@ -337,7 +339,7 @@ func runRepoPush(args []string, out, errOut io.Writer) int {
 		}
 	}
 
-	res, err := client.PushProjectRepo(ctx, projectID, branch)
+	res, err := client.PushProjectRepo(ctx, projectID, branch, *allowDefaultFlag)
 	if err != nil {
 		if *jsonFlag {
 			enc, _ := json.MarshalIndent(map[string]any{

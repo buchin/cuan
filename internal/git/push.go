@@ -37,7 +37,17 @@ func (c *Client) PushBoundBranch(ctx context.Context, path, repoURL, branch, tok
 // Retained native clones must still identify the saved repository: a changed
 // project connection cannot redirect historical work into another repository.
 func (c *Client) PushExecutionBranch(ctx context.Context, path, repoURL, branch, defaultBranch, token string) (string, error) {
-	if branch == "" || branch == defaultBranch || branch == "main" || branch == "master" {
+	return c.pushCheckedBranch(ctx, path, repoURL, branch, defaultBranch, token, false)
+}
+
+// PushProjectBranch pushes a checked-out project branch after verifying repository identity.
+// When allowDefault is false, pushing to the project's default branch (or main/master) is rejected.
+func (c *Client) PushProjectBranch(ctx context.Context, path, repoURL, branch, defaultBranch, token string, allowDefault bool) (string, error) {
+	return c.pushCheckedBranch(ctx, path, repoURL, branch, defaultBranch, token, allowDefault)
+}
+
+func (c *Client) pushCheckedBranch(ctx context.Context, path, repoURL, branch, defaultBranch, token string, allowDefault bool) (string, error) {
+	if branch == "" || (!allowDefault && (branch == defaultBranch || branch == "main" || branch == "master")) {
 		return "", ErrDefaultBranchProtected
 	}
 	if err := exec.CommandContext(ctx, c.gitBinary, "check-ref-format", "--branch", branch).Run(); err != nil {

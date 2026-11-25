@@ -1033,11 +1033,14 @@ func (c *CuanClient) UpdateProjectDeploymentConfig(ctx context.Context, id strin
 	return res, nil
 }
 
-// PushProjectRepo pushes a non-default branch from a project's workspace via the server's saved GitHub connection.
-func (c *CuanClient) PushProjectRepo(ctx context.Context, id, branch string) (map[string]any, error) {
+// PushProjectRepo pushes a branch from a project's workspace via the server's saved GitHub connection.
+func (c *CuanClient) PushProjectRepo(ctx context.Context, id, branch string, allowDefault bool) (map[string]any, error) {
 	payload := map[string]any{}
 	if strings.TrimSpace(branch) != "" {
 		payload["branch"] = strings.TrimSpace(branch)
+	}
+	if allowDefault {
+		payload["allow_default"] = true
 	}
 	endpoint := fmt.Sprintf("/api/v1/projects/%s/repo/push", url.PathEscape(id))
 	resp, err := c.doRequest(ctx, http.MethodPost, endpoint, payload)

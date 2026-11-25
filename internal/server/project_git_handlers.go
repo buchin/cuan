@@ -371,14 +371,15 @@ func (s *Server) handlePushProjectRepo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body struct {
-		Branch string `json:"branch"`
+		Branch       string `json:"branch"`
+		AllowDefault bool   `json:"allow_default"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 16*1024)).Decode(&body); err != nil && !errors.Is(err, io.EOF) {
 		respondJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	branch, commit, err := s.projectSvc.PushProjectBranch(r.Context(), id, body.Branch)
+	branch, commit, err := s.projectSvc.PushProjectBranch(r.Context(), id, body.Branch, body.AllowDefault)
 	if err != nil {
 		switch {
 		case errors.Is(err, project.ErrProjectNotFound):

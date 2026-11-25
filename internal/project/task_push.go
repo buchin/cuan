@@ -100,9 +100,9 @@ func (s *Service) PushTaskBranch(ctx context.Context, taskID, projectID, instruc
 	return s.gitClient.PushBoundBranch(ctx, workspace, p.RepoURL, branch, token)
 }
 
-// PushProjectBranch pushes a non-default branch from the project's local workspace
+// PushProjectBranch pushes a branch from the project's local workspace
 // using the server-stored GitHub connection token.
-func (s *Service) PushProjectBranch(ctx context.Context, projectID, branch string) (string, string, error) {
+func (s *Service) PushProjectBranch(ctx context.Context, projectID, branch string, allowDefault bool) (string, string, error) {
 	current, err := s.store.GetProject(ctx, projectID)
 	if err != nil {
 		return "", "", err
@@ -137,7 +137,7 @@ func (s *Service) PushProjectBranch(ctx context.Context, projectID, branch strin
 		}
 		targetBranch = strings.TrimSpace(string(out))
 	}
-	commit, err := s.gitClient.PushExecutionBranch(ctx, workDir, current.RepoURL, targetBranch, current.DefaultBranch, token)
+	commit, err := s.gitClient.PushProjectBranch(ctx, workDir, current.RepoURL, targetBranch, current.DefaultBranch, token, allowDefault)
 	if err != nil {
 		return targetBranch, "", err
 	}
