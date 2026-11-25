@@ -2,13 +2,16 @@ package server
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -569,6 +572,8 @@ func (s *Server) handleProjectTerminalWebSocket(w http.ResponseWriter, r *http.R
 			}
 		}
 	}
+
+	env = append(env, s.projectTerminalGitEnv(r, proj.ID, ownerID)...)
 
 	// 3. Try launching detached project terminal worker with SocketBridge
 	payload := terminal.ProjectWorkerPayload{
@@ -2087,4 +2092,101 @@ func (s *Server) taskRequiresVision(ctx context.Context, ownerID string, detail 
 		}
 	}
 	return false
+}
+
+func (s *Server) terminalGitSecret() []byte {
+	if s.cfg != nil && strings.TrimSpace(s.cfg.AuthSecret) != "" {
+		return []byte("cuan-terminal-git:" + s.cfg.AuthSecret)
+	}
+	return []byte("cuan-terminal-git:dev-ephemeral-secret")
+}
+
+func (s *Server) signTerminalGitToken(projectID, ownerID string, ttl time.Duration) string {
+	exp := time.Now().Add(ttl).Unix()
+	payload := projectID + ":" + ownerID + ":" + strconv.FormatInt(exp, 10)
+	encoded := base64.RawURLEncoding.EncodeToString([]byte(payload))
+	mac := hmac.New(sha256.New, s.terminalGitSecret())
+	mac.Write([]byte(encoded))
+	sig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	return encoded + "." + sig
+}
+
+func (s *Server) verifyTerminalGitToken(token, expectedProjectID string) (string, bool) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 2 {
+		return "", false
+	}
+	mac := hmac.New(sha256.New, s.terminalGitSecret())
+	mac.Write([]byte(parts[0]))
+	expectedSig := mac.Sum(nil)
+	gotSig, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil || !hmac.Equal(expectedSig, gotSig) {
+		return "", false
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return "", false
+	}
+	fields := strings.Split(string(raw), ":")
+	if len(fields) != 3 {
+		return "", false
+	}
+	projectID, ownerID, expStr := fields[0], fields[1], fields[2]
+	if projectID == "" || ownerID == "" || projectID != expectedProjectID {
+		return "", false
+	}
+	exp, err := strconv.ParseInt(expStr, 10, 64)
+	if err != nil || time.Now().Unix() > exp {
+		return "", false
+	}
+	return ownerID, true
+}
+
+func (s *Server) projectTerminalGitEnv(r *http.Request, projectID, ownerID string) []string {
+	if ownerID == "" || s.projectSvc == nil || projectID == "" {
+		return nil
+	}
+	scriptPath, err := terminal.EnsureGitAskpassScript("")
+	if err != nil || scriptPath == "" {
+		return nil
+	}
+	baseURL := "http://127.0.0.1:8080"
+	if s.cfg != nil && strings.TrimSpace(s.cfg.ServerPort) != "" {
+		baseURL = "http://127.0.0.1:" + strings.TrimPrefix(strings.TrimSpace(s.cfg.ServerPort), ":")
+	}
+	if r != nil && strings.HasPrefix(r.Host, "127.0.0.1:") {
+		baseURL = "http://" + r.Host
+	}
+	token := s.signTerminalGitToken(projectID, ownerID, 24*time.Hour)
+	return []string{
+		"GIT_ASKPASS=" + scriptPath,
+		"GIT_TERMINAL_PROMPT=0",
+		"CUAN_GIT_ASKPASS_URL=" + baseURL + "/api/v1/projects/" + projectID + "/terminal/git-credentials",
+		"CUAN_GIT_ASKPASS_TOKEN=" + token,
+	}
+}
+
+// GET /api/v1/projects/{id}/terminal/git-credentials
+func (s *Server) handleProjectTerminalGitCredentials(w http.ResponseWriter, r *http.Request) {
+	projectID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if projectID == "" || s.projectSvc == nil {
+		respondJSONError(w, http.StatusNotFound, "Project not found")
+		return
+	}
+	bearer := auth.ExtractToken(r)
+	if _, ok := s.verifyTerminalGitToken(bearer, projectID); !ok {
+		respondJSONError(w, http.StatusUnauthorized, "Invalid or expired terminal git credential token")
+		return
+	}
+	token, err := s.projectSvc.RepositoryToken(r.Context(), projectID)
+	if err != nil {
+		status := http.StatusConflict
+		if errors.Is(err, projectpkg.ErrProjectNotFound) {
+			status = http.StatusNotFound
+		}
+		respondJSONError(w, status, err.Error())
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	respondJSON(w, http.StatusOK, map[string]string{"token": token})
 }

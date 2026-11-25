@@ -29,3 +29,20 @@ func (s *Service) repositoryToken(ctx context.Context, legacy string) (string, e
 	}
 	return "", nil
 }
+
+// RepositoryToken resolves the active GitHub token for a project, checking
+// per-project encrypted credentials first and falling back to shared owner access.
+func (s *Service) RepositoryToken(ctx context.Context, projectID string) (string, error) {
+	current, err := s.store.GetProject(ctx, projectID)
+	if err != nil {
+		return "", err
+	}
+	token, err := s.repositoryToken(ctx, current.EncryptedToken)
+	if err != nil {
+		return "", err
+	}
+	if token == "" {
+		return "", ErrGitHubConnectionRequired
+	}
+	return token, nil
+}

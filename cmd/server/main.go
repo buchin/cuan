@@ -33,6 +33,9 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "worker-project" {
 		os.Exit(terminal.RunProjectWorkerCLI(os.Args[2:]))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "git-askpass" {
+		os.Exit(terminal.RunGitAskpassCLI(os.Args[2:]))
+	}
 	if len(os.Args) > 1 && (os.Args[1] == "admin" || os.Args[1] == "backup" || os.Args[1] == "restore") {
 		os.Exit(diagnostics.RunAdminCLI(os.Args[1:], os.Stdout, os.Stderr))
 	}

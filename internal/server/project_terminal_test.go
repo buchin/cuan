@@ -768,3 +768,73 @@ func TestProjectTerminal_AgentReportDoesNotCloseInteractiveSession(t *testing.T)
 		t.Fatalf("expected dedicated terminal task status to remain active (not 'done'), got %s", detail.Status)
 	}
 }
+
+func TestProjectTerminalGitCredentialsEndpoint(t *testing.T) {
+	srv, _, _ := setupTestServer(t)
+	ctx := context.Background()
+
+	// Seed shared repository token resolver on projectSvc
+	srv.projectSvc.SetSharedRepositoryAccess(func(context.Context) (string, error) {
+		return "ghp_live_owner_token_123", nil
+	})
+	projID := "proj_terminal_git_creds"
+	if err := srv.projectSvc.Store().CreateProject(ctx, &project.Project{
+		ID:            projID,
+		Name:          "Terminal Git Creds Test",
+		LocalPath:     t.TempDir(),
+		RepoURL:       "https://github.com/example/repo",
+		DefaultBranch: "dev",
+	}); err != nil {
+		t.Fatalf("CreateProject failed: %v", err)
+	}
+
+	env := srv.projectTerminalGitEnv(nil, projID, "owner_1")
+	var askpassToken string
+	for _, entry := range env {
+		if strings.HasPrefix(entry, "CUAN_GIT_ASKPASS_TOKEN=") {
+			askpassToken = strings.TrimPrefix(entry, "CUAN_GIT_ASKPASS_TOKEN=")
+		}
+		if strings.Contains(entry, "ghp_live_owner_token_123") {
+			t.Fatalf("raw GitHub token must never appear in terminal env: %s", entry)
+		}
+	}
+	if askpassToken == "" {
+		t.Fatalf("expected CUAN_GIT_ASKPASS_TOKEN in projectTerminalGitEnv, got %v", env)
+	}
+
+	// 1. Valid scoped token returns the repository token
+	req := httptest.NewRequest("GET", "/api/v1/projects/"+projID+"/terminal/git-credentials", nil)
+	req.Header.Set("Authorization", "Bearer "+askpassToken)
+	w := httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil || resp.Token != "ghp_live_owner_token_123" {
+		t.Fatalf("unexpected credential response: %+v err=%v", resp, err)
+	}
+	if cc := w.Header().Get("Cache-Control"); cc != "no-store" {
+		t.Fatalf("expected Cache-Control: no-store, got %q", cc)
+	}
+
+	// 2. Wrong project ID must be rejected
+	reqWrongProj := httptest.NewRequest("GET", "/api/v1/projects/other-proj/terminal/git-credentials", nil)
+	reqWrongProj.Header.Set("Authorization", "Bearer "+askpassToken)
+	wWrong := httptest.NewRecorder()
+	srv.Router().ServeHTTP(wWrong, reqWrongProj)
+	if wWrong.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for mismatched project, got %d", wWrong.Code)
+	}
+
+	// 3. Missing or tampered token must be rejected
+	reqBad := httptest.NewRequest("GET", "/api/v1/projects/"+projID+"/terminal/git-credentials", nil)
+	reqBad.Header.Set("Authorization", "Bearer tampered.token")
+	wBad := httptest.NewRecorder()
+	srv.Router().ServeHTTP(wBad, reqBad)
+	if wBad.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for tampered token, got %d", wBad.Code)
+	}
+}

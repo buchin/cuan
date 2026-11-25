@@ -813,6 +813,7 @@ func (s *Server) routes() {
 	s.router.Post("/api/v1/task-agent/{id}", s.handleTaskAgent)
 	s.router.Post("/api/v1/task-agent/{id}/push", s.handleTaskAgent)
 	s.router.Post("/api/v1/task-agent/{id}/publish", s.handleTaskAgent)
+	s.router.Get("/api/v1/projects/{id}/terminal/git-credentials", s.handleProjectTerminalGitCredentials)
 
 	// Domain route registrations (root router)
 	s.registerSystemRoutes(s.router)
