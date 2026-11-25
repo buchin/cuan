@@ -36,9 +36,9 @@ if [[ -n "$maintenance_home" && -d "$maintenance_home/.local/share/cuan/accounts
   accounts_dir="$maintenance_home/.local/share/cuan/accounts"
   accounts_uid="$(stat -c %u "$accounts_dir" 2>/dev/null || stat -f %u "$accounts_dir")"
   if [[ "$(id -u)" == 0 && "$accounts_uid" != 0 ]]; then
-    sudo -n -u "#$accounts_uid" python3 "$install_dir/maintenance/prune-provider-go-cache.py" --accounts "$accounts_dir" --apply
+    sudo -n -u "#$accounts_uid" python3 "$install_dir/maintenance/prune-provider-go-cache.py" --accounts "$accounts_dir" --idle-caches --apply
   else
-    python3 "$install_dir/maintenance/prune-provider-go-cache.py" --accounts "$accounts_dir" --apply
+    python3 "$install_dir/maintenance/prune-provider-go-cache.py" --accounts "$accounts_dir" --idle-caches --apply
   fi
 fi
 if [[ -d "$install_dir/data/projects/verification-snapshots" ]]; then
@@ -62,7 +62,10 @@ python3 "$install_dir/maintenance/prune-runtime-build-cache.py" "${npm_cache_arg
 
 if [[ -d "$install_dir/data/projects/release-workspaces" ]]; then
   python3 "$install_dir/maintenance/prune-native-release-caches.py" \
-    --workspaces "$install_dir/data/projects/release-workspaces" --apply
+    --workspaces "$install_dir/data/projects/release-workspaces" --force --apply
   python3 "$install_dir/maintenance/prune-verification-dependencies.py" \
     --snapshots "$install_dir/data/projects/release-workspaces" --apply
+fi
+if [[ -f "$install_dir/maintenance/prune-system-logs.py" ]]; then
+  python3 "$install_dir/maintenance/prune-system-logs.py" --apply
 fi

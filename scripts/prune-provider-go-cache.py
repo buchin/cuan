@@ -123,13 +123,37 @@ def remove_toolchain(path):
     shutil.rmtree(path)
 
 
-def prune(accounts, *, apply=False, min_age_hours=24, now=None, in_use=process_uses, all_modules=False):
+IDLE_CACHE_DIRS = ('go-build', 'ms-playwright', 'puppeteer', 'composer')
+
+
+def prune_idle_caches(account, result, *, apply, min_age_hours, now, in_use):
+    home = account / 'home'
+    cache_root = home / '.cache'
+    if not private_directory(home) or not private_directory(cache_root):
+        return
+    expected_uid = account.stat().st_uid
+    for name in IDLE_CACHE_DIRS:
+        target = cache_root / name
+        if not private_directory(target) or target.stat().st_dev != account.stat().st_dev:
+            continue
+        if target.stat().st_uid != expected_uid:
+            continue
+        if now - target.stat().st_mtime < min_age_hours * 3600 or in_use(target):
+            continue
+        result['idle_caches_eligible'] += 1
+        if apply:
+            remove_toolchain(target)
+            result['idle_caches_removed'] += 1
+
+
+def prune(accounts, *, apply=False, min_age_hours=24, now=None, in_use=process_uses, all_modules=False, idle_caches=False):
     if min_age_hours < 1 or not private_directory(accounts):
         raise ValueError('Use a real accounts directory and retain at least one hour')
     now = time.time() if now is None else now
     result = {'eligible': 0, 'removed': 0, 'busy_accounts': 0,
               'download_eligible': 0, 'download_removed': 0, 'download_bytes_removed': 0,
-              'module_caches_eligible': 0, 'module_caches_removed': 0}
+              'module_caches_eligible': 0, 'module_caches_removed': 0,
+              'idle_caches_eligible': 0, 'idle_caches_removed': 0}
     for account in sorted(accounts.iterdir()):
         if not ACCOUNT.fullmatch(account.name) or not private_directory(account):
             continue
@@ -137,6 +161,8 @@ def prune(accounts, *, apply=False, min_age_hours=24, now=None, in_use=process_u
             if not idle:
                 result['busy_accounts'] += 1
                 continue
+            if idle_caches:
+                prune_idle_caches(account, result, apply=apply, min_age_hours=min_age_hours, now=now, in_use=in_use)
             relative = account
             for part in ('home', 'go', 'pkg', 'mod'):
                 relative /= part
@@ -180,9 +206,10 @@ def main():
     parser.add_argument('--min-age-hours', default=24, type=float)
     parser.add_argument('--apply', action='store_true')
     parser.add_argument('--all-modules', action='store_true', help='Explicitly clean old idle legacy Go module caches with official Go; preserve account credentials/history')
+    parser.add_argument('--idle-caches', action='store_true', help='Clean old idle regenerable caches under home/.cache (go-build, ms-playwright, puppeteer, composer)')
     args = parser.parse_args()
     try:
-        print(json.dumps(prune(args.accounts.absolute(), apply=args.apply, min_age_hours=args.min_age_hours, all_modules=args.all_modules)))
+        print(json.dumps(prune(args.accounts.absolute(), apply=args.apply, min_age_hours=args.min_age_hours, all_modules=args.all_modules, idle_caches=args.idle_caches)))
     except (ValueError, OSError, subprocess.SubprocessError) as exc:
         parser.exit(1, f'Cache maintenance failed ({type(exc).__name__}); account data preserved.\n')
 

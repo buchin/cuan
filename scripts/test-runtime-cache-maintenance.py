@@ -56,8 +56,11 @@ class MaintenanceInstall(unittest.TestCase):
             self.assertIn(str(pinned) + '/prune-runtime-build-cache.py', service)
             self.assertIn('--kind npm --legacy-accounts ' + str(home), service)
             self.assertIn('--kind composer --apply', service)
+            self.assertIn('/prune-provider-go-cache.py --accounts ' + str(home) + '/.local/share/cuan/accounts --min-age-hours 1 --all-modules --idle-caches --apply', service)
+            self.assertIn('/prune-native-release-caches.py --workspaces ' + str(base / 'data/projects/release-workspaces') + ' --force --apply', service)
+            self.assertIn('/prune-system-logs.py --apply', service)
             self.assertNotIn('/usr/local/bin/cuan-disk-guard', service)
-            self.assertEqual(service.count('ExecStart='), 9)
+            self.assertEqual(service.count('ExecStart='), 11)
             for snapshots in ('data/projects/verification-snapshots', 'data/workspaces/verification'):
                 self.assertIn('--snapshots ' + str(base / snapshots) + ' --under-storage-pressure --apply', service)
                 self.assertIn('/compact-verification-source.py --snapshots ' + str(base / snapshots) + ' --apply', service)

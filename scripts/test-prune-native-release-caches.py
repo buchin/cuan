@@ -20,6 +20,7 @@ class NativeCachePruning(unittest.TestCase):
         self.meta = self.root / '.git'
         self.runtime = self.meta / 'cuan-native-runtime'
         (self.runtime / 'cache/go').mkdir(parents=True)
+        (self.runtime / 'cache/go/obj').write_text('cached')
         (self.meta / 'cuan-verification.lock').touch()
         (self.meta / 'cuan-verification.json').write_text(json.dumps({'target_commit':'b'*40}))
         self.helpers = SimpleNamespace(git=lambda *args: ('b'*40).encode(), referenced=lambda root:False, owner_credentials=lambda root:{})
@@ -61,6 +62,14 @@ class NativeCachePruning(unittest.TestCase):
             self.assertEqual(module.prune(self.base, True, True)['eligible'], [])
             self.helpers.git = lambda *args:b'c'*40
             self.assertEqual(module.prune(self.base, True, True)['eligible'], [])
+        run.assert_not_called()
+
+    def test_empty_cache_directories_skip_subprocess_invocation(self):
+        (self.runtime / 'cache/go/obj').unlink()
+        with patch.object(module.subprocess, 'run') as run:
+            result = module.prune(self.base, apply=True, force=True)
+        self.assertEqual(result['eligible'], [])
+        self.assertEqual(result['cleaned'], [])
         run.assert_not_called()
 
 if __name__ == '__main__':

@@ -11,7 +11,7 @@ import pwd
 import re
 import stat
 
-TOOLS = ('prune-native-release-caches.py', 'prune-runtime-build-cache.py', 'prune-provider-go-cache.py', 'prune-verification-dependencies.py', 'compact-verification-source.py', 'prune-native-database-backups.py')
+TOOLS = ('prune-native-release-caches.py', 'prune-runtime-build-cache.py', 'prune-provider-go-cache.py', 'prune-verification-dependencies.py', 'compact-verification-source.py', 'prune-native-database-backups.py', 'prune-system-logs.py')
 
 
 def install(base, service_home, unit_dir, source, backup_keep=None):
@@ -79,12 +79,14 @@ TimeoutStartSec=180
 ExecStart={command} --runtime {base}/data/go-build-runtime --apply
 ExecStart={command} --runtime {base}/data/php-build-runtime --kind composer --apply
 ExecStart={command} --runtime {base}/data/npm-build-runtime --kind npm --legacy-accounts {service_home}/.local/share/cuan/accounts --apply
+ExecStart=/usr/bin/python3 {target}/prune-provider-go-cache.py --accounts {service_home}/.local/share/cuan/accounts --min-age-hours 1 --all-modules --idle-caches --apply
 ExecStart=/usr/bin/python3 {target}/prune-verification-dependencies.py --snapshots {base}/data/projects/release-workspaces --under-storage-pressure --apply
-ExecStart=/usr/bin/python3 {target}/prune-native-release-caches.py --workspaces {base}/data/projects/release-workspaces --apply
+ExecStart=/usr/bin/python3 {target}/prune-native-release-caches.py --workspaces {base}/data/projects/release-workspaces --force --apply
 ExecStart=/usr/bin/python3 {target}/prune-verification-dependencies.py --snapshots {base}/data/projects/verification-snapshots --under-storage-pressure --apply
 ExecStart=/usr/bin/python3 {target}/prune-verification-dependencies.py --snapshots {base}/data/workspaces/verification --under-storage-pressure --apply
 ExecStart=/usr/bin/python3 {target}/compact-verification-source.py --snapshots {base}/data/projects/verification-snapshots --apply
 ExecStart=/usr/bin/python3 {target}/compact-verification-source.py --snapshots {base}/data/workspaces/verification --apply
+ExecStart=/usr/bin/python3 {target}/prune-system-logs.py --apply
 '''
     if backup_keep is not None:
         service += f'ExecStart=/usr/bin/python3 {target}/prune-native-database-backups.py --base {base} --keep {backup_keep} --apply\n'
