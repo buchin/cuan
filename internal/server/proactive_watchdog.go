@@ -334,6 +334,39 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			}
 		}
 
+		// 1b. Autonomous merge-conflict reconciliation:
+		// When verified code cannot be auto-applied due to a merge conflict on the target branch,
+		// autonomously delegate conflict resolution back to the dev runner (bounded to once per attempt).
+		if latestAssessment != nil &&
+			latestAssessment.SourceReview == "pass" &&
+			(latestAssessment.RemainingWork == "publication" || latestAssessment.RemainingWork == "none") &&
+			detail.LatestAttempt != nil && detail.LatestAttempt.Status == task.AttemptStatusSucceeded &&
+			len(detail.Attempts) < 6 &&
+			isAutoApplyMergeConflict(detail.CompleteNote) {
+			if policy, pErr := s.taskPublicationPolicy(ctx, detail); pErr == nil && !policy.ReadOnlyRepository && !policy.DenyPush {
+				launchID := delegationMessageID(fmt.Sprintf("watchdog-conflict-reconcile:%s:%s", detail.ID, detail.LatestAttempt.ID))
+				existingLaunch, lErr := s.taskSvc.GetLaunch(ctx, task.LaunchID(detail.ID, launchID))
+				targetAttID := task.AttemptRequestID(detail.ID, launchID)
+				alreadyAttempted := lErr == nil && existingLaunch != nil
+				if !alreadyAttempted {
+					for _, a := range detail.Attempts {
+						if a != nil && a.ID == targetAttID {
+							alreadyAttempted = true
+							break
+						}
+					}
+				}
+				if !alreadyAttempted {
+					conflictRevision := "Reconcile merge conflict with the latest target branch: fetch origin, merge or rebase the latest target branch into the task branch, resolve all merge conflicts while preserving the approved fix, run targeted verification tests to confirm everything passes, and commit/push the updated branch so auto-apply can merge cleanly."
+					notice := s.startAuthorizedLaunch(ctx, origin, detail, launchID, origin.RequestID, conflictRevision)
+					s.kickTaskLaunches()
+					log.Printf("[Watchdog AI Orchestrator] Autonomously launched merge-conflict reconciliation for task %s (attempt %s, notice=%s)",
+						detail.ID, detail.LatestAttempt.ID, notice)
+					continue
+				}
+			}
+		}
+
 		// 2. Autonomous Self-Healing:
 		// When within budget (< 3 attempts), manager indicates continue/replan, actionable revision is available,
 		// and work is internal (not external).
@@ -415,6 +448,16 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			s.postContinuationActionCard(ctx, detail, assessmentRequestID, *latestAssessment)
 		}
 	}
+}
+
+func isAutoApplyMergeConflict(completeNote string) bool {
+	if !strings.Contains(completeNote, "⚠️ Auto-apply tidak dapat menggabungkan perubahan secara otomatis") {
+		return false
+	}
+	lower := strings.ToLower(completeNote)
+	return strings.Contains(lower, "merge conflict") ||
+		strings.Contains(lower, "retained conflicts") ||
+		strings.Contains(lower, "status 405")
 }
 
 func (s *Server) postContinuationActionCard(ctx context.Context, detail *task.TaskDetailResponse, requestID string, assessment inboxReviewEvaluation) {

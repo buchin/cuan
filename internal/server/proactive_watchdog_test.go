@@ -1199,3 +1199,18 @@ func TestAutoApplyAndDeployTaskIdempotentFailure(t *testing.T) {
 		t.Fatalf("expected CompleteNote to remain unchanged on repeated failure, got:\n%s\nwant:\n%s", second.CompleteNote, noteAfterFirst)
 	}
 }
+
+func TestIsAutoApplyMergeConflict(t *testing.T) {
+	if isAutoApplyMergeConflict("All good") {
+		t.Fatal("expected false without auto-apply failure marker")
+	}
+	if isAutoApplyMergeConflict("⚠️ Auto-apply tidak dapat menggabungkan perubahan secara otomatis (network timeout)") {
+		t.Fatal("expected false for non-conflict failure")
+	}
+	if !isAutoApplyMergeConflict("⚠️ Auto-apply tidak dapat menggabungkan perubahan secara otomatis (github api merge PR failed (status 405: Pull Request has merge conflicts))") {
+		t.Fatal("expected true for 405 merge conflict")
+	}
+	if !isAutoApplyMergeConflict("⚠️ Auto-apply tidak dapat menggabungkan perubahan secara otomatis (local merge did not complete; retained conflicts and files need reconciliation)") {
+		t.Fatal("expected true for retained conflicts")
+	}
+}
