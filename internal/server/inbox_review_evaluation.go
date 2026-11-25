@@ -707,6 +707,7 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 					}
 				}
 				doneStatus := task.TaskStatusDone
+				completeNote = sanitizePostPublicationCompleteNote(completeNote)
 				reviewCtx := context.WithValue(ctx, taskReviewCompletionKey{}, true)
 				if q.RoomID != "" {
 					reviewCtx = context.WithValue(reviewCtx, taskReviewRoomIDKey{}, q.RoomID)

@@ -348,6 +348,31 @@ func (s *Service) GetTaskDetail(ctx context.Context, id string) (*TaskDetailResp
 	if attempts == nil {
 		attempts = []*TaskAttempt{}
 	}
+	if reader, ok := s.store.(attemptLaunchBatchReader); ok && len(attempts) > 0 {
+		attemptIDs := make([]string, 0, len(attempts))
+		for _, att := range attempts {
+			if att != nil && att.ID != "" {
+				attemptIDs = append(attemptIDs, att.ID)
+			}
+		}
+		if launches, err := reader.LaunchesForAttempts(ctx, attemptIDs); err == nil {
+			for _, att := range attempts {
+				if att == nil {
+					continue
+				}
+				if launch := launches[att.ID]; launch != nil {
+					if kind := launchPresentationKind(launch.Revision); kind != "" {
+						att.Kind = kind
+					} else {
+						att.Kind = "execution"
+					}
+					if latestAttempt != nil && latestAttempt.ID == att.ID {
+						latestAttempt.Kind = att.Kind
+					}
+				}
+			}
+		}
+	}
 	activities, _ := s.store.ListActivities(ctx, id)
 	if activities == nil {
 		activities = []*TaskActivity{}

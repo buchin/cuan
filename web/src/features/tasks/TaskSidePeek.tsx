@@ -66,6 +66,7 @@ import {
   taskStatusBadgeClass,
   taskPriorityBadgeClass,
   parseTaskInstructions,
+  sanitizeCompletedTaskNote,
 } from './task-ui'
 import './task-workspace.css'
 interface Props {
@@ -978,7 +979,7 @@ function TaskDetailView({
                     <Sparkles className="h-4 w-4 text-primary" />
                     <span>{id ? 'Ringkasan pekerjaan' : 'Work summary'}</span>
                   </h3>
-                  {emptyProse(detail.summary, id ? 'Belum ada ringkasan pekerjaan.' : 'No work summary recorded yet.')}
+                  {emptyProse(sanitizeCompletedTaskNote(detail.summary, detail.status === 'done'), id ? 'Belum ada ringkasan pekerjaan.' : 'No work summary recorded yet.')}
                 </section>}
                 {detail.complete_note?.trim() && <section className="space-y-2">
                   <h3 className="text-sm font-medium flex items-center gap-2">
@@ -986,7 +987,7 @@ function TaskDetailView({
                     <span>{id ? 'Hasil & bukti' : 'Result & verification'}</span>
                   </h3>
                   {emptyProse(
-                    detail.complete_note,
+                    sanitizeCompletedTaskNote(detail.complete_note, detail.status === 'done'),
                     id ? 'Belum ada hasil terverifikasi. Jangan setujui sebelum hasil dan buktinya tersedia.' : 'No verified result yet. Check the result and evidence before approval.',
                   )}
                 </section>}

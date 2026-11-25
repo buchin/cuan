@@ -128,6 +128,7 @@ type TaskAttempt struct {
 	TaskID            string     `json:"task_id"`
 	RunnerID          string     `json:"runner_id"`
 	AgentName         string     `json:"agent_name"`
+	Kind              string     `json:"kind,omitempty"`
 	Status            string     `json:"status"` // queued, running, succeeded, failed, canceled, interrupted
 	ExitCode          *int       `json:"exit_code,omitempty"`
 	PeakRSSBytes      int64      `json:"peak_rss_bytes"`

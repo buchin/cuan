@@ -3,11 +3,11 @@ import type { TaskDetail } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
 import { ChatMarkdown } from '../inbox/ChatMarkdown'
 import { TaskTimeline } from './TaskTimeline'
-import { parseTaskInstructions } from './task-ui'
+import { parseTaskInstructions, sanitizeCompletedTaskNote } from './task-ui'
 
 export function TaskWorkDetails({task,scrollRef}:{task:TaskDetail;scrollRef:RefObject<HTMLElement>}) {
   const {language}=useLanguage(),id=language==='id'
-  const update=task.status==='done'?task.summary:task.latest_progress
+  const update=task.status==='done'?sanitizeCompletedTaskNote(task.summary||'',true):task.latest_progress
   const instructions=parseTaskInstructions(task.description || task.body || task.prompt || '').cleanText
   return <div className="space-y-6">
     {!!update?.trim()&&<p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">{update}</p>}

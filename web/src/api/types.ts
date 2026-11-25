@@ -74,6 +74,7 @@ export interface TaskAttempt {
   task_id: string
   runner_id: string
   agent_name: string
+  kind?: 'execution' | 'verification' | 'inspection' | 'native_release'
   status: 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled' | 'interrupted'
   attempt_number: number
   exit_code?: number

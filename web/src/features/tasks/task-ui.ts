@@ -457,10 +457,59 @@ export function taskLiveActivityText(task: Task | TaskDetail, fallbackText: stri
   return fallbackText
 }
 
+const PRE_PUBLICATION_GAP_RE = /\s*Remaining gap:\s*[^\n]*(?:not yet pushed|not yet merged|not yet deployed|belum di-push|belum di-merge|belum dirilis)[^\n]*\.?/gim
+const UNCONFIRMED_DEPLOY_RE = /\s*Verifikasi deployment production belum dikonfirmasi\.?/gim
+
+/** Removes stale pre-publication gap notes once a task is done/live. */
+export function sanitizeCompletedTaskNote(text: string, isDone: boolean): string {
+  if (!text) return ''
+  if (!isDone) return text.trim()
+  return text
+    .replace(PRE_PUBLICATION_GAP_RE, '')
+    .replace(UNCONFIRMED_DEPLOY_RE, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function conciseLiveMarkerLine(note: string): string {
+  const match = note.match(/🚀\s*Perubahan telah (?:diverifikasi aktif pada rilis live|berhasil diterapkan)[^\n]*/)
+  return match ? match[0].trim() : ''
+}
+
+function stripTechnicalVerificationNoise(text: string): string {
+  return text
+    .replace(/\s*\((?:saved in|audit in)[^)]*session:[^)]*\)/gi, '')
+    .replace(/\b([0-9a-f]{8})[0-9a-f]{32}\b/gi, '$1')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+/** Concise, non-contradictory task summary for the Conversation tasks drawer. */
+export function taskConversationSummary(task: Task): string {
+  const work = workStatus(task)
+  const isDone = task.status === 'done'
+  const cleanNote = sanitizeCompletedTaskNote(task.complete_note || '', isDone)
+  const cleanSummary = sanitizeCompletedTaskNote(task.summary || '', isDone)
+  if (work === 'Needs attention') {
+    return task.review_finding || cleanNote || cleanSummary
+  }
+  if (work === 'Completed' || work === 'Answered') {
+    if (cleanSummary && !cleanSummary.startsWith('{')) {
+      const liveMarker = conciseLiveMarkerLine(cleanNote)
+      if (liveMarker && !cleanSummary.includes(liveMarker) && !cleanSummary.includes('rilis live')) {
+        return `${cleanSummary}\n\n${liveMarker}`
+      }
+      return cleanSummary
+    }
+    return stripTechnicalVerificationNoise(cleanNote)
+  }
+  return taskLiveActivityText(task, '') || cleanNote || cleanSummary
+}
+
 export function taskSummaryText(task: Task) {
   const status = workStatus(task)
   if (status === 'Completed' || status === 'Answered') {
-    const text = task.complete_note || task.summary || ''
+    const text = sanitizeCompletedTaskNote(task.complete_note || task.summary || '', task.status === 'done')
     return text.replace(/\s+/g, ' ').trim()
   }
   if (status === 'Needs attention') {

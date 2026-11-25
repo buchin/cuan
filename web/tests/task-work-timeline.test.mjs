@@ -49,3 +49,50 @@ test('release phase stays consistent in the work detail timeline',()=>{
  assert.equal(workTimeline(queued,false).events.at(-1).pulse,true)
  assert.equal(workTimeline({...queued,status:'doing',latest_attempt:{status:'running'},launch:{state:'started',kind:'native_release'}},false).events.at(-1).title,'Deploying')
 })
+
+test('completed task keeps permanent Pengerjaan, Verifikasi, and Push & Rilis Live items and cleans stale gap notes',async()=>{
+ const {sanitizeCompletedTaskNote,taskConversationSummary}=await import(taskUIURL)
+ const doneTask={
+  id:'done-live',
+  status:'done',
+  title:'Perbaiki pembacaan lampiran',
+  commit_sha:'9c4d3f7466565284dbfa786e6a8c46ac93cab45c',
+  summary:'Pembacaan lampiran gambar di chat sudah diperbaiki.',
+  complete_note:'Independent verification of commit 9c4d3f7466565284dbfa786e6a8c46ac93cab45c (read-only attempt): ran tests which passed in 2.716s (saved in session:targeted_verification_tests.txt). Remaining gap: changes are committed locally at 9c4d3f7466565284dbfa786e6a8c46ac93cab45c and not yet pushed/merged to branch dev.\n\n🚀 Perubahan telah diverifikasi aktif pada rilis live (9c4d3f74).',
+  attempts:[
+   {id:'att-exec',kind:'execution',status:'succeeded',attempt_number:1,started_at:'2026-11-06T00:00:00Z',finished_at:'2026-11-06T00:05:00Z'},
+   {id:'att-verify',kind:'verification',status:'succeeded',attempt_number:2,started_at:'2026-11-06T00:06:00Z',finished_at:'2026-11-06T00:08:00Z'},
+   {id:'att-release',kind:'native_release',status:'succeeded',attempt_number:3,started_at:'2026-11-06T00:09:00Z',finished_at:'2026-11-06T00:11:00Z'},
+  ],
+  activities:[
+   {id:'rv',attempt_id:'att-verify',activity_type:'runner_verification',author:'runner',message:'go test ./... ok',created_at:'2026-11-06T00:07:00Z'},
+   {id:'dep',attempt_id:'att-release',activity_type:'deployment_verified',author:'cuan-deploy',message:JSON.stringify({commit:'9c4d3f7466565284dbfa786e6a8c46ac93cab45c'}),created_at:'2026-11-06T00:10:30Z'},
+  ],
+ }
+ const tlId=workTimeline(doneTask,true)
+ const titlesId=tlId.events.map(e=>e.title)
+ assert.ok(titlesId.includes('Pengerjaan dimulai'))
+ assert.ok(titlesId.includes('Pengerjaan selesai'))
+ assert.ok(titlesId.includes('Verifikasi dimulai'))
+ assert.ok(titlesId.includes('Verifikasi selesai'))
+ assert.ok(titlesId.includes('Push & rilis live dimulai'))
+ assert.ok(titlesId.includes('Push & rilis live selesai'))
+ assert.ok(titlesId.includes('Pekerjaan selesai'))
+ assert.equal(tlId.events.find(e=>e.id==='att-release:finish').body,'Rilis aktif pada commit 9c4d3f74.')
+ assert.ok(tlId.technical.some(a=>a.id==='rv'))
+ assert.ok(tlId.technical.some(a=>a.id==='dep'))
+
+ const tlEn=workTimeline(doneTask,false)
+ const titlesEn=tlEn.events.map(e=>e.title)
+ assert.ok(titlesEn.includes('Verification finished'))
+ assert.ok(titlesEn.includes('Push & live release finished'))
+
+ const cleanedNote=sanitizeCompletedTaskNote(doneTask.complete_note,true)
+ assert.ok(!cleanedNote.includes('not yet pushed/merged'))
+ assert.ok(cleanedNote.includes('🚀 Perubahan telah diverifikasi aktif pada rilis live (9c4d3f74).'))
+
+ const chatSummary=taskConversationSummary(doneTask)
+ assert.ok(!chatSummary.includes('not yet pushed/merged'))
+ assert.ok(chatSummary.includes('Pembacaan lampiran gambar di chat sudah diperbaiki.'))
+ assert.ok(chatSummary.includes('🚀 Perubahan telah diverifikasi aktif pada rilis live (9c4d3f74).'))
+})

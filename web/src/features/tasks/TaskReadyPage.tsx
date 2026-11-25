@@ -21,7 +21,7 @@ import { agentsApi, type Agent } from '../../api/agents'
 import type { TaskDetail } from '../../api/types'
 import { ChatMarkdown } from '../inbox/ChatMarkdown'
 import { useLanguage } from '../../context/LanguageContext'
-import { relativeTime, agentDisplayName } from './task-ui'
+import { relativeTime, agentDisplayName, sanitizeCompletedTaskNote } from './task-ui'
 
 export function TaskReadyPage({ task }: { task: TaskDetail }) {
   const { t } = useLanguage()
@@ -229,7 +229,7 @@ export function TaskReadyPage({ task }: { task: TaskDetail }) {
                     </button>
                   </div>
                   <div className="text-sm leading-relaxed text-foreground">
-                    <ChatMarkdown content={task.summary} />
+                    <ChatMarkdown content={sanitizeCompletedTaskNote(task.summary, task.status === 'done')} />
                   </div>
                 </section>
               )}
@@ -242,7 +242,7 @@ export function TaskReadyPage({ task }: { task: TaskDetail }) {
                     <span>{t('Verification & Testing')}</span>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    <ChatMarkdown content={task.complete_note} />
+                    <ChatMarkdown content={sanitizeCompletedTaskNote(task.complete_note, task.status === 'done')} />
                   </div>
                 </div>
               )}
