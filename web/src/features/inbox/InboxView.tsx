@@ -2607,15 +2607,15 @@ export function InboxView({
                     </span>
                     <div className="flex items-center gap-1 ml-1 shrink-0">
                       <span
-                        className="h-1.5 w-1.5 rounded-full bg-primary/70 animate-bounce"
+                        className="h-1.5 w-1.5 rounded-full typing-dot bg-primary/70 animate-bounce"
                         style={{ animationDelay: '0ms' }}
                       />
                       <span
-                        className="h-1.5 w-1.5 rounded-full bg-primary/70 animate-bounce"
+                        className="h-1.5 w-1.5 rounded-full typing-dot bg-primary/70 animate-bounce"
                         style={{ animationDelay: '150ms' }}
                       />
                       <span
-                        className="h-1.5 w-1.5 rounded-full bg-primary/70 animate-bounce"
+                        className="h-1.5 w-1.5 rounded-full typing-dot bg-primary/70 animate-bounce"
                         style={{ animationDelay: '300ms' }}
                       />
                     </div>

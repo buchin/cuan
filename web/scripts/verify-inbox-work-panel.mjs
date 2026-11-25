@@ -136,7 +136,8 @@ function Scene(){
   if(location.pathname.startsWith('/studio')){
     return React.createElement('div',{className:'h-full flex-1 overflow-y-auto px-3 py-6 sm:px-6 md:px-8 bg-background'},React.createElement(StudioView,{agentSetup:'ready',hasProject:true,firstGoal:false,onAccepted:noop}))
   }
-  return React.createElement(InboxView,{contacts:contactsList,agents,activeContact:contact,initialMode:'chat'})
+  const active=location.pathname.startsWith('/inbox/c-agent')?(contactsList.find(c=>c.id==='c-agent')||contact):contact
+  return React.createElement(InboxView,{contacts:contactsList,agents,activeContact:active,initialMode:'chat'})
 }
 function AppFixture(){
   const location=useLocation();
@@ -147,7 +148,7 @@ createRoot(document.getElementById('root')).render(React.createElement(BrowserRo
 const webRoot=path.resolve('web')
 process.chdir(webRoot)
 const server=await createServer({root:webRoot,envDir:path.resolve(output),cacheDir:path.join(path.resolve(output),'vite-cache'),server:{host:'127.0.0.1',port:0},plugins:[{name:'work-fixture',enforce:'pre',transform(code,id){if(process.env.CUAN_HOOK_REGRESSION_PROBE==='1'&&id.split('?')[0].endsWith('/TaskSessionPage.tsx')){if(!code.includes('  if (!detail) {'))throw Error('Hook regression probe target missing');return code.replace('  if (!detail) {','  if (detail) useRef(null)\n  if (!detail) {')}},resolveId(id){if(id==='/__work_entry.jsx')return '\0work-fixture-entry.jsx'},load(id){if(id==='\0work-fixture-entry.jsx')return entry},configureServer(server){server.middlewares.use(async(req,res,next)=>{
- if(req.url.startsWith('/inbox/work-fixture')||req.url.startsWith('/tasks/work/sessions/')||req.url.startsWith('/studio')){res.setHeader('Content-Type','text/html');res.end(await server.transformIndexHtml(req.url,'<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/__work_entry.jsx"></script></body></html>'))}
+ if(req.url.startsWith('/inbox/work-fixture')||req.url.startsWith('/inbox/c-agent')||req.url.startsWith('/tasks/work/sessions/')||req.url.startsWith('/studio')){res.setHeader('Content-Type','text/html');res.end(await server.transformIndexHtml(req.url,'<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><script type="module" src="/__work_entry.jsx"></script></body></html>'))}
  else next()
 })}}]})
 await server.listen()
@@ -187,7 +188,8 @@ try{
      const match=pathname.match(/\/conversations\/([^/]+)\/messages/)
      const reqId=match?match[1]:null
      const matchedContact=reqId?(contactsList.find(c=>c.id===reqId||c.conversation_id===reqId)||contact):contact
-     data={messages,tasks:allTasks,contact:matchedContact,requests:[]}
+     const activeRequests=reqId==='c-agent'?[{request_id:'req-typing-dots',message_id:'source',agent_id:'agent_cuan',state:'running',created_at:now,started_at:now,steps:[]}]:[]
+     data={messages,tasks:allTasks,contact:matchedContact,requests:activeRequests}
    }
    else if(pathname==='/api/v1/tasks/work'){
     if(page.url().includes('/sessions/')&&sessionLoading){sessionLoading=false;await new Promise(resolve=>{releaseSession=resolve})}
@@ -792,7 +794,37 @@ try{
   assert.ok(expandedStudioHeight > initialStudioHeight, 'Studio goal textarea must smoothly auto-expand when typing multiple lines')
   await page.screenshot({ path: path.join(output, `studio-expanded-${width}.png`) })
 
-  checks.push({width,composer_task_disclosure:true,composer_task_autoscroll:true,last_task_visible:true,no_chat_task_card:true,session_loading_running_completed:true,back_preserves_draft_and_scroll:true,full_terminal_height:terminalBox.height,panel_width:box.width,composer_alignment:true,multiline_autoexpand:true,studio_autoexpand:true})
+  // Verify circular TypingDots in InboxActivity (light & dark mode)
+  await page.goto(new URL('/inbox/c-agent', origin).href, { waitUntil: 'domcontentloaded' })
+  const typingDots = page.getByTestId('inbox-activity-typing-dots')
+  await typingDots.waitFor({ state: 'visible', timeout: 10000 })
+  await typingDots.scrollIntoViewIfNeeded()
+  const stopReplyBtn = page.getByRole('button', { name: /Hentikan respons|Stop reply/i })
+  await stopReplyBtn.waitFor({ state: 'visible', timeout: 5000 })
+  const dotStyles = await typingDots.locator('span').evaluateAll(els =>
+    els.map(el => {
+      const s = getComputedStyle(el)
+      return {
+        borderRadius: s.borderRadius,
+        width: s.width,
+        height: s.height,
+        animationName: s.animationName,
+      }
+    })
+  )
+  assert.equal(dotStyles.length, 3, 'TypingDots must render 3 dot spans')
+  for (const d of dotStyles) {
+    assert.equal(d.borderRadius, '9999px', `Typing dot must be circular (9999px), got ${d.borderRadius}`)
+    assert.equal(d.width, d.height, `Typing dot must be equal width and height, got ${d.width}x${d.height}`)
+  }
+  await page.evaluate(() => document.documentElement.classList.remove('dark'))
+  await page.waitForTimeout(100)
+  await page.screenshot({ path: path.join(output, `typing-dots-${width}-light.png`) })
+  await page.evaluate(() => document.documentElement.classList.add('dark'))
+  await page.waitForTimeout(100)
+  await page.screenshot({ path: path.join(output, `typing-dots-${width}-dark.png`) })
+
+  checks.push({width,composer_task_disclosure:true,composer_task_autoscroll:true,last_task_visible:true,no_chat_task_card:true,session_loading_running_completed:true,back_preserves_draft_and_scroll:true,full_terminal_height:terminalBox.height,panel_width:box.width,composer_alignment:true,multiline_autoexpand:true,studio_autoexpand:true,typing_dots_circular:true})
   await context.close()
   await browser.close()
   browser=null
