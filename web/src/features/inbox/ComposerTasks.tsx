@@ -150,6 +150,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
           setOpen(false)
           trigger.current?.focus()
         }}
+        bodyRef={panelRef}
         title={t('Conversation tasks')}
         badge={<span className={cn(
           "composer-tasks-count tabular-nums px-1.5 py-0.5 text-[11px] font-medium rounded-full",
@@ -158,7 +159,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
         data-testid="composer-tasks-drawer"
         size="md"
       >
-        <div ref={panelRef} id={id} className="composer-tasks-panel overscroll-contain overflow-y-auto scroll-pb-2 p-4 sm:p-6">
+        <div id={id} className="composer-tasks-panel">
           <ol className="relative min-w-0 space-y-6 pb-2.5" data-timeline="linear-progress">
             {ordered.map((task, index) => {
               const work = workStatus(task)
@@ -180,7 +181,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
                     <span
                       data-timeline-connector
                       aria-hidden
-                      className="absolute left-[7px] top-[22px] -bottom-[24px] w-0.5 bg-muted-foreground/30 dark:bg-muted-foreground/40 pointer-events-none"
+                      className="absolute left-[7.5px] top-[22px] -bottom-[24px] w-px bg-muted-foreground/[0.18] dark:bg-muted-foreground/25 pointer-events-none"
                     />
                   )}
                   <span className="absolute left-0 top-0.5 flex h-4 w-4 items-center justify-center bg-card z-1">

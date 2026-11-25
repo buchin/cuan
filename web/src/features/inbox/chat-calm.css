@@ -650,12 +650,12 @@
 .composer-tasks .composer-tasks-count { border-radius: 999px; }
 
 /* Linear timeline connecting line between tasks (Things 3 & Bear Notes standards) */
-[data-timeline-connector] {
-  background-color: oklch(var(--muted-foreground) / 0.3) !important;
-  width: 2px !important;
+.composer-tasks-panel [data-timeline-connector] {
+  background-color: oklch(var(--muted-foreground) / 0.18);
+  width: 1px;
 }
-.dark [data-timeline-connector] {
-  background-color: oklch(var(--muted-foreground) / 0.4) !important;
+.dark .composer-tasks-panel [data-timeline-connector] {
+  background-color: oklch(var(--muted-foreground) / 0.25);
 }
 
 /* Compact markdown typography in task linear timeline */

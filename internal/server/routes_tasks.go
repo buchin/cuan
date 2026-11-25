@@ -16,7 +16,6 @@ import (
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
-	"github.com/buchin/cuan/internal/terminal"
 )
 
 // registerTaskRoutes mounts all task, attempt, and runner endpoints on the protected router.
@@ -616,22 +615,6 @@ func (s *Server) handleCancelTask(w http.ResponseWriter, r *http.Request) {
 		author = owner.Email
 	}
 
-	var targetProjID string
-	if s.taskSvc != nil {
-		if detail, e := s.taskSvc.GetTaskDetail(r.Context(), taskID); e == nil && detail != nil {
-			targetProjID = detail.ProjectID
-			if targetProjID == "" && len(detail.ProjectIDs) > 0 {
-				targetProjID = detail.ProjectIDs[0]
-			}
-		}
-	}
-	if targetProjID != "" {
-		_ = terminal.TerminateProjectWorker(targetProjID)
-		if s.terminalManager != nil {
-			_ = s.terminalManager.CloseProjectSession(targetProjID)
-		}
-	}
-
 	if s.terminalManager != nil {
 		defer s.terminalManager.CloseSession(taskID)
 	}
@@ -701,12 +684,6 @@ func (s *Server) handleCancelTask(w http.ResponseWriter, r *http.Request) {
 		_ = s.terminalManager.CloseSession(taskID)
 		if att != nil && att.ID != "" && att.ID != taskID {
 			_ = s.terminalManager.CloseSession(att.ID)
-		}
-	}
-	if targetProjID != "" {
-		_ = terminal.TerminateProjectWorker(targetProjID)
-		if s.terminalManager != nil {
-			_ = s.terminalManager.CloseProjectSession(targetProjID)
 		}
 	}
 	if s.taskSvc != nil {

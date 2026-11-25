@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -110,8 +111,10 @@ func RunProjectWorker(ctx context.Context, payload ProjectWorkerPayload) error {
 	_ = os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0644)
 	defer os.Remove(pidFile)
 
+	// Detached project workers survive parent restarts and must ignore stray SIGHUP.
+	signal.Ignore(syscall.SIGHUP)
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
+	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
 	defer signal.Stop(sigChan)
 
 	select {
@@ -289,6 +292,21 @@ func TerminateProjectWorker(projectID string) error {
 	payloadFile := filepath.Join(statusDir, fmt.Sprintf("project-payload-%s.json", safeID))
 	if pidData, err := os.ReadFile(pidFile); err == nil {
 		if pid, pErr := strconv.Atoi(strings.TrimSpace(string(pidData))); pErr == nil && pid > 0 {
+			caller := "unknown"
+			if pc, file, line, ok := runtime.Caller(1); ok {
+				fn := runtime.FuncForPC(pc)
+				fnName := ""
+				if fn != nil {
+					fnName = fn.Name()
+				}
+				caller = fmt.Sprintf("%s:%d (%s)", filepath.Base(file), line, fnName)
+			}
+			logFile := filepath.Join(statusDir, fmt.Sprintf("project-%s.log", safeID))
+			if lf, lErr := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); lErr == nil {
+				_, _ = fmt.Fprintf(lf, "%s [ProjectWorker] TerminateProjectWorker(%s) pid=%d called from %s\n",
+					time.Now().Format("2006/01/02 15:04:05"), rawID, pid, caller)
+				_ = lf.Close()
+			}
 			if pid == os.Getpid() {
 				_ = syscall.Kill(pid, syscall.SIGTERM)
 			} else {
@@ -306,4 +324,25 @@ func TerminateProjectWorker(projectID string) error {
 	_ = os.Remove(payloadFile)
 	_ = os.Remove(sockPath)
 	return nil
+}
+
+// ProjectWorkerLogTail returns the last maxLines from the detached project worker log file.
+func ProjectWorkerLogTail(projectID string, maxLines int) []string {
+	if maxLines <= 0 {
+		maxLines = 25
+	}
+	safeID := safeSocketNameRegex.ReplaceAllString(strings.TrimPrefix(strings.TrimSpace(projectID), "project-term-"), "_")
+	if safeID == "" {
+		return nil
+	}
+	logFile := filepath.Join(socketDir(), "cuan-workers", fmt.Sprintf("project-%s.log", safeID))
+	data, err := os.ReadFile(logFile)
+	if err != nil || len(data) == 0 {
+		return nil
+	}
+	lines := strings.Split(strings.TrimRight(string(data), "\r\n"), "\n")
+	if len(lines) > maxLines {
+		lines = lines[len(lines)-maxLines:]
+	}
+	return lines
 }

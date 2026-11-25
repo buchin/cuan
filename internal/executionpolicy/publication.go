@@ -48,10 +48,15 @@ var publicationEvidenceLimit = regexp.MustCompile(`(?i)^\s*(?:do not repeat depl
 // manual releases, not Cuan's automated apply/merge and deployment pipeline.
 var manualDeployCaution = regexp.MustCompile(`(?i)^\s*(?:jangan|dilarang|tanpa|tidak|do not|don't|must not|never|no)\s+(?:(?:lakukan|melakukan|jalankan|menjalankan|run|execute|perform)\s+)?(?:manual\s+(?:deploy|deployment|deploying)|(?:deploy|deployment|deploying)\s+(?:manual|secara\s+manual|manually)|manually\s+(?:deploy|deployment|deploying))(?:\s+(?:ke|to)\s+(?:production|produksi|live|prod|server|vps))?\s*$`)
 
+// Negating false positives (e.g. "Tidak ada false positive: deployment ...")
+// asserts product correctness, not a prohibition on deployment.
+var falsePositiveAssertion = regexp.MustCompile(`(?i)\b(?:tidak\s+ada|tanpa|no)\s+false\s+positives?\b\s*:?`)
+
 func FromInstructions(instructions string) PublicationPolicy {
 	instructions = publicationScope(instructions)
 	instructions = completedNativeInspection.ReplaceAllString(instructions, "${1}${2}")
 	instructions = deploymentCancellationCaution.ReplaceAllString(instructions, "${1} release")
+	instructions = falsePositiveAssertion.ReplaceAllString(instructions, " ")
 	policy := PublicationPolicy{ReadOnlyRepository: readOnlyScope.MatchString(instructions) && repositoryTarget.MatchString(instructions)}
 	if policy.ReadOnlyRepository {
 		policy.DenyPush, policy.DenyDeploy = true, true

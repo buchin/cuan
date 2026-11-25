@@ -505,6 +505,45 @@ func parseFallbackTextReview(raw string) (inboxReviewEvaluation, error) {
 	return inboxReviewEvaluation{}, errors.New("cannot determine review decision from text")
 }
 
+func (s *Server) enforcePassEvidenceAndScope(ctx context.Context, d *task.TaskDetailResponse, decision inboxReviewEvaluation) inboxReviewEvaluation {
+	if decision.Decision != "pass" || d == nil {
+		return decision
+	}
+	if _, _, guidanceErr := project.TaskReviewGuidance(d.Instructions); guidanceErr != nil {
+		return inboxReviewEvaluation{
+			Decision:    "revise",
+			Explanation: "Konteks kriteria selesai belum terbaca lengkap; hasil belum bisa diterima.",
+			Revision:    "Recover the task's original saved project guidance before evaluating acceptance. Preserve approved scope and files; do not replace it with current project settings or waive the missing criteria.",
+		}
+	}
+	if strings.TrimSpace(decision.Finding) != "" {
+		decision.Explanation = decision.Finding
+	}
+	_, scopeVerified, scopeErr := s.inboxReviewRepositoryScope(ctx, d)
+	if d.LatestAttempt != nil && s.taskSvc != nil {
+		intent, intentErr := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
+		if intentErr != nil || (intent != nil && s.verificationReviewContext(ctx, d) == nil) {
+			scopeVerified = false
+		}
+		inspection, inspectionErr := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
+		if inspectionErr != nil || (inspection != nil && s.liveInspectionReviewContext(ctx, d) == nil) {
+			scopeVerified = false
+		}
+	}
+	if !inboxReviewExecutionSucceeded(d) || len(task.AcceptanceGaps(&d.Task)) > 0 || scopeErr != nil || !scopeVerified {
+		decision.Decision = "revise"
+		decision.Finding = "Bukti eksekusi atau kriteria penerimaan belum lengkap."
+		decision.RemainingWork = "implementation"
+		decision.Revision = "Gap: a successful execution with evidence for every original acceptance criterion is not established. Area: original approved task and existing workspace. Inspect saved work, finish missing requirements, perform targeted acceptance checks and report actual evidence. Finish only when the original criteria pass."
+		decision.Explanation = "Hasilnya belum bisa diterima karena eksekusi atau bukti kriterianya belum lengkap. Saya kembalikan ke agent untuk dilengkapi."
+		if scopeErr != nil || !scopeVerified {
+			decision.Revision = "Gap: unchanged repository scope is not proven for the exact attempt. Continue the approved read-only audit using the runner baseline verification. Preserve existing saved files. Report factual findings and original acceptance evidence; do not repair project tests, change files or commits, push, open PRs or deploy. If verification cannot run, report the precise limitation rather than claiming success."
+			decision.Explanation = "Bukti bahwa audit tetap sesuai batas pekerjaan belum lengkap. Saya lanjutkan pemeriksaannya tanpa mengubah repositori."
+		}
+	}
+	return decision
+}
+
 func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxRequest, raw string) string {
 	d := s.inboxReviewedTask(ctx, q)
 	if d != nil && (d.Status == "cancelled" || d.Status == "canceled") {
@@ -567,6 +606,7 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 		decision.SourceReview = "not_checked"
 	}
 	decision = requireNativePrerequisiteReview(d, decision)
+	decision = s.enforcePassEvidenceAndScope(ctx, d, decision)
 	if d.Status != task.TaskStatusDone {
 		decision, err = s.saveReviewAssessment(ctx, d, q, decision)
 		if err != nil {
@@ -596,35 +636,13 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 			}
 		}
 	}
+	decision = s.enforcePassEvidenceAndScope(ctx, d, decision)
 	if decision.Decision == "pass" {
-		if _, _, guidanceErr := project.TaskReviewGuidance(d.Instructions); guidanceErr != nil {
-			decision = inboxReviewEvaluation{Decision: "revise", Explanation: "Konteks kriteria selesai belum terbaca lengkap; hasil belum bisa diterima.", Revision: "Recover the task's original saved project guidance before evaluating acceptance. Preserve approved scope and files; do not replace it with current project settings or waive the missing criteria."}
+		var inspection *task.LiveInspectionIntent
+		if d.LatestAttempt != nil && s.taskSvc != nil {
+			inspection, _ = task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
 		}
-	}
-	if decision.Decision == "pass" && strings.TrimSpace(decision.Finding) != "" {
-		decision.Explanation = decision.Finding
-	}
-	if decision.Decision == "pass" {
-		_, scopeVerified, scopeErr := s.inboxReviewRepositoryScope(ctx, d)
-		intent, intentErr := task.VerificationIntentForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
-		if intentErr != nil || (intent != nil && s.verificationReviewContext(ctx, d) == nil) {
-			scopeVerified = false
-		}
-		inspection, inspectionErr := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
-		if inspectionErr != nil || (inspection != nil && s.liveInspectionReviewContext(ctx, d) == nil) {
-			scopeVerified = false
-		}
-		if !inboxReviewExecutionSucceeded(d) || len(task.AcceptanceGaps(&d.Task)) > 0 || scopeErr != nil || !scopeVerified {
-			decision.Decision = "revise"
-			decision.Finding = "Bukti eksekusi atau kriteria penerimaan belum lengkap."
-			decision.RemainingWork = "implementation"
-			decision.Revision = "Gap: a successful execution with evidence for every original acceptance criterion is not established. Area: original approved task and existing workspace. Inspect saved work, finish missing requirements, perform targeted acceptance checks and report actual evidence. Finish only when the original criteria pass."
-			decision.Explanation = "Hasilnya belum bisa diterima karena eksekusi atau bukti kriterianya belum lengkap. Saya kembalikan ke agent untuk dilengkapi."
-			if scopeErr != nil || !scopeVerified {
-				decision.Revision = "Gap: unchanged repository scope is not proven for the exact attempt. Continue the approved read-only audit using the runner baseline verification. Preserve existing saved files. Report factual findings and original acceptance evidence; do not repair project tests, change files or commits, push, open PRs or deploy. If verification cannot run, report the precise limitation rather than claiming success."
-				decision.Explanation = "Bukti bahwa audit tetap sesuai batas pekerjaan belum lengkap. Saya lanjutkan pemeriksaannya tanpa mengubah repositori."
-			}
-		} else {
+		{
 			completedDoD := make([]task.DoDItem, len(d.DoDChecklist))
 			for i, item := range d.DoDChecklist {
 				completedDoD[i] = task.DoDItem{

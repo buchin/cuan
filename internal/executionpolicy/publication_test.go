@@ -196,3 +196,21 @@ func TestManualDeployCautionDoesNotBlockAutomatedPipeline(t *testing.T) {
 		}
 	}
 }
+
+func TestFalsePositiveAssertionDoesNotProhibitDeployment(t *testing.T) {
+	for _, tc := range []struct {
+		text       string
+		push, deny bool
+	}{
+		{"- [ ] Tidak ada false positive: deployment `building` untuk commit yang berbeda dari active release tidak disentuh\n- [ ] Commit dan push ke branch `dev`", false, false},
+		{"No false positive: deployment for other commits must not be touched.", false, false},
+		{"Tanpa false positive: deployment lain tetap aman.", false, false},
+		{"Tidak ada false positive. Jangan deploy.", false, true},
+		{"Tidak ada deployment.", false, true},
+	} {
+		got := FromInstructions(tc.text)
+		if got.DenyPush != tc.push || got.DenyDeploy != tc.deny {
+			t.Errorf("%q: got %+v, want push=%v deny=%v", tc.text, got, tc.push, tc.deny)
+		}
+	}
+}

@@ -169,11 +169,47 @@ func inboxReviewResponseDiagnostic(raw string) string {
 	if json.Unmarshal([]byte(raw), &result) != nil {
 		return "Review format: invalid JSON object or field types."
 	}
+	if result.Decision != "pass" && result.Decision != "revise" && result.Decision != "blocked" {
+		return "Review format: decision must be pass, revise, or blocked."
+	}
+	if strings.TrimSpace(result.Explanation) == "" {
+		return "Review format: explanation is required."
+	}
+	if len(result.Finding) > 1000 {
+		return "Review format: finding exceeds 1000 characters."
+	}
+	if len(result.Explanation) > 6000 {
+		return "Review format: explanation exceeds 6000 characters."
+	}
+	if len(result.VisualInspection) > 4000 {
+		return "Review format: visual_inspection exceeds 4000 characters."
+	}
+	if len(result.ManagerReason) > 1500 {
+		return "Review format: manager_reason exceeds 1500 characters."
+	}
+	if result.Decision == "pass" && (result.ManagerAction != "" || result.ManagerReason != "") {
+		return "Review format: pass decision must omit manager_action and manager_reason."
+	}
+	if result.SourceReview == "revise" && result.Decision == "pass" {
+		return "Review format: source_review revise conflicts with pass decision."
+	}
 	if result.SourceReview == "pass" && result.Decision != "pass" && result.RemainingWork != "publication" {
 		return "Review format: source pass with unfinished outcome requires publication classification."
 	}
+	if result.ManagerAction != "" && strings.TrimSpace(result.ManagerReason) == "" {
+		return "Review format: manager_reason is required when manager_action is set."
+	}
 	if (result.ManagerAction == "continue" || result.ManagerAction == "replan") && (result.Decision != "revise" || result.RemainingWork == "external" || result.RequestedOutcome == "needs_input") {
 		return "Review format: continuation conflicts with decision or owner prerequisite."
+	}
+	if (result.ManagerAction == "wait" || result.ManagerAction == "needs_owner") && result.Decision != "blocked" {
+		return "Review format: wait/needs_owner requires blocked decision."
+	}
+	if result.ManagerAction == "wait" && result.RemainingWork != "external" {
+		return "Review format: wait manager_action requires external remaining_work."
+	}
+	if result.ManagerAction == "needs_owner" && result.RemainingWork != "external" && result.RequestedOutcome != "needs_input" {
+		return "Review format: needs_owner requires external remaining_work or needs_input outcome."
 	}
 	if result.Decision == "revise" && strings.TrimSpace(result.Revision) == "" {
 		return "Review format: revision missing for revise decision."

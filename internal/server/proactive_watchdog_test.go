@@ -1152,3 +1152,134 @@ func TestProactiveWatchdogDrainQueuedDeployments_ReconcilesActiveReleaseBeforeTi
 		}
 	}
 }
+
+func TestPostContinuationActionCardDeduplicatesFallbackMessage(t *testing.T) {
+	ctx := context.Background()
+	repo := db.NewMemoryProjectStudioRepository()
+	room := &db.ProjectRoom{
+		ID:        db.GenerateUUID(),
+		ProjectID: "proj_test_dedup",
+		Title:     "Test Dedup",
+	}
+	if err := repo.CreateRoom(ctx, room); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := &Server{
+		projectStudioRepo: repo,
+	}
+
+	detail := &task.TaskDetailResponse{
+		Task: task.Task{
+			ID:           "msg_dedup_test",
+			ProjectID:    "proj_test_dedup",
+			SourceRoomID: room.ID,
+			Status:       task.TaskStatusBlocked,
+		},
+		LatestAttempt: &task.TaskAttempt{
+			ID:     "att_dedup_test",
+			TaskID: "msg_dedup_test",
+			Status: task.AttemptStatusSucceeded,
+		},
+	}
+	assessment := inboxReviewEvaluation{
+		Decision:      "pass",
+		RemainingWork: "none",
+		Finding:       "Verifikasi selesai.",
+		Explanation:   "Verifikasi selesai.",
+	}
+
+	srv.postContinuationActionCard(ctx, detail, "req_1", assessment)
+	srv.postContinuationActionCard(ctx, detail, "req_1", assessment)
+	srv.postContinuationActionCard(ctx, detail, "req_1", assessment)
+
+	messages, err := repo.ListMessagesByRoomID(ctx, room.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) != 1 {
+		t.Fatalf("expected exactly 1 fallback message after repeated calls, got %d", len(messages))
+	}
+}
+
+func TestAutoApplyAndDeployTaskIdempotentFailure(t *testing.T) {
+	ctx := context.Background()
+	taskStore := task.NewMemoryStore()
+	taskSvc := task.NewService(taskStore, nil)
+	pStore := project.NewMemoryStore()
+	projSvc := project.NewService(pStore, nil, "", t.TempDir())
+
+	p := &project.Project{
+		ID:      "proj_auto_apply_fail",
+		Name:    "Auto Apply Fail",
+		RepoURL: "https://github.com/example/repo.git",
+	}
+	if err := pStore.CreateProject(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+
+	created, err := taskSvc.CreateTask(ctx, "owner", task.CreateTaskRequest{
+		Title:             "Fix something",
+		Instructions:      "Fix and deploy.",
+		ProjectID:         p.ID,
+		ExecutionCategory: task.ExecutionCategoryCode,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	att := &task.TaskAttempt{
+		ID:        "att_fail_1",
+		TaskID:    created.ID,
+		Status:    task.AttemptStatusSucceeded,
+		StartedAt: &now,
+	}
+	if err := taskStore.CreateAttempt(ctx, att); err != nil {
+		t.Fatal(err)
+	}
+	sha := "abcdef0123456789abcdef0123456789abcdef01"
+	branch := "cuan/nonexistent-branch"
+	if _, err := taskSvc.UpdateTask(ctx, created.ID, "system", task.UpdateTaskRequest{
+		CommitSHA:  &sha,
+		BranchName: &branch,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := &Server{
+		taskSvc:    taskSvc,
+		projectSvc: projSvc,
+	}
+
+	if ok := srv.autoApplyAndDeployTask(ctx, created.ID, p.ID); ok {
+		t.Fatal("expected autoApplyAndDeployTask to return false on apply failure")
+	}
+	first, _ := taskSvc.GetTaskDetail(ctx, created.ID)
+	noteAfterFirst := first.CompleteNote
+	if !strings.Contains(noteAfterFirst, "⚠️ Auto-apply tidak dapat menggabungkan perubahan secara otomatis") {
+		t.Fatalf("expected failure marker in CompleteNote, got: %q", noteAfterFirst)
+	}
+
+	if ok := srv.autoApplyAndDeployTask(ctx, created.ID, p.ID); ok {
+		t.Fatal("expected second autoApplyAndDeployTask to return false on apply failure")
+	}
+	second, _ := taskSvc.GetTaskDetail(ctx, created.ID)
+	if second.CompleteNote != noteAfterFirst {
+		t.Fatalf("expected CompleteNote to remain unchanged on repeated failure, got:\n%s\nwant:\n%s", second.CompleteNote, noteAfterFirst)
+	}
+}
+
+func TestIsAutoApplyMergeConflict(t *testing.T) {
+	if isAutoApplyMergeConflict("All good") {
+		t.Fatal("expected false without auto-apply failure marker")
+	}
+	if isAutoApplyMergeConflict("⚠️ Auto-apply tidak dapat menggabungkan perubahan secara otomatis (network timeout)") {
+		t.Fatal("expected false for non-conflict failure")
+	}
+	if !isAutoApplyMergeConflict("⚠️ Auto-apply tidak dapat menggabungkan perubahan secara otomatis (github api merge PR failed (status 405: Pull Request has merge conflicts))") {
+		t.Fatal("expected true for 405 merge conflict")
+	}
+	if !isAutoApplyMergeConflict("⚠️ Auto-apply tidak dapat menggabungkan perubahan secara otomatis (local merge did not complete; retained conflicts and files need reconciliation)") {
+		t.Fatal("expected true for retained conflicts")
+	}
+}

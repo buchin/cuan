@@ -322,6 +322,7 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 		if latestAssessment != nil &&
 			(latestAssessment.RemainingWork == "publication" || latestAssessment.RemainingWork == "none" || strings.HasPrefix(latestAssessment.Revision, "Native publication reconciliation:")) &&
 			(latestAssessment.SourceReview == "pass" || latestAssessment.Decision == "pass" || strings.HasPrefix(latestAssessment.Revision, "Native publication reconciliation:")) &&
+			!strings.Contains(detail.CompleteNote, "⚠️ Auto-apply tidak dapat menggabungkan perubahan secara otomatis") &&
 			s.projectSvc != nil && detail.ProjectID != "" {
 			if proj, err := s.projectSvc.Get(ctx, detail.ProjectID); err == nil && proj != nil {
 				if project.SettingsFromMetadata(proj.Metadata).IsAutoDeployEnabled() {
@@ -329,6 +330,39 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 						log.Printf("[Watchdog AI Orchestrator] Autonomously triggered auto-deploy for verified publication task %s", detail.ID)
 						continue
 					}
+				}
+			}
+		}
+
+		// 1b. Autonomous merge-conflict reconciliation:
+		// When verified code cannot be auto-applied due to a merge conflict on the target branch,
+		// autonomously delegate conflict resolution back to the dev runner (bounded to once per attempt).
+		if latestAssessment != nil &&
+			latestAssessment.SourceReview == "pass" &&
+			(latestAssessment.RemainingWork == "publication" || latestAssessment.RemainingWork == "none") &&
+			detail.LatestAttempt != nil && detail.LatestAttempt.Status == task.AttemptStatusSucceeded &&
+			len(detail.Attempts) < 6 &&
+			isAutoApplyMergeConflict(detail.CompleteNote) {
+			if policy, pErr := s.taskPublicationPolicy(ctx, detail); pErr == nil && !policy.ReadOnlyRepository && !policy.DenyPush {
+				launchID := delegationMessageID(fmt.Sprintf("watchdog-conflict-reconcile:%s:%s", detail.ID, detail.LatestAttempt.ID))
+				existingLaunch, lErr := s.taskSvc.GetLaunch(ctx, task.LaunchID(detail.ID, launchID))
+				targetAttID := task.AttemptRequestID(detail.ID, launchID)
+				alreadyAttempted := lErr == nil && existingLaunch != nil
+				if !alreadyAttempted {
+					for _, a := range detail.Attempts {
+						if a != nil && a.ID == targetAttID {
+							alreadyAttempted = true
+							break
+						}
+					}
+				}
+				if !alreadyAttempted {
+					conflictRevision := "Reconcile merge conflict with the latest target branch: fetch origin, merge or rebase the latest target branch into the task branch, resolve all merge conflicts while preserving the approved fix, run targeted verification tests to confirm everything passes, and commit/push the updated branch so auto-apply can merge cleanly."
+					notice := s.startAuthorizedLaunch(ctx, origin, detail, launchID, origin.RequestID, conflictRevision)
+					s.kickTaskLaunches()
+					log.Printf("[Watchdog AI Orchestrator] Autonomously launched merge-conflict reconciliation for task %s (attempt %s, notice=%s)",
+						detail.ID, detail.LatestAttempt.ID, notice)
+					continue
 				}
 			}
 		}
@@ -393,8 +427,16 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 
 		// Autonomous review queueing if attempt succeeded but review evaluation is missing
 		if t.Status == task.TaskStatusReview && latestAssessment == nil && detail.LatestAttempt != nil && detail.LatestAttempt.Status == task.AttemptStatusSucceeded {
-			log.Printf("[Watchdog AI Orchestrator] Autonomously queueing review evaluation for review task %s", detail.ID)
-			s.queueInboxTaskReview(ctx, detail)
+			watchdogAlertMu.Lock()
+			cooldownUntil := watchdogTaskCooldown[detail.ID]
+			watchdogAlertMu.Unlock()
+			if time.Now().After(cooldownUntil) {
+				log.Printf("[Watchdog AI Orchestrator] Autonomously queueing review evaluation for review task %s", detail.ID)
+				s.queueInboxTaskReview(ctx, detail)
+				watchdogAlertMu.Lock()
+				watchdogTaskCooldown[detail.ID] = time.Now().Add(2 * time.Minute)
+				watchdogAlertMu.Unlock()
+			}
 			continue
 		}
 
@@ -406,6 +448,16 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			s.postContinuationActionCard(ctx, detail, assessmentRequestID, *latestAssessment)
 		}
 	}
+}
+
+func isAutoApplyMergeConflict(completeNote string) bool {
+	if !strings.Contains(completeNote, "⚠️ Auto-apply tidak dapat menggabungkan perubahan secara otomatis") {
+		return false
+	}
+	lower := strings.ToLower(completeNote)
+	return strings.Contains(lower, "merge conflict") ||
+		strings.Contains(lower, "retained conflicts") ||
+		strings.Contains(lower, "status 405")
 }
 
 func (s *Server) postContinuationActionCard(ctx context.Context, detail *task.TaskDetailResponse, requestID string, assessment inboxReviewEvaluation) {
@@ -482,6 +534,16 @@ func (s *Server) postContinuationActionCard(ctx context.Context, detail *task.Ta
 		content = fmt.Sprintf("%s\n\nUntuk melanjutkan perbaikan, silakan konfirmasi melalui tombol di bawah:%s\n\n[View work](/tasks/%s)", finding, planBlock, detail.ID)
 	} else {
 		content = fmt.Sprintf("%s\n\n[View work](/tasks/%s)", finding, detail.ID)
+	}
+
+	for _, m := range messages {
+		if m.AuthorType != "agent" {
+			continue
+		}
+		if strings.Contains(m.Content, "/tasks/"+detail.ID) &&
+			(m.Content == content || strings.Contains(m.Content, "```cuan-approval") || strings.Contains(m.Content, "Tandai Tuntas")) {
+			return
+		}
 	}
 
 	msg := &db.ProjectMessage{

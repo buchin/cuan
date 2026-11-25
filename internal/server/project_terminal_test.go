@@ -867,3 +867,62 @@ func TestProjectTerminalFileUploadResolvesProjectWorkspace(t *testing.T) {
 		t.Fatalf("expected ProjectTerminalWorkspace %q, got %q", expectedDir, workDir)
 	}
 }
+
+func TestCancelTaskDoesNotKillProjectTerminal(t *testing.T) {
+	srv, token := setupTestChatServer(t)
+	ctx := context.Background()
+	projID := "proj_keep_terminal_alive"
+	if err := srv.projectSvc.Store().CreateProject(ctx, &project.Project{
+		ID:        projID,
+		Name:      "Keep Terminal Alive",
+		LocalPath: t.TempDir(),
+	}); err != nil {
+		t.Fatalf("CreateProject failed: %v", err)
+	}
+
+	// Simulate an active in-process project terminal session
+	sess, err := srv.terminalManager.GetOrCreateProjectSession(ctx, projID, t.TempDir(), "/bin/sh", 80, 24)
+	if err != nil {
+		t.Fatalf("GetOrCreateProjectSession failed: %v", err)
+	}
+	defer srv.terminalManager.CloseProjectSession(projID)
+
+	createdTask, err := srv.taskSvc.CreateTask(ctx, "owner", task.CreateTaskRequest{
+		ProjectID:    projID,
+		Title:        "Unrelated task to cancel",
+		Instructions: "echo hi",
+	})
+	if err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+	if err := srv.taskSvc.Store().CreateAttempt(ctx, &task.TaskAttempt{
+		ID:            "att_cancel_keep_proj_term",
+		TaskID:        createdTask.ID,
+		AttemptNumber: 1,
+		Status:        task.AttemptStatusRunning,
+		CreatedAt:     time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("CreateAttempt failed: %v", err)
+	}
+
+	req := httptest.NewRequest("POST", "/api/v1/tasks/"+createdTask.ID+"/cancel", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("cancel task failed with %d: %s", w.Code, w.Body.String())
+	}
+
+	reqClose := httptest.NewRequest("DELETE", "/api/v1/tasks/"+createdTask.ID+"/terminal", nil)
+	reqClose.Header.Set("Authorization", "Bearer "+token)
+	wClose := httptest.NewRecorder()
+	srv.Router().ServeHTTP(wClose, reqClose)
+	if wClose.Code != http.StatusOK {
+		t.Fatalf("close task terminal failed with %d: %s", wClose.Code, wClose.Body.String())
+	}
+
+	got, ok := srv.terminalManager.GetProjectSession(projID)
+	if !ok || got == nil || got.ID() != sess.ID() || got.IsClosed() {
+		t.Fatalf("cancelling a task must NOT kill the interactive Project Terminal session")
+	}
+}
