@@ -67,7 +67,7 @@ func (r *SQLProjectStudioRepository) CreateDiscussionAgentTurn(ctx context.Conte
 	turn.UpdatedAt = turn.CreatedAt
 	ctxJSON, _ := json.Marshal(turn.Context)
 	stepsJSON, _ := json.Marshal(turn.Steps)
-	_, err = r.db.ExecContext(ctx, `INSERT INTO discussion_agent_turns (id,room_id,prompt_message_id,reply_message_id,agent_id,status,resume_from_turn_id,error_message,context,steps,started_at,finished_at,created_at,updated_at) VALUES ($1,$2,$3,NULLIF($4,''),$5,$6,NULLIF($7,''),$8,$9,$10,$11,$12,$13,$13)`, turn.ID, turn.RoomID, turn.PromptMessageID, turn.ReplyMessageID, turn.AgentID, turn.Status, turn.ResumeFromTurnID, turn.ErrorMessage, ctxJSON, stepsJSON, turn.StartedAt, turn.FinishedAt, turn.CreatedAt)
+	_, err = r.db.ExecContext(ctx, `INSERT INTO discussion_agent_turns (id,room_id,prompt_message_id,reply_message_id,agent_id,status,resume_from_turn_id,error_message,context,steps,started_at,finished_at,created_at,updated_at) VALUES ($1,$2,$3,NULLIF($4,'')::uuid,$5,$6,NULLIF($7,'')::uuid,$8,$9,$10,$11,$12,$13,$13)`, turn.ID, turn.RoomID, turn.PromptMessageID, turn.ReplyMessageID, turn.AgentID, turn.Status, turn.ResumeFromTurnID, turn.ErrorMessage, ctxJSON, stepsJSON, turn.StartedAt, turn.FinishedAt, turn.CreatedAt)
 	return err
 }
 
@@ -117,7 +117,7 @@ func (r *SQLProjectStudioRepository) UpdateDiscussionAgentTurn(ctx context.Conte
 	ctxJSON, _ := json.Marshal(turn.Context)
 	stepsJSON, _ := json.Marshal(turn.Steps)
 	turn.UpdatedAt = time.Now().UTC()
-	res, err := r.db.ExecContext(ctx, `UPDATE discussion_agent_turns SET reply_message_id=NULLIF($2,''),status=$3,resume_from_turn_id=NULLIF($4,''),error_message=$5,context=$6,steps=$7,started_at=$8,finished_at=$9,updated_at=$10 WHERE id=$1`, turn.ID, turn.ReplyMessageID, turn.Status, turn.ResumeFromTurnID, turn.ErrorMessage, ctxJSON, stepsJSON, turn.StartedAt, turn.FinishedAt, turn.UpdatedAt)
+	res, err := r.db.ExecContext(ctx, `UPDATE discussion_agent_turns SET reply_message_id=NULLIF($2,'')::uuid,status=$3,resume_from_turn_id=NULLIF($4,'')::uuid,error_message=$5,context=$6,steps=$7,started_at=$8,finished_at=$9,updated_at=$10 WHERE id=$1`, turn.ID, turn.ReplyMessageID, turn.Status, turn.ResumeFromTurnID, turn.ErrorMessage, ctxJSON, stepsJSON, turn.StartedAt, turn.FinishedAt, turn.UpdatedAt)
 	if err != nil {
 		return err
 	}
