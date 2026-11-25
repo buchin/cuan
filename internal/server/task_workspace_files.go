@@ -31,6 +31,26 @@ func (s *Server) resolveTaskExecutionWorkspace(ctx context.Context, rawTaskID st
 		taskID = canonicalID
 	}
 
+	// 0. Project terminal sessions ("project-term-<id>" or "project:<id>") run inside ProjectTerminalWorkspace
+	var termProjID string
+	if strings.HasPrefix(taskID, "project-term-") {
+		termProjID = strings.TrimSpace(strings.TrimPrefix(taskID, "project-term-"))
+	} else if strings.HasPrefix(taskID, "project:") {
+		termProjID = strings.TrimSpace(strings.TrimPrefix(taskID, "project:"))
+	}
+	if termProjID != "" && s.projectSvc != nil {
+		if proj, err := s.projectSvc.Get(ctx, termProjID); err == nil && proj != nil {
+			workDir, wErr := s.projectSvc.ProjectTerminalWorkspace(ctx, proj.ID, proj)
+			if wErr != nil || workDir == "" {
+				workDir = proj.LocalPath
+			}
+			if workDir != "" {
+				_ = os.MkdirAll(workDir, 0755)
+				return taskID, workDir, nil
+			}
+		}
+	}
+
 	// 1. Check if there is an active running terminal session for this task
 	if s.terminalManager != nil {
 		if sess, ok := s.terminalManager.GetSession(taskID); ok && sess != nil && sess.PTY() != nil {

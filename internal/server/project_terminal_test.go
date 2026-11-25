@@ -838,3 +838,32 @@ func TestProjectTerminalGitCredentialsEndpoint(t *testing.T) {
 		t.Fatalf("expected 401 for tampered token, got %d", wBad.Code)
 	}
 }
+
+func TestProjectTerminalFileUploadResolvesProjectWorkspace(t *testing.T) {
+	srv, _, _ := setupTestServer(t)
+	ctx := context.Background()
+	localRepo := t.TempDir()
+	projID := "proj_terminal_upload_ws"
+	if err := srv.projectSvc.Store().CreateProject(ctx, &project.Project{
+		ID:        projID,
+		Name:      "Terminal Upload Test",
+		LocalPath: localRepo,
+	}); err != nil {
+		t.Fatalf("CreateProject failed: %v", err)
+	}
+
+	taskID, workDir, err := srv.resolveTaskExecutionWorkspace(ctx, terminal.ProjectSessionKey(projID))
+	if err != nil {
+		t.Fatalf("resolveTaskExecutionWorkspace failed: %v", err)
+	}
+	if taskID != terminal.ProjectSessionKey(projID) {
+		t.Fatalf("unexpected taskID: %s", taskID)
+	}
+	expectedDir, _ := srv.projectSvc.ProjectTerminalWorkspace(ctx, projID, &project.ProjectResponse{ID: projID, LocalPath: localRepo})
+	if expectedDir == "" {
+		expectedDir = localRepo
+	}
+	if workDir != expectedDir {
+		t.Fatalf("expected ProjectTerminalWorkspace %q, got %q", expectedDir, workDir)
+	}
+}
