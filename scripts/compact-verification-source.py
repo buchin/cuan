@@ -154,8 +154,22 @@ def candidate(root, now, minimum):
     return binding, materialized, ''
 
 
-def compact(snapshots, apply=False, minimum=48 * 3600, now=None, proc=Path('/proc')):
+def disk_used_percent(path):
+    try:
+        st = os.statvfs(path)
+        if st.f_blocks == 0:
+            return 0.0
+        return ((st.f_blocks - st.f_bavail) / st.f_blocks) * 100.0
+    except OSError:
+        return 0.0
+
+
+def compact(snapshots, apply=False, minimum=None, now=None, proc=Path('/proc')):
     now = time.time() if now is None else now
+    under_pressure = disk_used_percent(snapshots) > 80.0
+    if minimum is None:
+        minimum = 6 * 3600 if under_pressure else 48 * 3600
+    max_changes = 10 if under_pressure else 3
     report = {'eligible': [], 'compacted': [], 'retained': {}, 'busy': 0, 'failed': 0,
               'reclaimed_materialized_bytes': 0, 'git_objects_preserved': True}
     if snapshots.is_symlink() or not snapshots.is_dir():
@@ -163,7 +177,7 @@ def compact(snapshots, apply=False, minimum=48 * 3600, now=None, proc=Path('/pro
     snapshots = snapshots.resolve()
     deadline, changes = time.monotonic() + 20, 0
     for root in sorted(snapshots.iterdir()):
-        if time.monotonic() >= deadline or changes >= 3:
+        if time.monotonic() >= deadline or changes >= max_changes:
             break
         if root.is_symlink() or not root.is_dir() or not re.fullmatch('[a-f0-9]{64}', root.name):
             continue

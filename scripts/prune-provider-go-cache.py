@@ -129,7 +129,8 @@ def prune(accounts, *, apply=False, min_age_hours=24, now=None, in_use=process_u
     now = time.time() if now is None else now
     result = {'eligible': 0, 'removed': 0, 'busy_accounts': 0,
               'download_eligible': 0, 'download_removed': 0, 'download_bytes_removed': 0,
-              'module_caches_eligible': 0, 'module_caches_removed': 0}
+              'module_caches_eligible': 0, 'module_caches_removed': 0,
+              'go_build_cache_eligible': 0, 'go_build_cache_removed': 0}
     for account in sorted(accounts.iterdir()):
         if not ACCOUNT.fullmatch(account.name) or not private_directory(account):
             continue
@@ -137,6 +138,18 @@ def prune(accounts, *, apply=False, min_age_hours=24, now=None, in_use=process_u
             if not idle:
                 result['busy_accounts'] += 1
                 continue
+            go_build_cache = account / 'home' / '.cache' / 'go-build'
+            if private_directory(go_build_cache) and now - go_build_cache.stat().st_mtime >= 3600 and not in_use(go_build_cache):
+                result['go_build_cache_eligible'] += 1
+                if apply:
+                    try:
+                        subprocess.run([GO_BINARY, 'clean', '-cache'], cwd='/',
+                                       env={'PATH': os.defpath, 'GOENV': 'off', 'GOTOOLCHAIN': 'local',
+                                            'HOME': str(account / 'home'), 'GOCACHE': str(go_build_cache)},
+                                       check=True, capture_output=True, timeout=60)
+                        result['go_build_cache_removed'] += 1
+                    except (OSError, subprocess.SubprocessError):
+                        pass
             relative = account
             for part in ('home', 'go', 'pkg', 'mod'):
                 relative /= part

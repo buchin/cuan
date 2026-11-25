@@ -7,13 +7,24 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/buchin/cuan/internal/git"
+	"github.com/buchin/cuan/internal/taskprocess"
 )
 
+func diskUsedPercent(path string) (float64, bool) {
+	var stat syscall.Statfs_t
+	if err := syscall.Statfs(path, &stat); err != nil || stat.Blocks == 0 {
+		return 0, false
+	}
+	used := float64(stat.Blocks-stat.Bavail) / float64(stat.Blocks) * 100.0
+	return used, true
+}
+
 // runTaskWorkspaceGC prunes stale task workspaces, reconstructed workspaces,
-// and merged cuan/* branch refs.
+// release workspaces, and merged cuan/* branch refs.
 func (s *Server) runTaskWorkspaceGC() {
 	base := filepath.Join("data", "projects")
 	if s.cfg.ProjectsDir != "" {
@@ -21,8 +32,20 @@ func (s *Server) runTaskWorkspaceGC() {
 	}
 	workspacesBase := filepath.Join(base, "task-workspaces")
 
+	taskMaxAge := 48 * time.Hour
+	reconstructedMaxAge := 7 * 24 * time.Hour
+	batchLimit := 10
+	releaseKeep := 5
+	if usedPct, ok := diskUsedPercent(base); ok && usedPct > 80.0 {
+		taskMaxAge = 6 * time.Hour
+		reconstructedMaxAge = 24 * time.Hour
+		batchLimit = 25
+		releaseKeep = 3
+		log.Printf("[gc] disk usage %.1f%% > 80%%: activating aggressive workspace GC", usedPct)
+	}
+
 	gc := git.NewClient()
-	pruned, err := gc.PruneStaleWorkspaces(workspacesBase, 48*time.Hour, "", 10)
+	pruned, err := gc.PruneStaleWorkspaces(workspacesBase, taskMaxAge, "", batchLimit)
 	if err != nil {
 		log.Printf("[gc] task workspace prune error: %v", err)
 	} else if pruned > 0 {
@@ -30,11 +53,13 @@ func (s *Server) runTaskWorkspaceGC() {
 	}
 
 	reconstructedBase := filepath.Join(base, "reconstructed-workspaces")
-	if rPruned, rErr := gc.PruneReconstructedWorkspaces(reconstructedBase, 7*24*time.Hour, 10); rErr != nil {
+	if rPruned, rErr := gc.PruneReconstructedWorkspaces(reconstructedBase, reconstructedMaxAge, batchLimit); rErr != nil {
 		log.Printf("[gc] reconstructed workspace prune error: %v", rErr)
 	} else if rPruned > 0 {
 		log.Printf("[gc] reconstructed workspace GC: pruned %d stale workspace(s)", rPruned)
 	}
+
+	s.runReleaseWorkspaceGC(filepath.Join(base, "release-workspaces"), releaseKeep)
 
 	if s.projectSvc != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -51,6 +76,58 @@ func (s *Server) runTaskWorkspaceGC() {
 				}
 			}
 		}
+	}
+}
+
+// runReleaseWorkspaceGC rotates old release-workspaces directories, keeping the
+// newest `keep` entries and skipping any workspace with an active verification lock
+// or modified within the last hour.
+func (s *Server) runReleaseWorkspaceGC(releaseWorkspacesDir string, keep int) {
+	entries, err := os.ReadDir(releaseWorkspacesDir)
+	if err != nil {
+		return
+	}
+	type rwEntry struct {
+		name    string
+		path    string
+		modTime time.Time
+	}
+	var dirs []rwEntry
+	for _, e := range entries {
+		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
+		info, iErr := e.Info()
+		if iErr != nil {
+			continue
+		}
+		dirs = append(dirs, rwEntry{
+			name:    e.Name(),
+			path:    filepath.Join(releaseWorkspacesDir, e.Name()),
+			modTime: info.ModTime(),
+		})
+	}
+	if len(dirs) <= keep {
+		return
+	}
+	sort.Slice(dirs, func(i, j int) bool {
+		return dirs[i].modTime.After(dirs[j].modTime)
+	})
+	pruned := 0
+	for _, d := range dirs[keep:] {
+		if time.Since(d.modTime) < time.Hour {
+			continue
+		}
+		lockFile := filepath.Join(d.path, ".git", "cuan-verification.lock")
+		if active, aErr := taskprocess.Active(lockFile); aErr == nil && active {
+			continue
+		}
+		if err := os.RemoveAll(d.path); err == nil {
+			pruned++
+		}
+	}
+	if pruned > 0 {
+		log.Printf("[gc] release-workspaces GC: pruned %d old release workspace(s)", pruned)
 	}
 }
 

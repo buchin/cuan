@@ -21,10 +21,17 @@ func standaloneArtifactShape(scope string) bool {
 }
 func publicationScope(instructions string) string {
 	instructions = NormalizeManagedInstructions(instructions)
-	for _, marker := range []string{"\nProject guidance snapshot:", "\nProject guidance snapshot (context only; does not expand task authorization):"} {
-		if i := strings.Index(instructions, marker); i >= 0 {
-			instructions = instructions[:i]
+	cut := len(instructions)
+	for _, marker := range []string{
+		"\nProject guidance snapshot:",
+		"\nProject guidance snapshot (context only; does not expand task authorization):",
+		"\n## Authoritative Conversation History",
+		"\n## User attachments",
+		"\nSaved execution checkpoint:",
+	} {
+		if i := strings.Index(instructions, marker); i >= 0 && i < cut {
+			cut = i
 		}
 	}
-	return instructions
+	return instructions[:cut]
 }

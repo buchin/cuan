@@ -89,6 +89,20 @@ func TestReadOnlyRepositoryScopeOverridesAutomaticCorrection(t *testing.T) {
 	}
 }
 
+func TestHistoricalAuditReferenceAndConversationHistoryDoNotLockCodeTask(t *testing.T) {
+	cases := []string{
+		"Cuan managed delegation v1.\nProblem Statement:\nBerdasarkan hasil audit read-only (msg_38687bd9), perbaiki GC di repositori.\n\nScope:\n1. Implementasikan perbaikan P0-P2 dan push ke branch dev.\n\n## Authoritative Conversation History (Single Source of Truth)\n- **Coordinator**: Audit read-only selesai pada repositori.\n",
+		"Masalah:\nTask kategori code di room yang memiliki riwayat audit read-only terkunci menjadi read-only.\nSolusi:\nPerbaiki kode di repositori.\n",
+		"Based on the previous read-only audit, implement the repository fix and push to dev.",
+	}
+	for _, tc := range cases {
+		p := FromInstructions(tc)
+		if p.ReadOnlyRepository || p.DenyPush || p.DenyDeploy {
+			t.Fatalf("historical audit reference locked code task: %+v\ninput: %s", p, tc)
+		}
+	}
+}
+
 func TestInspectBehaviorLimitRequiresSeparatePublicationRequest(t *testing.T) {
 	for _, c := range []struct {
 		text string

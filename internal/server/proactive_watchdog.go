@@ -370,7 +370,28 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 		// 2. Autonomous Self-Healing:
 		// When within budget (< 3 attempts), manager indicates continue/replan, actionable revision is available,
 		// and work is internal (not external).
-		if latestAssessment != nil && attemptCount < 3 &&
+		// Guard against policy conflicts (e.g. a code task locked to ReadOnlyRepository) and identical repeated blockers.
+		policyConflict := false
+		if task.NormalizeExecutionCategory(detail.ExecutionCategory) == task.ExecutionCategoryCode {
+			if policy, pErr := s.taskPublicationPolicy(ctx, detail); pErr == nil && policy.ReadOnlyRepository {
+				policyConflict = true
+				log.Printf("[Watchdog AI Orchestrator] Policy conflict on code task %s: ReadOnlyRepository=true; skipping autonomous retry", detail.ID)
+			}
+		}
+		identicalBlocker := false
+		if len(detail.Attempts) >= 2 {
+			prev := detail.Attempts[len(detail.Attempts)-2]
+			curr := detail.LatestAttempt
+			if prev != nil && curr != nil && curr.Status == task.AttemptStatusFailed && prev.Status == task.AttemptStatusFailed {
+				prevReason := strings.TrimSpace(prev.ErrorMessage)
+				currReason := strings.TrimSpace(curr.ErrorMessage)
+				if prevReason != "" && prevReason == currReason {
+					identicalBlocker = true
+					log.Printf("[Watchdog AI Orchestrator] Identical blocker across attempts on task %s; skipping autonomous retry", detail.ID)
+				}
+			}
+		}
+		if !policyConflict && !identicalBlocker && latestAssessment != nil && attemptCount < 3 &&
 			latestAssessment.RemainingWork != "external" &&
 			!strings.HasPrefix(latestAssessment.Revision, "Native publication reconciliation:") &&
 			(latestAssessment.ManagerAction == "continue" || latestAssessment.ManagerAction == "replan") &&
@@ -567,7 +588,7 @@ func (s *Server) postContinuationActionCard(ctx context.Context, detail *task.Ta
 }
 
 func (s *Server) checkProactiveStorageAlert(ctx context.Context, telemetry ServerTelemetry) {
-	if (telemetry.DiskUsedPercent <= 88.0 && !telemetry.DiskWarning) || s.projectStudioRepo == nil {
+	if (telemetry.DiskUsedPercent <= 80.0 && !telemetry.DiskWarning) || s.projectStudioRepo == nil {
 		return
 	}
 	watchdogAlertMu.Lock()

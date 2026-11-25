@@ -24,6 +24,11 @@ var publicationClauseTransition = regexp.MustCompile(`(?i)\b(?:(?:lalu|kemudian)
 // This exact native header describes a completed predecessor. It is not the
 // new attempt's scope. Keep explicit owner/attempt bans elsewhere untouched.
 var completedNativeInspection = regexp.MustCompile(`(?i)^(Native publication reconciliation: the retained source (?:[a-f0-9]{40}|[a-f0-9]{64}) has completed a source-bound )read-only (inspection; the current registered release does not contain that commit\.)`)
+
+// Retrospective references to a prior completed read-only audit (e.g.
+// "Berdasarkan hasil audit read-only..." or "riwayat audit read-only") describe
+// context/motivation for a follow-up code task, not a read-only lock on it.
+var historicalAuditReference = regexp.MustCompile(`(?i)\b(?:berdasarkan|dari|setelah|pasca|mengacu(?:\s+pada)?|sesuai|terkait|riwayat|hasil|temuan|laporan)\s+(?:hasil\s+|temuan\s+|laporan\s+|riwayat\s+)?(?:audit|investigation|inspection|investigasi|pemeriksaan)\s+(?:read[ -]only|baca[ -]saja)\b|\b(?:based\s+on|from|after|following|per|prior|previous|completed|historical)\s+(?:the\s+)?(?:(?:audit|investigation|inspection)\s+(?:read[ -]only|baca[ -]saja)|read[ -]only\s+(?:audit|investigation|inspection))\b`)
 var repositoryTarget = regexp.MustCompile(`(?i)\b(?:repo|repository|repositori|git|kode|code)\b`)
 var pushAction = regexp.MustCompile(`(?i)\b(?:push|publishing|publish)\b`)
 var readOnlyScope = regexp.MustCompile(`(?im)(?:\b(?:audit|investigation|inspection|investigasi|pemeriksaan)\s+(?:read[ -]only|baca[ -]saja)\b|\bread[ -]only\s+(?:audit|investigation|inspection)\b|\b(?:repository|repositori|repo)\s+(?:is |must remain |harus tetap )?read[ -]only\b|^\s*(?:scope|batasan)\s*:\s*read[ -]only\b)`)
@@ -55,6 +60,7 @@ var falsePositiveAssertion = regexp.MustCompile(`(?i)\b(?:tidak\s+ada|tanpa|no)\
 func FromInstructions(instructions string) PublicationPolicy {
 	instructions = publicationScope(instructions)
 	instructions = completedNativeInspection.ReplaceAllString(instructions, "${1}${2}")
+	instructions = historicalAuditReference.ReplaceAllString(instructions, " prior audit ")
 	instructions = deploymentCancellationCaution.ReplaceAllString(instructions, "${1} release")
 	instructions = falsePositiveAssertion.ReplaceAllString(instructions, " ")
 	policy := PublicationPolicy{ReadOnlyRepository: readOnlyScope.MatchString(instructions) && repositoryTarget.MatchString(instructions)}

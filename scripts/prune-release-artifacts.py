@@ -68,6 +68,38 @@ def staging_candidates(base, staging, now=None, only_names=None):
     return result
 
 
+def orphan_staging_candidates(base, staging, now=None, min_age_hours=24, only_names=None):
+    """Prune verified immutable staging uploads whose installed release was already retired."""
+    now = time.time() if now is None else now
+    paths = sorted((p for p in staging.iterdir() if p.is_dir() and not p.is_symlink()
+                    and re.fullmatch('[0-9a-f]{40}', p.name)),
+                   key=lambda p: p.stat().st_mtime, reverse=True)
+    live = live_staging_names(staging)
+    result = []
+    for path in paths:
+        if only_names is not None and path.name not in only_names:
+            continue
+        if path.name in live or now - path.stat().st_mtime < min_age_hours * 3600:
+            continue
+        installed = base / 'releases' / path.name
+        if installed.exists() or installed.is_symlink():
+            continue
+        try:
+            manifest = json.loads((path / 'release.json').read_bytes())
+            checks = manifest.get('sha256')
+            if manifest.get('sha') != path.name or not isinstance(checks, dict) or not checks:
+                continue
+            entries = list(path.rglob('*'))
+            if any(p.is_symlink() for p in entries):
+                continue
+            if not {str(p.relative_to(path)) for p in entries if p.is_file()} <= set(checks) | {'release.json'}:
+                continue
+            result.append(path)
+        except (OSError, ValueError, TypeError):
+            continue
+    return result
+
+
 def candidates(base, keep=5, min_age_hours=1, now=None):
     now = time.time() if now is None else now
     releases = base / 'releases'
@@ -135,17 +167,22 @@ def main():
             busy_uploads = live_staging_names(args.staging)
             paths = [path for path in paths if path.name not in busy_uploads]
         staged = staging_candidates(args.base, args.staging.resolve()) if args.staging else []
+        orphan_staged = orphan_staging_candidates(args.base, args.staging.resolve()) if args.staging else []
         if args.apply:
             # Check uploaded duplicates while their installed counterparts are
             # still present; the same activation lock protects both passes.
             for path in staged:
                 if path in staging_candidates(args.base, args.staging.resolve(), only_names={path.name}):
                     shutil.rmtree(path)
+            for path in orphan_staged:
+                if path in orphan_staging_candidates(args.base, args.staging.resolve(), only_names={path.name}):
+                    shutil.rmtree(path)
             for path in paths:
                 if path in candidates(args.base, args.keep, args.min_age_hours):
                     shutil.rmtree(path)
         print(json.dumps({'applied': args.apply, 'eligible': [p.name for p in paths],
                           'stagingEligible': [p.name for p in staged],
+                          'orphanStagingEligible': [p.name for p in orphan_staged],
                           'keep': args.keep, 'applicationDataTouched': False, 'backupsTouched': False}))
 
 
