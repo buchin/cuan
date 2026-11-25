@@ -393,8 +393,16 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 
 		// Autonomous review queueing if attempt succeeded but review evaluation is missing
 		if t.Status == task.TaskStatusReview && latestAssessment == nil && detail.LatestAttempt != nil && detail.LatestAttempt.Status == task.AttemptStatusSucceeded {
-			log.Printf("[Watchdog AI Orchestrator] Autonomously queueing review evaluation for review task %s", detail.ID)
-			s.queueInboxTaskReview(ctx, detail)
+			watchdogAlertMu.Lock()
+			cooldownUntil := watchdogTaskCooldown[detail.ID]
+			watchdogAlertMu.Unlock()
+			if time.Now().After(cooldownUntil) {
+				log.Printf("[Watchdog AI Orchestrator] Autonomously queueing review evaluation for review task %s", detail.ID)
+				s.queueInboxTaskReview(ctx, detail)
+				watchdogAlertMu.Lock()
+				watchdogTaskCooldown[detail.ID] = time.Now().Add(2 * time.Minute)
+				watchdogAlertMu.Unlock()
+			}
 			continue
 		}
 
@@ -482,6 +490,16 @@ func (s *Server) postContinuationActionCard(ctx context.Context, detail *task.Ta
 		content = fmt.Sprintf("%s\n\nUntuk melanjutkan perbaikan, silakan konfirmasi melalui tombol di bawah:%s\n\n[View work](/tasks/%s)", finding, planBlock, detail.ID)
 	} else {
 		content = fmt.Sprintf("%s\n\n[View work](/tasks/%s)", finding, detail.ID)
+	}
+
+	for _, m := range messages {
+		if m.AuthorType != "agent" {
+			continue
+		}
+		if strings.Contains(m.Content, "/tasks/"+detail.ID) &&
+			(m.Content == content || strings.Contains(m.Content, "```cuan-approval") || strings.Contains(m.Content, "Tandai Tuntas")) {
+			return
+		}
 	}
 
 	msg := &db.ProjectMessage{

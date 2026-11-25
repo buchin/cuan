@@ -1083,3 +1083,52 @@ func TestProactiveWatchdogDrainQueuedDeploymentsHandlesStaleBuilding(t *testing.
 		t.Fatalf("expected stale deployment to be failed, got: %s", updated.Status)
 	}
 }
+
+func TestPostContinuationActionCardDeduplicatesFallbackMessage(t *testing.T) {
+	ctx := context.Background()
+	repo := db.NewMemoryProjectStudioRepository()
+	room := &db.ProjectRoom{
+		ID:        db.GenerateUUID(),
+		ProjectID: "proj_test_dedup",
+		Title:     "Test Dedup",
+	}
+	if err := repo.CreateRoom(ctx, room); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := &Server{
+		projectStudioRepo: repo,
+	}
+
+	detail := &task.TaskDetailResponse{
+		Task: task.Task{
+			ID:           "msg_dedup_test",
+			ProjectID:    "proj_test_dedup",
+			SourceRoomID: room.ID,
+			Status:       task.TaskStatusBlocked,
+		},
+		LatestAttempt: &task.TaskAttempt{
+			ID:     "att_dedup_test",
+			TaskID: "msg_dedup_test",
+			Status: task.AttemptStatusSucceeded,
+		},
+	}
+	assessment := inboxReviewEvaluation{
+		Decision:      "pass",
+		RemainingWork: "none",
+		Finding:       "Verifikasi selesai.",
+		Explanation:   "Verifikasi selesai.",
+	}
+
+	srv.postContinuationActionCard(ctx, detail, "req_1", assessment)
+	srv.postContinuationActionCard(ctx, detail, "req_1", assessment)
+	srv.postContinuationActionCard(ctx, detail, "req_1", assessment)
+
+	messages, err := repo.ListMessagesByRoomID(ctx, room.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(messages) != 1 {
+		t.Fatalf("expected exactly 1 fallback message after repeated calls, got %d", len(messages))
+	}
+}
