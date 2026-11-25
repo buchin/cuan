@@ -15,7 +15,7 @@ import { agentForContact, connectionStatus } from '../agents/connection'
 import { useState, useEffect, memo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { ChatContact, chatApi } from '../../api/chat'
-import { Bot, User, CheckCircle2, CheckCheck, Plus, Eye } from 'lucide-react'
+import { Bot, User, CheckCircle2, CheckCheck, Plus, Eye, Clock3 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { getContactInitials } from './contact-initials'
 import { TASK_STATUS_THEMES, workDisplayStatus } from '../tasks/task-ui'
@@ -406,7 +406,7 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
                   : convStatus === 'active'
                     ? TASK_STATUS_THEMES.working.textColor
                     : convStatus === 'queued'
-                      ? 'text-amber-500/80 dark:text-amber-400/80'
+                      ? TASK_STATUS_THEMES.queued.textColor
                       : convStatus === 'review'
                         ? TASK_STATUS_THEMES.review.textColor
                         : convStatus === 'failed'
@@ -419,29 +419,11 @@ const MemoizedConversationItem = memo(function MemoizedConversationItem({
               ) : isWorking ? (
                 <StatusDot status="working" size="md" className="m-0.5" />
               ) : isQueued ? (
-                <svg
-                  viewBox="0 0 16 16"
-                  className="h-4 w-4"
-                  data-testid="task-pie-progress"
+                <Clock3
+                  className="h-3.5 w-3.5 rounded-full bg-background"
+                  strokeWidth={2}
                   aria-label={t('Menunggu antrean')}
-                >
-                  <circle
-                    cx="8"
-                    cy="8"
-                    r="6.5"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeDasharray="2.5 1.5"
-                    opacity="0.9"
-                  />
-                  {fraction > 0 && (
-                    <path
-                      d={`M 8 8 L 8 3.5 A 4.5 4.5 0 ${fraction > 0.5 ? 1 : 0} 1 ${pieX} ${pieY} Z`}
-                      fill="currentColor"
-                    />
-                  )}
-                </svg>
+                />
               ) : convStatus === 'review' ? (
                 <Eye className="h-3.5 w-3.5" strokeWidth={2} aria-label={t('Ready for review')} />
               ) : hasTasks ? (

@@ -480,7 +480,7 @@ export const TaskCard = memo(function TaskCard({
             {liveActivity}
           </p>
         ) : isQueued ? (
-          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium line-clamp-1 break-words">
+          <p className="text-xs text-muted-foreground font-medium line-clamp-1 break-words">
             {queuedActivity}
           </p>
         ) : summary ? (
