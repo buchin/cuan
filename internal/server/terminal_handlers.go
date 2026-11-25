@@ -668,11 +668,12 @@ func (s *Server) handleGetProjectTerminalStatus(w http.ResponseWriter, r *http.R
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"project_id":   proj.ID,
-		"project_name": proj.Name,
-		"work_dir":     workDir,
-		"session":      sessSummary,
-		"upstream":     integrity,
+		"project_id":      proj.ID,
+		"project_name":    proj.Name,
+		"work_dir":        workDir,
+		"session":         sessSummary,
+		"upstream":        integrity,
+		"worker_log_tail": terminal.ProjectWorkerLogTail(proj.ID, 25),
 	})
 }
 

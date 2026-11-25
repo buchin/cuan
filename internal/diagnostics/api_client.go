@@ -758,6 +758,27 @@ func (c *CuanClient) GetProjectDeployment(ctx context.Context, projectID, deploy
 	return res, nil
 }
 
+// GetProjectTerminalStatus queries the project terminal status, upstream integrity, and worker log tail.
+func (c *CuanClient) GetProjectTerminalStatus(ctx context.Context, projectID string) (map[string]any, error) {
+	endpoint := fmt.Sprintf("/api/v1/projects/%s/terminal/status", url.PathEscape(projectID))
+	resp, err := c.doRequest(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("get project terminal status: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("get project terminal status failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var res map[string]any
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return nil, fmt.Errorf("unmarshal terminal status: %w", err)
+	}
+	return res, nil
+}
+
 // ListScheduledTasks queries user-defined recurring routines from Cuan.
 func (c *CuanClient) ListScheduledTasks(ctx context.Context) ([]map[string]any, error) {
 	resp, err := c.doRequest(ctx, http.MethodGet, "/api/v1/system/scheduler/tasks", nil)

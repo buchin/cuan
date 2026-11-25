@@ -31,6 +31,7 @@ Usage:
   cuan project get PROJECT_ID
   cuan project deployments PROJECT_ID [--limit N]
   cuan project deployment PROJECT_ID DEPLOY_ID
+  cuan project terminal-status PROJECT_ID
   cuan project settings show PROJECT_ID
   cuan project settings set PROJECT_ID [--deploy-script TEXT] [--auto-deploy true|false] [--deploy-branch TEXT]
   cuan project guidance show PROJECT_ID
@@ -61,6 +62,9 @@ Changes apply to new tasks; existing tasks retain their environment snapshot.`
 	}
 	if args[0] == "deployment" {
 		return runProjectDeploymentCLI(args[1:], out, errOut)
+	}
+	if args[0] == "terminal-status" {
+		return runProjectTerminalStatusCLI(args[1:], out, errOut)
 	}
 	if args[0] == "settings" {
 		return runProjectSettingsCLI(args[1:], out, errOut)
@@ -272,6 +276,29 @@ func runProjectDeploymentCLI(args []string, out, errOut io.Writer) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	res, err := client.GetProjectDeployment(ctx, args[0], args[1])
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	enc := json.NewEncoder(out)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(res)
+	return 0
+}
+
+func runProjectTerminalStatusCLI(args []string, out, errOut io.Writer) int {
+	if len(args) == 0 {
+		fmt.Fprintln(errOut, "project ID is required")
+		return 2
+	}
+	client := GetCuanClient()
+	if client == nil || !client.IsConfigured() {
+		fmt.Fprintln(errOut, "configure Cuan API URL and auth token first")
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	res, err := client.GetProjectTerminalStatus(ctx, args[0])
 	if err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
