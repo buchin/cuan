@@ -429,7 +429,7 @@ body:has(.task-terminal-container),
 .rounded-xl,
 .rounded-2xl:not(.wa-message-bubble):not(.calm-message-bubble),
 .rounded-3xl,
-.rounded-full:not(.notification-count):not(.status-dot):not([data-status-dot]):not(.status-indicator):not(.avatar-dot):not(.avatar):not([data-avatar]):not(.user-avatar):not(.agent-avatar):not(.action-trigger-circle):not([data-action-trigger]) {
+.rounded-full:not(.notification-count):not(.status-dot):not([data-status-dot]):not(.status-indicator):not(.avatar-dot):not(.avatar):not([data-avatar]):not(.user-avatar):not(.agent-avatar):not(.action-trigger-circle):not([data-action-trigger]):not(.typing-dot):not(.typing-dot-1):not(.typing-dot-2):not(.typing-dot-3) {
   border-radius: 0px !important;
 }
 
@@ -445,7 +445,11 @@ body:has(.task-terminal-container),
 .status-dot,
 [data-status-dot],
 .status-indicator,
-.avatar-dot {
+.avatar-dot,
+.typing-dot,
+.typing-dot-1,
+.typing-dot-2,
+.typing-dot-3 {
   border-radius: 9999px !important;
 }
 

@@ -292,3 +292,23 @@ test('7. Functional behavior validation: step priority & fallback rotation simul
   }
   assert.equal(computeActivity(toolReq, 5), 'Membaca berkas konfigurasi sistem')
 })
+
+test('8. Typing dots are circular (exempt from global 0px rounded-full override in index.css)', () => {
+  const indexCssPath = path.resolve(__dirname, '../src/index.css')
+  const inboxViewPath = path.resolve(__dirname, '../src/features/inbox/InboxView.tsx')
+  const indexCss = fs.readFileSync(indexCssPath, 'utf8')
+  const inboxViewSource = fs.readFileSync(inboxViewPath, 'utf8')
+
+  assert.ok(
+    indexCss.includes(':not(.typing-dot):not(.typing-dot-1):not(.typing-dot-2):not(.typing-dot-3)'),
+    'index.css must exempt typing dots from the 0px border-radius override on .rounded-full',
+  )
+  assert.ok(
+    indexCss.includes('.typing-dot,\n.typing-dot-1,\n.typing-dot-2,\n.typing-dot-3 {\n  border-radius: 9999px !important;\n}'),
+    'index.css must explicitly enforce border-radius: 9999px !important on typing dots',
+  )
+  assert.ok(
+    inboxViewSource.includes('h-1.5 w-1.5 rounded-full typing-dot bg-primary/70 animate-bounce'),
+    'InboxView working indicator dots must include typing-dot class so they remain circular',
+  )
+})
