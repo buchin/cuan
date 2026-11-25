@@ -168,6 +168,25 @@ test('10. TerminalComposer adaptive light mode & dark mode theme contrast', () =
     /bg-background\s+border-t\s+border-border\s+dark:bg-\[#141414\]\s+dark:border-\[#262626\]/,
     'TerminalComposer must support light mode contrast alongside dark mode'
   )
+
+  const attachmentDialogStart = composerContent.indexOf('Attachment Choices Dialog')
+  assert.notEqual(attachmentDialogStart, -1, 'Attachment Choices Dialog section must exist')
+  const attachmentDialogSection = composerContent.slice(attachmentDialogStart)
+  assert.doesNotMatch(
+    attachmentDialogSection,
+    /text-neutral-100|text-neutral-400/,
+    'Attachment dialog options must not hardcode dark-mode-only neutral text colors'
+  )
+  assert.match(
+    attachmentDialogSection,
+    /text-foreground/,
+    'Attachment dialog option labels must use adaptive text-foreground'
+  )
+  assert.match(
+    attachmentDialogSection,
+    /text-muted-foreground/,
+    'Attachment dialog option descriptions must use adaptive text-muted-foreground'
+  )
 })
 
 test('11. Binary wire protocol & xterm.js auto-response drop guard', () => {
