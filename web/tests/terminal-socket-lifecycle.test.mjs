@@ -80,3 +80,31 @@ test('input buffer generation remains stable across attempt updates', () => {
   assert.match(source, /const inputGeneration = taskId/)
   assert.doesNotMatch(source, /const inputGeneration = taskId \+ ':' \+ attemptId/)
 })
+
+test('dedicated Project Terminal reports connecting while retrying and disconnected when exhausted', async () => {
+  const states = []
+  const ws = {}
+  const socket = { current: ws }
+  const term = { current: { options: { disableStdin: false } } }
+  const code = ts.transpileModule(`const callback = ${callbacks.get('ws.onclose')}`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022 },
+  }).outputText
+  const makeCallback = (retryCountVal) => new Function(
+    'disposed', 'socket', 'ws', 'term', 'heartbeatTimer', 'interactive', 'isTaskActiveRef',
+    'setInput', 'reconnectNoticeTimer', 'reconnectTimer', 'retryCount', 'isReconnecting',
+    'isDedicated', 'probeTerminalAvailability', 'setConnection', 'setNotice', 'setError',
+    'refreshRef', 'connectSocket', 'pollTimerRef', 'pollNextLogsRef', 'setTimeout', 'clearTimeout',
+    'clearInterval', 't',
+    `${code}; return callback`,
+  )(
+    false, socket, ws, term, { current: null }, { current: true }, { current: true },
+    () => {}, { current: null }, { current: null }, { current: retryCountVal }, { current: false },
+    true, async () => 400, (s) => states.push(s), () => {}, () => {},
+    { current: () => {} }, () => {}, { current: null }, { current: () => {} },
+    () => 1, () => {}, () => {}, (k) => k,
+  )
+
+  await makeCallback(0)({ code: 1006 })
+  await makeCallback(20)({ code: 1006 })
+  assert.deepEqual(states, ['connecting', 'disconnected'])
+})

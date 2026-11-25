@@ -209,3 +209,44 @@ func TestProjectTerminal_SurvivesRequestContextCancellation(t *testing.T) {
 		}
 	}
 }
+
+// TestProjectTerminal_CloseTaskSessionPreservesProjectSession verifies that closing
+// a background task's terminal session does not terminate the project's interactive terminal.
+func TestProjectTerminal_CloseTaskSessionPreservesProjectSession(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	workDir := t.TempDir()
+	mgr := NewManager(ManagerConfig{
+		WorkspacesDir: workDir,
+		DefaultShell:  "/bin/sh",
+	})
+	defer func() { _ = mgr.CloseAll() }()
+
+	projectID := "proj_close_task_preserve"
+	projSess, err := mgr.GetOrCreateProjectSession(ctx, projectID, workDir, "/bin/sh", 80, 24)
+	if err != nil {
+		t.Fatalf("GetOrCreateProjectSession failed: %v", err)
+	}
+
+	taskID := "task_bg_123"
+	taskSess, err := mgr.GetOrCreateSession(ctx, taskID, ModeInteractive, 80, 24)
+	if err != nil {
+		t.Fatalf("GetOrCreateSession failed: %v", err)
+	}
+	mgr.mu.Lock()
+	mgr.projectSessions[projectID] = taskID
+	mgr.mu.Unlock()
+
+	if err := mgr.CloseSession(taskID); err != nil {
+		t.Fatalf("CloseSession failed: %v", err)
+	}
+	if !taskSess.IsClosed() {
+		t.Fatal("expected task session to be closed")
+	}
+
+	got, ok := mgr.GetProjectSession(projectID)
+	if !ok || got == nil || got.ID() != projSess.ID() || got.IsClosed() {
+		t.Fatal("CloseSession(taskID) must NOT close the interactive Project Terminal session")
+	}
+}

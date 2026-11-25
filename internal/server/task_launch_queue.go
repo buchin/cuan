@@ -578,13 +578,6 @@ func (s *Server) evaluateIdleRunnerQueues(ctx context.Context) {
 		}
 
 		if !isLocked {
-			// Lock is IDLE! Clean up any zombie terminal session for this project.
-			if projID != "" && s.terminalManager != nil {
-				if active := s.terminalManager.GetProjectActiveRunner(projID); active == nil {
-					_ = s.terminalManager.ResetProjectSession(projID)
-				}
-			}
-
 			// Check if task already has an active launch ready to claim
 			hasActiveLaunch := false
 			if launch, lErr := s.taskSvc.LatestLaunch(ctx, t.ID); lErr == nil && launch != nil {

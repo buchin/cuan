@@ -561,11 +561,6 @@ func (m *Manager) CloseSession(taskID string) error {
 	for pID, tID := range m.projectSessions {
 		if tID == taskID {
 			delete(m.projectSessions, pID)
-			projKey := ProjectSessionKey(pID)
-			if sess, exists := m.sessions[projKey]; exists {
-				toClose = append(toClose, sess)
-				delete(m.sessions, projKey)
-			}
 		}
 	}
 	if !strings.HasPrefix(taskID, "project-term-") {

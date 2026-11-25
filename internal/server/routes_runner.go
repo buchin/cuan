@@ -366,16 +366,12 @@ func (s *Server) handleRunnerComplete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Clean up terminal and project session cleanly so no zombie sessions remain
+	// Clean up only the completed task's terminal sessions; never reset the
+	// project's interactive Project Terminal when a background task finishes.
 	if att != nil {
 		if s.terminalManager != nil {
 			_ = s.terminalManager.CloseSession(att.TaskID)
 			_ = s.terminalManager.CloseSession(att.ID)
-			if s.taskSvc != nil {
-				if detail, dErr := s.taskSvc.GetTaskDetail(r.Context(), att.TaskID); dErr == nil && detail != nil && detail.ProjectID != "" {
-					_ = s.terminalManager.ResetProjectSession(detail.ProjectID)
-				}
-			}
 		}
 		if s.taskSvc != nil {
 			_ = s.taskSvc.FinishTaskLaunches(r.Context(), att.TaskID, "stopped")

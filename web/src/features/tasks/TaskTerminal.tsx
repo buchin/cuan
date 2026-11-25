@@ -670,10 +670,10 @@ export function TaskTerminal({
     if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
     retryCount.current = 0
     isReconnecting.current = true
-    setConnection(isTaskActiveRef.current ? 'streaming' : 'connecting')
+    setConnection(isTaskActiveRef.current && !isDedicated ? 'streaming' : 'connecting')
     onRefresh()
     connectSocketRef.current()
-  }, [onRefresh])
+  }, [isDedicated, onRefresh])
 
   // Handle active / online recovery
   const lastAutoRetry = useRef(0)
@@ -748,7 +748,7 @@ export function TaskTerminal({
       }
 
       // In decoupled runner architecture, default active tasks to calm 'streaming' status
-      if (isTaskActiveRef.current) {
+      if (isTaskActiveRef.current && !isDedicated) {
         setConnection('streaming')
       } else {
         setConnection('connecting')
@@ -943,7 +943,7 @@ export function TaskTerminal({
 
       ws.onerror = () => {
         if (!disposed && socket.current === ws) {
-          if (isTaskActiveRef.current) {
+          if (isTaskActiveRef.current && !isDedicated) {
             setConnection('streaming')
           } else {
             setConnection('disconnected')
@@ -980,7 +980,7 @@ export function TaskTerminal({
           // Check if interactive endpoint returned 404 (decoupled runner daemon)
           const httpStatus = await probeTerminalAvailability()
           if (disposed || socket.current !== ws) return
-          if (httpStatus === 404) {
+          if (httpStatus === 404 && !isDedicated) {
             interactive.current = false
             setInput(false)
             if (term.current) term.current.options.disableStdin = true
@@ -999,6 +999,16 @@ export function TaskTerminal({
             }
             return
           }
+          if (isDedicated && (httpStatus === 404 || httpStatus === 410)) {
+            interactive.current = false
+            setInput(false)
+            if (term.current) term.current.options.disableStdin = true
+            setConnection('disconnected')
+            setNotice('')
+            setError(httpStatus === 410 ? t('Terminal session has ended') : '')
+            refreshRef.current?.()
+            return
+          }
 
           // If unexpected drop or initial startup on active task, retry quietly while maintaining streaming view
           // Dedicated project terminals get more retries (20) to handle server restarts gracefully
@@ -1010,7 +1020,7 @@ export function TaskTerminal({
             )
             retryCount.current++
             isReconnecting.current = true
-            setConnection('streaming')
+            setConnection(isDedicated ? 'connecting' : 'streaming')
             if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
             reconnectTimer.current = setTimeout(() => {
               if (!disposed && isTaskActiveRef.current) {
@@ -1025,6 +1035,12 @@ export function TaskTerminal({
           interactive.current = false
           setInput(false)
           if (term.current) term.current.options.disableStdin = true
+          if (isDedicated) {
+            setConnection('disconnected')
+            setNotice('')
+            setError('')
+            return
+          }
           setConnection('streaming')
           setNotice(retainInput ? t('Connection paused. Reconnect to send pending input to this session.') : '')
           setError('')
@@ -1602,10 +1618,12 @@ export function TaskTerminal({
   // Eliminate false "Terminal disconnected" yellow banners when task is actively running.
   // When runner daemon executes decoupled, xterm gracefully consumes the live log stream without disruption.
   const showDisconnectBanner =
-    !isTaskActive &&
-    (connection === 'disconnected' || connection === 'connecting') &&
-    retryCount.current > 0 &&
-    !logs.current.length
+    isDedicated
+      ? connection === 'disconnected'
+      : !isTaskActive &&
+        (connection === 'disconnected' || connection === 'connecting') &&
+        retryCount.current > 0 &&
+        !logs.current.length
 
   const isInline = !controlsTarget || isFullscreen
   const btnClass = isInline

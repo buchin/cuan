@@ -540,7 +540,9 @@ export function TaskSessionPage({
         ? (language === 'id' ? 'Sesi dihentikan' : 'Session stopped')
         : isConnected
           ? (language === 'id' ? 'Berjalan' : 'Live')
-          : (language === 'id' ? 'Menghubungkan…' : 'Connecting…'))
+          : terminalConnection === 'disconnected'
+            ? (language === 'id' ? 'Terputus' : 'Disconnected')
+            : (language === 'id' ? 'Menghubungkan…' : 'Connecting…'))
     : answer
       ? 'Answered'
       : !latest
