@@ -139,3 +139,19 @@ rsync -avz /opt/cuan/.env ubuntu@<IP_VPS_BARU>:/opt/cuan/.env
 
 5. **Switch DNS**:
    - Arahkan DNS A record domain (misalnya `cuan.dojo.cc`) ke alamat IP VPS baru.
+
+---
+
+## Off-site backup (S3 / Cloudflare R2 / MinIO)
+
+`scripts/backup.sh` can copy each finished backup (`.sql.gz`, `.sha256`, `.meta.json`) to S3-compatible storage. It is off by default and only runs when `CUAN_BACKUP_S3_BUCKET` is set. Requests are signed with SigV4 and carry the file SHA-256, so the provider rejects a corrupted upload. Credentials are read from the environment only, never from command arguments.
+
+| Variable | Meaning |
+| --- | --- |
+| `CUAN_BACKUP_S3_ENDPOINT` | e.g. `https://<account>.r2.cloudflarestorage.com` |
+| `CUAN_BACKUP_S3_REGION` | `auto` for R2, default `us-east-1` |
+| `CUAN_BACKUP_S3_BUCKET` | bucket name |
+| `CUAN_BACKUP_S3_PREFIX` | optional folder, e.g. `cuan/backups` |
+| `CUAN_BACKUP_S3_ACCESS_KEY` / `_SECRET_KEY` | use a key scoped to this bucket, write-only if possible |
+
+If the upload fails the script exits with code 3 and the local backup is kept. Remote retention is not managed by Cuan yet; use a bucket lifecycle rule. Backups contain your data and are not encrypted by Cuan, so use a private bucket.
