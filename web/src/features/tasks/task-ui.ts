@@ -186,9 +186,6 @@ export function workDisplayStatus(task: Task) {
   if (status === 'Working' && task.launch?.kind === 'native_release') return 'Deploying'
   if (task.review_state === 'running') return 'Checking result'
   if (task.review_state === 'queued') return 'Waiting for checks'
-  if (task.source_room_id && task.latest_attempt) {
-    return task.review_action === 'needs_owner' ? 'Needs your input' : 'Working'
-  }
   if (status === 'Needs attention') {
     if (task.review_action === 'needs_owner') return 'Needs your input'
     if (task.review_action === 'wait') return 'Waiting'

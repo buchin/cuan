@@ -55,8 +55,8 @@ test('stopped work does not imply the user owes an action',()=>{
 
 test('managed work stays Cuan-owned across internal recovery until owner input or terminal state', () => {
  const work={source_room_id:'room',status:'blocked',latest_attempt:{status:'failed'},launch:{state:'stopped'}}
- for (const action of [undefined,'continue','replan','wait']) {
-  assert.equal(workDisplayStatus({...work,review_action:action}),'Working')
+ for (const [action, expectedLabel] of [[undefined,'Unfinished'],['continue','Unfinished'],['replan','Unfinished'],['wait','Waiting']]) {
+  assert.equal(workDisplayStatus({...work,review_action:action}),expectedLabel)
   assert.equal(taskAgentPending({...work,review_action:action}),true)
  }
  assert.equal(workDisplayStatus({...work,review_action:'needs_owner'}),'Needs your input')

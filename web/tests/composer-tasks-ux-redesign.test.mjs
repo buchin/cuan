@@ -94,3 +94,22 @@ test('6. Localization completeness in id.json and en.json', () => {
   assert.equal(enJson['Conversation tasks'], 'Conversation tasks')
   assert.equal(idJson['Conversation tasks'], 'Task obrolan')
 })
+
+test('7. Header bar icon and badgeStatus sync with latestTask via shared TaskStatusIcon', () => {
+  assert.ok(
+    composerTasksSrc.includes('<TaskStatusIcon task={latestTask}'),
+    'Header bar must render TaskStatusIcon for latestTask so icon matches its title'
+  )
+  assert.ok(
+    composerTasksSrc.includes('<TaskStatusIcon task={task}'),
+    'Drawer timeline item must use the same TaskStatusIcon helper'
+  )
+  assert.ok(
+    composerTasksSrc.includes('getComposerTaskBadgeStatus(latestTask)'),
+    'badgeStatus must derive from latestTask rather than aggregating unrelated older tasks'
+  )
+  assert.ok(
+    !composerTasksSrc.includes('ordered.some(t => workStatus(t) === \'Needs attention\')'),
+    'Header bar must not override latestTask icon with older Needs attention tasks'
+  )
+})
