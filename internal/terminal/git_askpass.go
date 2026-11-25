@@ -10,10 +10,32 @@ import (
 	"time"
 )
 
-// EnsureGitAskpassScript writes a lightweight executable wrapper in the temp directory
-// that delegates Git credential prompts to `<binaryPath> git-askpass`.
-// Git requires GIT_ASKPASS to be a single executable path without arguments.
-func EnsureGitAskpassScript(binaryPath string) (string, error) {
+type gitAskpassConfig struct {
+	URL   string `json:"url"`
+	Token string `json:"token"`
+}
+
+func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
+	if existing, err := os.ReadFile(path); err == nil && string(existing) == string(data) {
+		_ = os.Chmod(path, perm)
+		return nil
+	}
+	tmpPath := fmt.Sprintf("%s.%d.tmp", path, time.Now().UnixNano())
+	if err := os.WriteFile(tmpPath, data, perm); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	return nil
+}
+
+// EnsureGitAskpassScript writes a lightweight executable wrapper and optional 0600 config file
+// in the temp directory that delegates Git credential prompts to `<binaryPath> git-askpass`.
+// Passing credentials via a 0600 config file ensures AI CLIs (agy/codex/claude) that scrub *_TOKEN
+// environment variables from shell subcommands do not strip the askpass endpoint token.
+func EnsureGitAskpassScript(binaryPath string, opts ...string) (string, error) {
 	if strings.TrimSpace(binaryPath) == "" {
 		exe, err := os.Executable()
 		if err != nil {
@@ -21,36 +43,84 @@ func EnsureGitAskpassScript(binaryPath string) (string, error) {
 		}
 		binaryPath = exe
 	}
-	scriptPath := filepath.Join(os.TempDir(), fmt.Sprintf("cuan-git-askpass-%d.sh", os.Getuid()))
-	quoted := "'" + strings.ReplaceAll(binaryPath, "'", "'\"'\"'") + "'"
-	desired := "#!/bin/sh\nexec " + quoted + " git-askpass \"$@\"\n"
-	if existing, err := os.ReadFile(scriptPath); err == nil && string(existing) == desired {
-		_ = os.Chmod(scriptPath, 0o700)
-		return scriptPath, nil
+	var projectID, apiURL, scopedToken string
+	if len(opts) >= 3 {
+		projectID, apiURL, scopedToken = opts[0], opts[1], opts[2]
 	}
-	tmpPath := fmt.Sprintf("%s.%d.tmp", scriptPath, time.Now().UnixNano())
-	if err := os.WriteFile(tmpPath, []byte(desired), 0o700); err != nil {
-		return "", err
+
+	suffix := fmt.Sprintf("%d", os.Getuid())
+	if projectID != "" {
+		safeID := strings.Map(func(r rune) rune {
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-' {
+				return r
+			}
+			return '_'
+		}, projectID)
+		suffix += "-" + safeID
 	}
-	if err := os.Rename(tmpPath, scriptPath); err != nil {
-		_ = os.Remove(tmpPath)
+
+	scriptPath := filepath.Join(os.TempDir(), "cuan-git-askpass-"+suffix+".sh")
+	quotedBin := "'" + strings.ReplaceAll(binaryPath, "'", "'\"'\"'") + "'"
+
+	var desired string
+	if apiURL != "" && scopedToken != "" {
+		cfgPath := filepath.Join(os.TempDir(), "cuan-git-askpass-"+suffix+".json")
+		cfgBytes, err := json.Marshal(gitAskpassConfig{URL: apiURL, Token: scopedToken})
+		if err != nil {
+			return "", err
+		}
+		if err := writeFileAtomic(cfgPath, cfgBytes, 0o600); err != nil {
+			return "", err
+		}
+		quotedCfg := "'" + strings.ReplaceAll(cfgPath, "'", "'\"'\"'") + "'"
+		desired = "#!/bin/sh\nexec " + quotedBin + " git-askpass --config " + quotedCfg + " \"$@\"\n"
+	} else {
+		desired = "#!/bin/sh\nexec " + quotedBin + " git-askpass \"$@\"\n"
+	}
+
+	if err := writeFileAtomic(scriptPath, []byte(desired), 0o700); err != nil {
 		return "", err
 	}
 	return scriptPath, nil
 }
 
-// RunGitAskpassCLI implements `cuan git-askpass <prompt>` for GIT_ASKPASS in Project Terminal.
+// RunGitAskpassCLI implements `cuan git-askpass [--config PATH] <prompt>` for GIT_ASKPASS in Project Terminal.
 func RunGitAskpassCLI(args []string) int {
+	var cfgPath string
+	var rest []string
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--config" && i+1 < len(args) {
+			cfgPath = args[i+1]
+			i++
+			continue
+		}
+		rest = append(rest, args[i])
+	}
+
 	prompt := ""
-	if len(args) > 0 {
-		prompt = strings.ToLower(strings.TrimSpace(args[0]))
+	if len(rest) > 0 {
+		prompt = strings.ToLower(strings.TrimSpace(rest[0]))
 	}
 	if strings.HasPrefix(prompt, "username") {
 		fmt.Println("x-access-token")
 		return 0
 	}
+
 	apiURL := strings.TrimSpace(os.Getenv("CUAN_GIT_ASKPASS_URL"))
 	token := strings.TrimSpace(os.Getenv("CUAN_GIT_ASKPASS_TOKEN"))
+	if cfgPath != "" {
+		if raw, err := os.ReadFile(cfgPath); err == nil {
+			var cfg gitAskpassConfig
+			if json.Unmarshal(raw, &cfg) == nil {
+				if strings.TrimSpace(cfg.URL) != "" {
+					apiURL = strings.TrimSpace(cfg.URL)
+				}
+				if strings.TrimSpace(cfg.Token) != "" {
+					token = strings.TrimSpace(cfg.Token)
+				}
+			}
+		}
+	}
 	if apiURL == "" || token == "" {
 		fmt.Fprintln(os.Stderr, "cuan git-askpass: terminal git credentials are not configured")
 		return 1

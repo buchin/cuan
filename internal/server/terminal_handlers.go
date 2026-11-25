@@ -2146,10 +2146,6 @@ func (s *Server) projectTerminalGitEnv(r *http.Request, projectID, ownerID strin
 	if ownerID == "" || s.projectSvc == nil || projectID == "" {
 		return nil
 	}
-	scriptPath, err := terminal.EnsureGitAskpassScript("")
-	if err != nil || scriptPath == "" {
-		return nil
-	}
 	baseURL := "http://127.0.0.1:8080"
 	if s.cfg != nil && strings.TrimSpace(s.cfg.ServerPort) != "" {
 		baseURL = "http://127.0.0.1:" + strings.TrimPrefix(strings.TrimSpace(s.cfg.ServerPort), ":")
@@ -2157,11 +2153,16 @@ func (s *Server) projectTerminalGitEnv(r *http.Request, projectID, ownerID strin
 	if r != nil && strings.HasPrefix(r.Host, "127.0.0.1:") {
 		baseURL = "http://" + r.Host
 	}
+	askpassURL := baseURL + "/api/v1/projects/" + projectID + "/terminal/git-credentials"
 	token := s.signTerminalGitToken(projectID, ownerID, 24*time.Hour)
+	scriptPath, err := terminal.EnsureGitAskpassScript("", projectID, askpassURL, token)
+	if err != nil || scriptPath == "" {
+		return nil
+	}
 	return []string{
 		"GIT_ASKPASS=" + scriptPath,
 		"GIT_TERMINAL_PROMPT=0",
-		"CUAN_GIT_ASKPASS_URL=" + baseURL + "/api/v1/projects/" + projectID + "/terminal/git-credentials",
+		"CUAN_GIT_ASKPASS_URL=" + askpassURL,
 		"CUAN_GIT_ASKPASS_TOKEN=" + token,
 	}
 }

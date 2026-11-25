@@ -52,4 +52,16 @@ func TestRunGitAskpassCLI(t *testing.T) {
 	if code := RunGitAskpassCLI([]string{"Password for 'https://x-access-token@github.com':"}); code == 0 {
 		t.Fatalf("expected non-zero exit when server returns 401")
 	}
+
+	// Verify --config mode works even when env vars are scrubbed by AI CLIs
+	t.Setenv("CUAN_GIT_ASKPASS_URL", "")
+	t.Setenv("CUAN_GIT_ASKPASS_TOKEN", "")
+	scriptPath, err := EnsureGitAskpassScript("/usr/local/bin/cuan-server", "proj_scrub_test", srv.URL, "scoped-token")
+	if err != nil {
+		t.Fatalf("EnsureGitAskpassScript with config failed: %v", err)
+	}
+	cfgPath := strings.TrimSuffix(scriptPath, ".sh") + ".json"
+	if code := RunGitAskpassCLI([]string{"--config", cfgPath, "Password for 'https://x-access-token@github.com':"}); code != 0 {
+		t.Fatalf("expected exit 0 with --config when env vars are scrubbed, got %d", code)
+	}
 }
