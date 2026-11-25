@@ -969,6 +969,10 @@ func (s *Server) drainQueuedProjectDeployments(ctx context.Context) {
 		return
 	}
 
+	// Reconcile any interrupted Cuan self-deployments whose commit is already active
+	// in /opt/cuan/current before checking for >30m stale timeouts.
+	s.ReconcileActiveProjectDeployments(ctx)
+
 	projects, err := s.projectSvc.List(ctx)
 	if err != nil {
 		return

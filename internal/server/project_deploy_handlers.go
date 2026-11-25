@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -320,6 +321,177 @@ func generateStandardDeploymentSteps(branch, commitSHA, commitMsg, status string
 	}
 }
 
+func isCuanProject(proj *project.ProjectResponse) bool {
+	if proj == nil {
+		return false
+	}
+	return proj.RepoName == "cuan" || strings.Contains(strings.ToLower(proj.Name), "cuan") || proj.ID == "default"
+}
+
+func (s *Server) cuanCurrentSymlinkPath() string {
+	if s.cuanCurrentPath != "" {
+		return s.cuanCurrentPath
+	}
+	return "/opt/cuan/current"
+}
+
+func (s *Server) resolveCuanActiveReleaseSHA() string {
+	currentPath := s.cuanCurrentSymlinkPath()
+	if target, err := filepath.EvalSymlinks(currentPath); err == nil {
+		activeSHA := filepath.Base(target)
+		if len(activeSHA) == 40 {
+			return activeSHA
+		}
+	}
+	if data, err := os.ReadFile(filepath.Join(currentPath, "release.json")); err == nil && len(data) > 0 {
+		var manifest struct {
+			SHA string `json:"sha"`
+		}
+		if json.Unmarshal(data, &manifest) == nil && len(manifest.SHA) == 40 {
+			return manifest.SHA
+		}
+	}
+	return ""
+}
+
+func reconcileDeploymentWithActiveSHA(d *cuanDB.ProjectDeployment, activeSHA string, now time.Time) bool {
+	if d == nil || activeSHA == "" || d.CommitSHA != activeSHA {
+		return false
+	}
+
+	needUpdate := false
+	if d.Status == cuanDB.DeploymentStatusBuilding || d.Status == cuanDB.DeploymentStatusQueued || d.Status == "pending" {
+		d.Status = cuanDB.DeploymentStatusSuccess
+		d.CompletedAt = &now
+		d.UpdatedAt = now
+		d.ErrorMessage = ""
+		if !d.StartedAt.IsZero() {
+			d.DurationSeconds = max(1, int(now.Sub(d.StartedAt).Seconds()))
+		}
+		needUpdate = true
+	}
+
+	if d.Status == cuanDB.DeploymentStatusSuccess {
+		if len(d.Steps) == 0 {
+			d.Steps = generateStandardDeploymentSteps(d.Branch, activeSHA, d.CommitMessage, cuanDB.DeploymentStatusSuccess)
+			return true
+		}
+
+		prevCompletedAt := d.StartedAt
+		for idx := range d.Steps {
+			wasIncomplete := d.Steps[idx].Status != cuanDB.StepStatusSuccess
+			if wasIncomplete {
+				d.Steps[idx].Status = cuanDB.StepStatusSuccess
+				needUpdate = true
+			}
+			if d.Steps[idx].StartedAt == nil {
+				st := prevCompletedAt
+				if st.IsZero() {
+					st = now
+				}
+				d.Steps[idx].StartedAt = &st
+				needUpdate = true
+			}
+			if d.Steps[idx].CompletedAt == nil {
+				d.Steps[idx].CompletedAt = &now
+				needUpdate = true
+			}
+			if d.Steps[idx].Duration == "" && d.Steps[idx].StartedAt != nil && d.Steps[idx].CompletedAt != nil {
+				durSec := max(1, int(d.Steps[idx].CompletedAt.Sub(*d.Steps[idx].StartedAt).Seconds()))
+				d.Steps[idx].Duration = fmt.Sprintf("%ds", durSec)
+				needUpdate = true
+			}
+			if d.Steps[idx].CompletedAt != nil {
+				prevCompletedAt = *d.Steps[idx].CompletedAt
+			}
+
+			switch d.Steps[idx].ID {
+			case "step-1":
+				if wasIncomplete || !strings.Contains(d.Steps[idx].Summary, "Checked out") {
+					d.Steps[idx].Summary = fmt.Sprintf("Checked out commit %s", activeSHA[:7])
+					needUpdate = true
+				}
+			case "step-2":
+				if wasIncomplete || d.Steps[idx].Summary == "Compiling application dependencies and assets..." || strings.HasPrefix(d.Steps[idx].Summary, "Awaiting") {
+					d.Steps[idx].Summary = "Application compiled successfully"
+					if d.Steps[idx].Log == "" {
+						d.Steps[idx].Log = "Release build completed cleanly by deployment pipeline."
+					}
+					needUpdate = true
+				}
+			case "step-3":
+				if wasIncomplete || strings.HasPrefix(d.Steps[idx].Summary, "Pending") {
+					d.Steps[idx].Summary = "Database schema verified and up to date"
+					if d.Steps[idx].Log == "" {
+						d.Steps[idx].Log = "Database schema checked and up to date."
+					}
+					needUpdate = true
+				}
+			case "step-4":
+				if wasIncomplete || strings.HasPrefix(d.Steps[idx].Summary, "Pending") || strings.Contains(d.Steps[idx].Summary, "Performing atomic") {
+					d.Steps[idx].Summary = "Release symlink updated and daemon reloaded"
+					if d.Steps[idx].Log == "" {
+						d.Steps[idx].Log = fmt.Sprintf("Atomic switch to /opt/cuan/releases/%s completed.", activeSHA)
+					}
+					needUpdate = true
+				}
+			case "step-5":
+				if wasIncomplete || strings.HasPrefix(d.Steps[idx].Summary, "Pending") || strings.Contains(d.Steps[idx].Summary, "Probing health") {
+					d.Steps[idx].Summary = "Live service health check passed"
+					if d.Steps[idx].Log == "" {
+						d.Steps[idx].Log = "GET /healthz -> HTTP 200 OK (healthy)"
+					}
+					needUpdate = true
+				}
+			}
+		}
+	}
+
+	return needUpdate
+}
+
+// ReconcileActiveProjectDeployments reconciles interrupted building/pending/queued
+// deployments for Cuan when the active release in /opt/cuan/current already matches
+// the deployment's commit SHA (e.g., after a self-deploy daemon restart in step 4/5).
+func (s *Server) ReconcileActiveProjectDeployments(ctx context.Context) {
+	if s.projectSvc == nil || s.projectDeploymentRepo == nil {
+		return
+	}
+
+	activeSHA := s.resolveCuanActiveReleaseSHA()
+	if activeSHA == "" {
+		return
+	}
+
+	projects, err := s.projectSvc.List(ctx)
+	if err != nil {
+		return
+	}
+
+	now := time.Now().UTC()
+	for _, p := range projects {
+		if !isCuanProject(p) || (p.IsArchived && p.ID != "default") {
+			continue
+		}
+
+		deployments, err := s.projectDeploymentRepo.ListByProjectID(ctx, p.ID, 50)
+		if err != nil {
+			continue
+		}
+
+		for _, d := range deployments {
+			if d.Status != cuanDB.DeploymentStatusBuilding && d.Status != cuanDB.DeploymentStatusQueued && d.Status != "pending" {
+				continue
+			}
+			if reconcileDeploymentWithActiveSHA(d, activeSHA, now) {
+				if err := s.projectDeploymentRepo.Update(ctx, d); err == nil {
+					log.Printf("[DeployReconcile] Reconciled interrupted deployment %s for project %s (commit %s) to success", d.ID, p.ID, activeSHA[:7])
+				}
+			}
+		}
+	}
+}
+
 func (s *Server) reconcileProjectDeployments(ctx context.Context, proj *project.ProjectResponse, repoDir string, deployments []*cuanDB.ProjectDeployment) []*cuanDB.ProjectDeployment {
 	existing := make(map[string]*cuanDB.ProjectDeployment, len(deployments))
 	isAnyBuilding := false
@@ -335,121 +507,61 @@ func (s *Server) reconcileProjectDeployments(ctx context.Context, proj *project.
 		branch = "dev"
 	}
 
-	isCuan := proj.RepoName == "cuan" || strings.Contains(strings.ToLower(proj.Name), "cuan") || proj.ID == "default"
+	isCuan := isCuanProject(proj)
 
 	// 1. If Cuan core host application: reconcile with /opt/cuan/current and /opt/cuan/releases
 	if isCuan {
 		// A. Check /opt/cuan/current
-		currentPath := "/opt/cuan/current"
-		if target, err := filepath.EvalSymlinks(currentPath); err == nil {
-			activeSHA := filepath.Base(target)
-			if len(activeSHA) == 40 {
-				if d, ok := existing[activeSHA]; ok {
-					needUpdate := false
-					if d.Status == cuanDB.DeploymentStatusBuilding || d.Status == cuanDB.DeploymentStatusQueued {
-						now := time.Now().UTC()
-						d.Status = cuanDB.DeploymentStatusSuccess
-						d.CompletedAt = &now
-						if !d.StartedAt.IsZero() {
-							d.DurationSeconds = max(1, int(now.Sub(d.StartedAt).Seconds()))
-						}
-						needUpdate = true
-					}
-					if d.Status == cuanDB.DeploymentStatusSuccess {
-						for idx := range d.Steps {
-							if d.Steps[idx].Status != cuanDB.StepStatusSuccess {
-								d.Steps[idx].Status = cuanDB.StepStatusSuccess
-								needUpdate = true
-							}
-							if d.Steps[idx].CompletedAt == nil {
-								now := time.Now().UTC()
-								d.Steps[idx].CompletedAt = &now
-								needUpdate = true
-							}
-							switch d.Steps[idx].ID {
-							case "step-1":
-								if !strings.Contains(d.Steps[idx].Summary, "Checked out") {
-									d.Steps[idx].Summary = fmt.Sprintf("Checked out commit %s", activeSHA[:7])
-									needUpdate = true
-								}
-							case "step-2":
-								if d.Steps[idx].Summary == "Compiling application dependencies and assets..." || strings.HasPrefix(d.Steps[idx].Summary, "Awaiting") {
-									d.Steps[idx].Summary = "Application compiled successfully"
-									if d.Steps[idx].Log == "" {
-										d.Steps[idx].Log = "Release build completed cleanly by deployment pipeline."
-									}
-									needUpdate = true
-								}
-							case "step-3":
-								if strings.HasPrefix(d.Steps[idx].Summary, "Pending") {
-									d.Steps[idx].Summary = "Database schema verified and up to date"
-									if d.Steps[idx].Log == "" {
-										d.Steps[idx].Log = "Database schema checked and up to date."
-									}
-									needUpdate = true
-								}
-							case "step-4":
-								if strings.HasPrefix(d.Steps[idx].Summary, "Pending") {
-									d.Steps[idx].Summary = "Release symlink updated and daemon reloaded"
-									if d.Steps[idx].Log == "" {
-										d.Steps[idx].Log = fmt.Sprintf("Atomic switch to /opt/cuan/releases/%s completed.", activeSHA)
-									}
-									needUpdate = true
-								}
-							case "step-5":
-								if strings.HasPrefix(d.Steps[idx].Summary, "Pending") {
-									d.Steps[idx].Summary = "Live service health check passed"
-									if d.Steps[idx].Log == "" {
-										d.Steps[idx].Log = "GET /healthz -> HTTP 200 OK (healthy)"
-									}
-									needUpdate = true
-								}
-							}
-						}
-					}
-					if needUpdate && s.projectDeploymentRepo != nil {
-						_ = s.projectDeploymentRepo.Update(ctx, d)
-					}
-				} else {
-					msg := fmt.Sprintf("Release %s activated", activeSHA[:7])
-					author := "Buchin"
-					if repoDir != "" {
-						cmd := exec.CommandContext(ctx, "git", "log", "-n", "1", "--format=%s%x1f%an", activeSHA)
-						cmd.Dir = repoDir
-						if out, err := cmd.Output(); err == nil {
-							parts := strings.Split(strings.TrimSpace(string(out)), "\x1f")
-							if len(parts) >= 1 && parts[0] != "" {
-								msg = parts[0]
-							}
-							if len(parts) >= 2 && parts[1] != "" {
-								author = parts[1]
-							}
-						}
-					}
-					now := time.Now().UTC()
-					newDep := &cuanDB.ProjectDeployment{
-						ID:              fmt.Sprintf("dep_%s", activeSHA[:16]),
-						ProjectID:       proj.ID,
-						CommitSHA:       activeSHA,
-						ShortSHA:        activeSHA[:7],
-						CommitMessage:   msg,
-						Branch:          branch,
-						Status:          cuanDB.DeploymentStatusSuccess,
-						TriggerSource:   cuanDB.TriggerSourceCLI,
-						TriggerAuthor:   author,
-						DurationSeconds: 42,
-						StartedAt:       now.Add(-42 * time.Second),
-						CompletedAt:     &now,
-						CreatedAt:       now.Add(-42 * time.Second),
-						UpdatedAt:       now,
-						Steps:           generateStandardDeploymentSteps(branch, activeSHA, msg, cuanDB.DeploymentStatusSuccess),
-					}
-					if s.projectDeploymentRepo != nil {
-						_ = s.projectDeploymentRepo.Create(ctx, newDep)
-					}
-					existing[activeSHA] = newDep
-					deployments = append(deployments, newDep)
+		if activeSHA := s.resolveCuanActiveReleaseSHA(); activeSHA != "" {
+			now := time.Now().UTC()
+			foundActive := false
+			for _, d := range deployments {
+				if d.CommitSHA != activeSHA {
+					continue
 				}
+				foundActive = true
+				if reconcileDeploymentWithActiveSHA(d, activeSHA, now) && s.projectDeploymentRepo != nil {
+					_ = s.projectDeploymentRepo.Update(ctx, d)
+				}
+			}
+			if !foundActive {
+				msg := fmt.Sprintf("Release %s activated", activeSHA[:7])
+				author := "Buchin"
+				if repoDir != "" {
+					cmd := exec.CommandContext(ctx, "git", "log", "-n", "1", "--format=%s%x1f%an", activeSHA)
+					cmd.Dir = repoDir
+					if out, err := cmd.Output(); err == nil {
+						parts := strings.Split(strings.TrimSpace(string(out)), "\x1f")
+						if len(parts) >= 1 && parts[0] != "" {
+							msg = parts[0]
+						}
+						if len(parts) >= 2 && parts[1] != "" {
+							author = parts[1]
+						}
+					}
+				}
+				newDep := &cuanDB.ProjectDeployment{
+					ID:              fmt.Sprintf("dep_%s", activeSHA[:16]),
+					ProjectID:       proj.ID,
+					CommitSHA:       activeSHA,
+					ShortSHA:        activeSHA[:7],
+					CommitMessage:   msg,
+					Branch:          branch,
+					Status:          cuanDB.DeploymentStatusSuccess,
+					TriggerSource:   cuanDB.TriggerSourceCLI,
+					TriggerAuthor:   author,
+					DurationSeconds: 42,
+					StartedAt:       now.Add(-42 * time.Second),
+					CompletedAt:     &now,
+					CreatedAt:       now.Add(-42 * time.Second),
+					UpdatedAt:       now,
+					Steps:           generateStandardDeploymentSteps(branch, activeSHA, msg, cuanDB.DeploymentStatusSuccess),
+				}
+				if s.projectDeploymentRepo != nil {
+					_ = s.projectDeploymentRepo.Create(ctx, newDep)
+				}
+				existing[activeSHA] = newDep
+				deployments = append(deployments, newDep)
 			}
 		}
 

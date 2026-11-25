@@ -385,3 +385,210 @@ func TestProjectDeploy_SmartFallbackPipeline(t *testing.T) {
 		t.Errorf("expected Step 2 log to contain static detection, got: %s", updatedB.Steps[1].Log)
 	}
 }
+
+func TestReconcileActiveProjectDeployments_MatchesAndCompletesSteps(t *testing.T) {
+	ctx := context.Background()
+	tempDir := t.TempDir()
+
+	activeSHA := "0123456789abcdef0123456789abcdef01234567"
+	releaseDir := filepath.Join(tempDir, "releases", activeSHA)
+	if err := os.MkdirAll(releaseDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	currentLink := filepath.Join(tempDir, "current")
+	if err := os.Symlink(releaseDir, currentLink); err != nil {
+		t.Fatal(err)
+	}
+
+	pStore := project.NewMemoryStore()
+	pSvc := project.NewService(pStore, git.NewClient(), "test-secret-key-deployments-32byte", tempDir)
+	proj := &project.Project{
+		ID:            "default",
+		Name:          "Cuan",
+		RepoName:      "cuan",
+		DefaultBranch: "dev",
+		LocalPath:     filepath.Join(tempDir, "cuan"),
+		CreatedAt:     time.Now().UTC(),
+		UpdatedAt:     time.Now().UTC(),
+	}
+	if err := pStore.CreateProject(ctx, proj); err != nil {
+		t.Fatal(err)
+	}
+
+	depRepo := cuanDB.NewMemoryProjectDeploymentRepository()
+	now := time.Now().UTC()
+	s1Start := now.Add(-30 * time.Second)
+	s1End := now.Add(-27 * time.Second)
+	s2End := now.Add(-10 * time.Second)
+	s3End := now.Add(-5 * time.Second)
+	s4Start := now.Add(-4 * time.Second)
+
+	depBuilding := &cuanDB.ProjectDeployment{
+		ID:            "dep_interrupted_step4",
+		ProjectID:     proj.ID,
+		CommitSHA:     activeSHA,
+		ShortSHA:      activeSHA[:7],
+		CommitMessage: "fix(deploy): reconcile interrupted self-deploy",
+		Branch:        "dev",
+		Status:        cuanDB.DeploymentStatusBuilding,
+		TriggerSource: cuanDB.TriggerSourceWebhook,
+		StartedAt:     s1Start,
+		CreatedAt:     s1Start,
+		UpdatedAt:     s4Start,
+		Steps: []cuanDB.ProjectDeploymentStep{
+			{ID: "step-1", Name: "Source Checkout", Status: cuanDB.StepStatusSuccess, Duration: "3s", StartedAt: &s1Start, CompletedAt: &s1End, Summary: "Checked out commit 0123456"},
+			{ID: "step-2", Name: "Compile & Build", Status: cuanDB.StepStatusSuccess, Duration: "17s", StartedAt: &s1End, CompletedAt: &s2End, Summary: "Application compiled successfully"},
+			{ID: "step-3", Name: "Database Migration", Status: cuanDB.StepStatusSuccess, Duration: "5s", StartedAt: &s2End, CompletedAt: &s3End, Summary: "Database schema synchronized and up to date"},
+			{ID: "step-4", Name: "Atomic Service Switch", Status: cuanDB.StepStatusBuilding, StartedAt: &s4Start, Summary: "Performing atomic service switch..."},
+			{ID: "step-5", Name: "Health Verification", Status: cuanDB.StepStatusPending, Summary: "Pending service switch"},
+		},
+	}
+	if err := depRepo.Create(ctx, depBuilding); err != nil {
+		t.Fatal(err)
+	}
+
+	depPending := &cuanDB.ProjectDeployment{
+		ID:        "dep_pending_active",
+		ProjectID: proj.ID,
+		CommitSHA: activeSHA,
+		ShortSHA:  activeSHA[:7],
+		Branch:    "dev",
+		Status:    "pending",
+		StartedAt: s1Start.Add(-time.Minute),
+		CreatedAt: s1Start.Add(-time.Minute),
+		UpdatedAt: s1Start.Add(-time.Minute),
+	}
+	if err := depRepo.Create(ctx, depPending); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := &Server{
+		projectSvc:            pSvc,
+		projectDeploymentRepo: depRepo,
+		cuanCurrentPath:       currentLink,
+	}
+
+	srv.ReconcileActiveProjectDeployments(ctx)
+
+	got, err := depRepo.GetByID(ctx, depBuilding.ID)
+	if err != nil || got == nil {
+		t.Fatalf("failed to get reconciled deployment: %v", err)
+	}
+	if got.Status != cuanDB.DeploymentStatusSuccess {
+		t.Fatalf("expected status success, got %s", got.Status)
+	}
+	if got.CompletedAt == nil {
+		t.Fatal("expected CompletedAt to be set")
+	}
+	if got.DurationSeconds < 1 {
+		t.Errorf("expected DurationSeconds >= 1, got %d", got.DurationSeconds)
+	}
+	if len(got.Steps) != 5 {
+		t.Fatalf("expected 5 steps, got %d", len(got.Steps))
+	}
+	for i, step := range got.Steps {
+		if step.Status != cuanDB.StepStatusSuccess {
+			t.Errorf("step %d (%s) expected status success, got %s", i+1, step.ID, step.Status)
+		}
+		if step.StartedAt == nil {
+			t.Errorf("step %d (%s) expected non-nil StartedAt", i+1, step.ID)
+		}
+		if step.CompletedAt == nil {
+			t.Errorf("step %d (%s) expected non-nil CompletedAt", i+1, step.ID)
+		}
+		if step.Duration == "" {
+			t.Errorf("step %d (%s) expected non-empty Duration", i+1, step.ID)
+		}
+	}
+	if got.Steps[3].Summary != "Release symlink updated and daemon reloaded" {
+		t.Errorf("unexpected step-4 summary: %q", got.Steps[3].Summary)
+	}
+	if got.Steps[3].Log == "" {
+		t.Errorf("expected step-4 log to be populated")
+	}
+	if got.Steps[4].Summary != "Live service health check passed" {
+		t.Errorf("unexpected step-5 summary: %q", got.Steps[4].Summary)
+	}
+	if got.Steps[4].Log == "" {
+		t.Errorf("expected step-5 log to be populated")
+	}
+
+	gotPending, err := depRepo.GetByID(ctx, depPending.ID)
+	if err != nil || gotPending == nil {
+		t.Fatalf("failed to get pending deployment: %v", err)
+	}
+	if gotPending.Status != cuanDB.DeploymentStatusSuccess {
+		t.Fatalf("expected pending deployment for active commit to become success, got %s", gotPending.Status)
+	}
+	if len(gotPending.Steps) != 5 {
+		t.Errorf("expected 5 generated steps for pending deployment, got %d", len(gotPending.Steps))
+	}
+}
+
+func TestReconcileActiveProjectDeployments_SkipsMismatchCommit(t *testing.T) {
+	ctx := context.Background()
+	tempDir := t.TempDir()
+
+	activeSHA := "0123456789abcdef0123456789abcdef01234567"
+	otherSHA := "ffffffffffffffffffffffffffffffffffffffff"
+	releaseDir := filepath.Join(tempDir, "releases", activeSHA)
+	if err := os.MkdirAll(releaseDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	currentLink := filepath.Join(tempDir, "current")
+	if err := os.Symlink(releaseDir, currentLink); err != nil {
+		t.Fatal(err)
+	}
+
+	pStore := project.NewMemoryStore()
+	pSvc := project.NewService(pStore, git.NewClient(), "test-secret-key-deployments-32byte", tempDir)
+	proj := &project.Project{
+		ID:            "default",
+		Name:          "Cuan",
+		RepoName:      "cuan",
+		DefaultBranch: "dev",
+		LocalPath:     filepath.Join(tempDir, "cuan"),
+		CreatedAt:     time.Now().UTC(),
+		UpdatedAt:     time.Now().UTC(),
+	}
+	if err := pStore.CreateProject(ctx, proj); err != nil {
+		t.Fatal(err)
+	}
+
+	depRepo := cuanDB.NewMemoryProjectDeploymentRepository()
+	now := time.Now().UTC()
+	depMismatch := &cuanDB.ProjectDeployment{
+		ID:        "dep_mismatch_building",
+		ProjectID: proj.ID,
+		CommitSHA: otherSHA,
+		ShortSHA:  otherSHA[:7],
+		Branch:    "dev",
+		Status:    cuanDB.DeploymentStatusBuilding,
+		StartedAt: now.Add(-10 * time.Second),
+		CreatedAt: now.Add(-10 * time.Second),
+		UpdatedAt: now.Add(-10 * time.Second),
+		Steps:     generateStandardDeploymentSteps("dev", otherSHA, "feat: other", cuanDB.DeploymentStatusBuilding),
+	}
+	if err := depRepo.Create(ctx, depMismatch); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := &Server{
+		projectSvc:            pSvc,
+		projectDeploymentRepo: depRepo,
+		cuanCurrentPath:       currentLink,
+	}
+
+	srv.ReconcileActiveProjectDeployments(ctx)
+
+	got, err := depRepo.GetByID(ctx, depMismatch.ID)
+	if err != nil || got == nil {
+		t.Fatalf("failed to get deployment: %v", err)
+	}
+	if got.Status != cuanDB.DeploymentStatusBuilding {
+		t.Fatalf("expected mismatch commit deployment to remain building, got %s", got.Status)
+	}
+	if got.CompletedAt != nil {
+		t.Fatalf("expected mismatch commit deployment CompletedAt to remain nil")
+	}
+}
