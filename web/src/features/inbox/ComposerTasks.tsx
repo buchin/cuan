@@ -6,7 +6,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import { StatusDot } from '../../components/ui/StatusDot'
 import { SlideDrawer } from '../../components/ui/SlideDrawer'
 import { CollapsibleChatText } from './CollapsibleChatText'
-import { workStatus, workDisplayStatus, taskExecutionActive, taskLiveActivityText, TASK_STATUS_THEMES } from '../tasks/task-ui'
+import { workStatus, workDisplayStatus, taskExecutionActive, taskConversationSummary, TASK_STATUS_THEMES } from '../tasks/task-ui'
 import { tasksApi } from '../../api/tasks'
 import { CardActions } from './CardActions'
 import { TaskDuration } from '../tasks/TaskDuration'
@@ -164,12 +164,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
             {ordered.map((task, index) => {
               const work = workStatus(task)
               const status = workDisplayStatus(task)
-              const rawSummary = (task.complete_note || task.summary || '').trim()
-              const progress = work === 'Needs attention'
-                ? (task.review_finding || rawSummary)
-                : ['Completed', 'Answered'].includes(work)
-                  ? rawSummary
-                  : (taskLiveActivityText(task, '') || rawSummary)
+              const progress = taskConversationSummary(task)
               return (
                 <li
                   key={task.id}

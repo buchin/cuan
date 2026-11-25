@@ -35,6 +35,21 @@ const earlierTasks=[
   {id:'task-3',title:'Sinkronisasi dan Deploy Release HEAD ke Production VPS',status:'done',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-20000).toISOString(),updated_at:now,complete_note:'Ringkasan rilis:\n\n- Sinkronisasi branch utama dan verifikasi build aset produksi selesai.\n- Migrasi skema database berjalan tanpa downtime.\n- Health check endpoint `/healthz` mengembalikan status 200 OK.'},
   {id:'task-4',title:'Validasi Status dan Respons Server Baru Pasca Migrasi',status:'done',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-10000).toISOString(),updated_at:now,complete_note:'Pemeriksaan pasca migrasi:\n\n- Verifikasi DNS, sertifikat TLS, dan reverse proxy Nginx.\n- Pengujian login magic link, pengiriman email SMTP, dan antrean background worker.\n- Pemantauan metrik CPU, memori, serta log aplikasi selama 15 menit tanpa error.'},
   {id:'task-review',title:'Optimasi & Pembersihan Ruang Penyimpanan',status:'review',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-5000).toISOString(),updated_at:now,latest_progress:'Menunggu pemeriksaan',summary:'Identified disk usage bottlenecks (89% used, 9.0 GiB free)...'},
+  {
+    id:'task-done-live',
+    title:'Investigasi & Perbaiki Pembacaan Lampiran Gambar di Chat',
+    status:'done',
+    priority:'normal',
+    project_id:'project',
+    project_name:'Website',
+    source_room_id:room,
+    commit_sha:'9c4d3f7466565284dbfa786e6a8c46ac93cab45c',
+    summary:'Pembacaan lampiran gambar di chat (termasuk jalur coba lagi) sudah diperbaiki dan diverifikasi.',
+    complete_note:'Independent verification of commit 9c4d3f7466565284dbfa786e6a8c46ac93cab45c (read-only attempt): ran targeted Go tests which passed in 2.716s (saved in session:targeted_verification_tests.txt). Remaining gap: changes are committed locally at 9c4d3f7466565284dbfa786e6a8c46ac93cab45c and not yet pushed/merged to branch dev.\n\n🚀 Perubahan telah diverifikasi aktif pada rilis live (9c4d3f74).',
+    created_at:new Date(Date.parse(now)-2500).toISOString(),
+    completed_at:now,
+    updated_at:now,
+  },
 ]
 const allTasks=[...earlierTasks,baseTask]
 const activities=Array.from({length:30},(_,index)=>({id:'progress-'+index,task_id:'work',attempt_id:'attempt',activity_type:'agent_report',new_status:'progress',author:'agent_cuan',message:['Memeriksa sumber masalah.','Meninjau perubahan yang tersimpan.','Menguji tampilan pada browser.','Membandingkan hasil dengan permintaan awal.'][index%4],created_at:new Date(Date.parse(now)+index*1000).toISOString()}))
@@ -205,6 +220,31 @@ try{
       activities:[
         {id:'act-1',task_id:'task-review',activity_type:'created',message:'Work created',created_at:now},
         {id:'act-2',task_id:'task-review',activity_type:'agent_report',new_status:'review',message:'Eksekusi selesai, menunggu pemeriksaan',created_at:now}
+      ]
+    }
+   }
+   else if(pathname==='/api/v1/tasks/task-done-live'){
+    const t0=new Date(Date.parse(now)-25000).toISOString()
+    const t1=new Date(Date.parse(now)-20000).toISOString()
+    const t2=new Date(Date.parse(now)-15000).toISOString()
+    const t3=new Date(Date.parse(now)-10000).toISOString()
+    const t4=new Date(Date.parse(now)-5000).toISOString()
+    data={
+      id:'task-done-live',title:'Investigasi & Perbaiki Pembacaan Lampiran Gambar di Chat',status:'done',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,
+      commit_sha:'9c4d3f7466565284dbfa786e6a8c46ac93cab45c',
+      created_at:t0,completed_at:now,updated_at:now,
+      summary:'Pembacaan lampiran gambar di chat (termasuk jalur coba lagi) sudah diperbaiki dan diverifikasi.',
+      complete_note:'Independent verification of commit 9c4d3f7466565284dbfa786e6a8c46ac93cab45c (read-only attempt): ran targeted Go tests which passed in 2.716s (saved in session:targeted_verification_tests.txt). Remaining gap: changes are committed locally at 9c4d3f7466565284dbfa786e6a8c46ac93cab45c and not yet pushed/merged to branch dev.\n\n🚀 Perubahan telah diverifikasi aktif pada rilis live (9c4d3f74).',
+      latest_attempt:{id:'att-release',task_id:'task-done-live',kind:'native_release',status:'succeeded',agent_name:'agent_cuan',runner_id:'runner',started_at:t4,finished_at:now},
+      attempts:[
+        {id:'att-exec',task_id:'task-done-live',kind:'execution',status:'succeeded',attempt_number:1,agent_name:'agent_cuan',runner_id:'runner',started_at:t0,finished_at:t1},
+        {id:'att-verify',task_id:'task-done-live',kind:'verification',status:'succeeded',attempt_number:2,agent_name:'agent_cuan',runner_id:'runner',started_at:t2,finished_at:t3},
+        {id:'att-release',task_id:'task-done-live',kind:'native_release',status:'succeeded',attempt_number:3,agent_name:'agent_cuan',runner_id:'runner',started_at:t4,finished_at:now},
+      ],
+      activities:[
+        {id:'done-act-1',task_id:'task-done-live',activity_type:'task_created',author:'operator',message:'Task created',created_at:t0},
+        {id:'done-act-2',task_id:'task-done-live',attempt_id:'att-verify',activity_type:'runner_verification',author:'runner',message:'go test ./internal/server/... ok in 2.716s',created_at:t3},
+        {id:'done-act-3',task_id:'task-done-live',attempt_id:'att-release',activity_type:'deployment_verified',author:'cuan-deploy',message:JSON.stringify({commit:'9c4d3f7466565284dbfa786e6a8c46ac93cab45c'}),created_at:now},
       ]
     }
    }
@@ -386,6 +426,12 @@ try{
   const reviewCard = page.locator('.composer-tasks-panel [data-timeline-item="task-review"]')
   await reviewCard.waitFor({state:'visible'})
   assert.equal(await reviewCard.locator('svg.lucide-eye').count(), 1, 'Task in review must display Eye icon')
+  const doneLiveCard = page.locator('.composer-tasks-panel [data-timeline-item="task-done-live"]')
+  await doneLiveCard.waitFor({state:'visible'})
+  const doneLiveText = await doneLiveCard.innerText()
+  assert.ok(!doneLiveText.includes('not yet pushed/merged'), 'Done live task in Task obrolan must not show stale pre-publication gap text')
+  assert.ok(doneLiveText.includes('Pembacaan lampiran gambar di chat'), 'Done live task in Task obrolan must show clean summary')
+  assert.ok(doneLiveText.includes('Perubahan telah diverifikasi aktif pada rilis live'), 'Done live task in Task obrolan must show live release confirmation')
   assert.equal(await reviewCard.locator('svg.lucide-check-check').count(), 0, 'Task in review must not display double checkmark')
   assert.equal(await page.locator('.composer-tasks-panel svg.lucide-check-check').count(), 0, 'No task in review should use check-check')
   const connectorMetrics = await page.evaluate(() => {
@@ -461,8 +507,23 @@ try{
   assert.equal(await card.locator('[data-timeline-trigger]').count(), 0, 'Linear progress timeline eliminates nested accordion triggers')
   assert.equal(await page.locator('[data-testid="composer-tasks-back"]').count(), 0, 'Inline back button must be eliminated')
   await card.getByText(baseTask.latest_progress,{exact:true}).waitFor()
-  await collapseBtn.click()
-  await drawer.waitFor({state:'hidden'})
+  // Open Rincian for task-done-live to verify permanent Pengerjaan, Verifikasi, and Push & Rilis Live timeline items
+  await doneLiveCard.getByRole('button', { name: /Rincian|Details/i }).click()
+  const donePanel = page.locator('[data-testid="inbox-work-panel"]')
+  await donePanel.waitFor({ state: 'visible' })
+  await donePanel.locator('[data-work-timeline]').waitFor({ state: 'visible' })
+  const donePanelText = await donePanel.innerText()
+  assert.ok(!donePanelText.includes('not yet pushed/merged'), 'Rincian page must not show stale pre-publication gap text')
+  assert.ok(donePanelText.includes('Pengerjaan selesai') || donePanelText.includes('Execution finished'), 'Rincian timeline must show permanent Pengerjaan stage')
+  assert.ok(donePanelText.includes('Verifikasi selesai') || donePanelText.includes('Verification finished'), 'Rincian timeline must show permanent Verifikasi stage')
+  assert.ok(donePanelText.includes('Push & rilis live selesai') || donePanelText.includes('Push & live release finished'), 'Rincian timeline must show permanent Push & Rilis Live stage')
+  await page.screenshot({ path: path.join(output, `rincian-done-live-${width}.png`) })
+  await donePanel.locator('[data-work-back]').first().click()
+  await donePanel.waitFor({ state: 'hidden' })
+  if (await collapseBtn.isVisible()) {
+    await collapseBtn.click()
+    await drawer.waitFor({state:'hidden'})
+  }
   assert.equal(await tasks.getAttribute('aria-expanded'),'false')
   const composer=page.locator('[data-primary-composer]')
   // Verify elimination of composer mode tabs (DoD 1)

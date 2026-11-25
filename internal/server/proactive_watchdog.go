@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -800,6 +801,21 @@ func (s *Server) autoResolveCompletedConversations(ctx context.Context) {
 	}
 }
 
+var (
+	prePublicationGapRe = regexp.MustCompile(`(?im)\s*Remaining gap:\s*[^\n]*(?:not yet pushed|not yet merged|not yet deployed|belum di-push|belum di-merge|belum dirilis)[^\n]*\.?`)
+	unconfirmedDeployRe = regexp.MustCompile(`(?im)\s*Verifikasi deployment production belum dikonfirmasi\.?`)
+	multiNewlineRe      = regexp.MustCompile(`\n{3,}`)
+)
+
+// sanitizePostPublicationCompleteNote removes stale pre-publication gap notes
+// once a task has been merged, pushed, and verified live.
+func sanitizePostPublicationCompleteNote(note string) string {
+	cleaned := prePublicationGapRe.ReplaceAllString(note, "")
+	cleaned = unconfirmedDeployRe.ReplaceAllString(cleaned, "")
+	cleaned = multiNewlineRe.ReplaceAllString(cleaned, "\n\n")
+	return strings.TrimSpace(cleaned)
+}
+
 func extractNativeReleaseHandoffCommit(activities []*task.TaskActivity) string {
 	for _, a := range activities {
 		if a != nil && a.ActivityType == "native_release_handoff" {
@@ -926,7 +942,7 @@ func (s *Server) reconcileVerifiedPublicationTasks(ctx context.Context) {
 				}
 
 				doneStatus := task.TaskStatusDone
-				note := detail.CompleteNote
+				note := sanitizePostPublicationCompleteNote(detail.CompleteNote)
 				displayCommit := verifiedCommit
 				if len(displayCommit) > 8 {
 					displayCommit = displayCommit[:8]

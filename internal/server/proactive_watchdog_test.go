@@ -1283,3 +1283,17 @@ func TestIsAutoApplyMergeConflict(t *testing.T) {
 		t.Fatal("expected true for retained conflicts")
 	}
 }
+
+func TestSanitizePostPublicationCompleteNote(t *testing.T) {
+	raw := "Independent verification of commit 9c4d3f7466565284dbfa786e6a8c46ac93cab45c (read-only attempt): tests passed in 2.716s. Remaining gap: changes are committed locally at 9c4d3f7466565284dbfa786e6a8c46ac93cab45c and not yet pushed/merged to branch dev.\n\nVerifikasi deployment production belum dikonfirmasi."
+	cleaned := sanitizePostPublicationCompleteNote(raw)
+	if strings.Contains(cleaned, "not yet pushed/merged") || strings.Contains(cleaned, "Remaining gap:") {
+		t.Fatalf("expected stale pre-publication gap to be removed, got: %q", cleaned)
+	}
+	if strings.Contains(cleaned, "belum dikonfirmasi") {
+		t.Fatalf("expected unconfirmed deploy note to be removed, got: %q", cleaned)
+	}
+	if !strings.Contains(cleaned, "tests passed in 2.716s.") {
+		t.Fatalf("expected valid verification details to be preserved, got: %q", cleaned)
+	}
+}
