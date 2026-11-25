@@ -625,7 +625,7 @@ func (m *MemoryStore) IsProjectLaneActive(_ context.Context, projectID string, l
 	defer m.mu.Unlock()
 	for _, t := range m.tasks {
 		if (t.ProjectID == projectID || containsString(t.ProjectIDs, projectID)) && (excludeTaskID == "" || t.ID != excludeTaskID) {
-			if strings.HasPrefix(t.Title, "Terminal · ") {
+			if IsDedicatedTerminalTitle(t.Title) {
 				continue
 			}
 			if normalizedLane == ExecutionCategoryCode && WorkflowPrecedes(t, m.tasks[excludeTaskID]) && m.workflowHandoffLocked(t, time.Now().UTC()) {

@@ -539,6 +539,9 @@ func (s *Server) formatProjectRunnerLiveState(ctx context.Context, projectID str
 	if activeTaskID == "" && s.taskSvc != nil {
 		if tasks, err := s.taskSvc.ListTasks(ctx, task.TaskFilter{ProjectID: projectID}); err == nil {
 			for _, t := range tasks {
+				if task.IsDedicatedTerminalTitle(t.Title) {
+					continue
+				}
 				if t.Status == task.TaskStatusDoing || t.Status == "working" {
 					activeTaskID = t.ID
 					startedAt = t.UpdatedAt

@@ -217,7 +217,7 @@ func (m *MemoryStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID strin
 			isCandidateMigration := task.IsTaskSchemaMigration(t)
 
 			for _, otherTask := range tasks {
-				if strings.HasPrefix(otherTask.Title, "Terminal · ") {
+				if task.IsDedicatedTerminalTitle(otherTask.Title) {
 					continue
 				}
 				if otherTask.ID != t.ID && (otherTask.ProjectID == t.ProjectID || containsString(otherTask.ProjectIDs, t.ProjectID)) {
