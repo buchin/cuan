@@ -410,20 +410,6 @@ func (s *Server) handleCloseTaskTerminalSession(w http.ResponseWriter, r *http.R
 	}
 	taskID := s.resolveTaskID(r.Context(), rawID)
 
-	if s.taskSvc != nil {
-		if t, err := s.taskSvc.Store().GetTask(r.Context(), taskID); err == nil && t != nil {
-			pID := t.ProjectID
-			if pID == "" && len(t.ProjectIDs) > 0 {
-				pID = t.ProjectIDs[0]
-			}
-			if pID != "" {
-				_ = terminal.TerminateProjectWorker(pID)
-				if s.terminalManager != nil {
-					_ = s.terminalManager.CloseProjectSession(pID)
-				}
-			}
-		}
-	}
 	_ = terminal.TerminateProjectWorker(taskID)
 	if s.terminalManager != nil {
 		_ = s.terminalManager.CloseSession(taskID)
