@@ -150,6 +150,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
           setOpen(false)
           trigger.current?.focus()
         }}
+        bodyRef={panelRef}
         title={t('Conversation tasks')}
         badge={<span className={cn(
           "composer-tasks-count tabular-nums px-1.5 py-0.5 text-[11px] font-medium rounded-full",
@@ -158,7 +159,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
         data-testid="composer-tasks-drawer"
         size="md"
       >
-        <div ref={panelRef} id={id} className="composer-tasks-panel overscroll-contain overflow-y-auto scroll-pb-2 p-4 sm:p-6">
+        <div id={id} className="composer-tasks-panel">
           <ol className="relative min-w-0 space-y-6 pb-2.5" data-timeline="linear-progress">
             {ordered.map((task, index) => {
               const work = workStatus(task)

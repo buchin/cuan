@@ -31,8 +31,8 @@ const baseTask={id:'work',title:'Perbaiki tampilan website pelanggan dan periksa
 const earlierTasks=[
   {id:'task-1',title:'Diagnosa Operasional Kendala Login Magic Link Nerd di Server Baru',status:'done',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-40000).toISOString(),updated_at:now},
   {id:'task-2',title:'Remediasi dan Perbaikan Pengiriman Magic Link Login Nerd di Server Baru',status:'done',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-30000).toISOString(),updated_at:now},
-  {id:'task-3',title:'Sinkronisasi dan Deploy Release HEAD ke Production VPS',status:'done',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-20000).toISOString(),updated_at:now},
-  {id:'task-4',title:'Validasi Status dan Respons Server Baru Pasca Migrasi',status:'done',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-10000).toISOString(),updated_at:now},
+  {id:'task-3',title:'Sinkronisasi dan Deploy Release HEAD ke Production VPS',status:'done',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-20000).toISOString(),updated_at:now,complete_note:'Ringkasan rilis:\n\n- Sinkronisasi branch utama dan verifikasi build aset produksi selesai.\n- Migrasi skema database berjalan tanpa downtime.\n- Health check endpoint `/healthz` mengembalikan status 200 OK.'},
+  {id:'task-4',title:'Validasi Status dan Respons Server Baru Pasca Migrasi',status:'done',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-10000).toISOString(),updated_at:now,complete_note:'Pemeriksaan pasca migrasi:\n\n- Verifikasi DNS, sertifikat TLS, dan reverse proxy Nginx.\n- Pengujian login magic link, pengiriman email SMTP, dan antrean background worker.\n- Pemantauan metrik CPU, memori, serta log aplikasi selama 15 menit tanpa error.'},
   {id:'task-review',title:'Optimasi & Pembersihan Ruang Penyimpanan',status:'review',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-5000).toISOString(),updated_at:now,latest_progress:'Menunggu pemeriksaan',summary:'Identified disk usage bottlenecks (89% used, 9.0 GiB free)...'},
 ]
 const allTasks=[...earlierTasks,baseTask]
@@ -376,6 +376,39 @@ try{
   assert.equal(await reviewCard.locator('svg.lucide-check-check').count(), 0, 'Task in review must not display double checkmark')
   assert.equal(await page.locator('.composer-tasks-panel svg.lucide-check-check').count(), 0, 'No task in review should use check-check')
   await page.screenshot({path:path.join(output,`composer-tasks-expanded-${width}.png`)})
+  const drawerScroll = drawer.locator('[data-drawer-scroll]')
+  await drawerScroll.waitFor({ state: 'visible' })
+  const scrollMetrics = await page.evaluate(() => {
+    const scroller = document.querySelector('[data-testid="composer-tasks-drawer"] [data-drawer-scroll]')
+    const inner = document.querySelector('.composer-tasks-panel')
+    if (!scroller || !inner) return null
+    const scrollerStyle = getComputedStyle(scroller)
+    const innerStyle = getComputedStyle(inner)
+    return {
+      initialTop: scroller.scrollTop,
+      scrollHeight: scroller.scrollHeight,
+      clientHeight: scroller.clientHeight,
+      scrollerOverflowY: scrollerStyle.overflowY,
+      innerOverflowY: innerStyle.overflowY,
+    }
+  })
+  assert.ok(scrollMetrics, 'Drawer scroll container and inner panel must exist')
+  assert.equal(scrollMetrics.initialTop, 0, 'Drawer scroll must start at top (0)')
+  assert.ok(scrollMetrics.scrollHeight > scrollMetrics.clientHeight, `Drawer must be scrollable at width ${width} (${scrollMetrics.scrollHeight} > ${scrollMetrics.clientHeight})`)
+  assert.ok(['auto', 'scroll'].includes(scrollMetrics.scrollerOverflowY), 'SlideDrawer body must own overflow-y')
+  assert.ok(!['auto', 'scroll'].includes(scrollMetrics.innerOverflowY), 'composer-tasks-panel must not create a nested scroll container')
+  await drawerScroll.evaluate((el) => { el.scrollTop = el.scrollHeight })
+  await page.waitForTimeout(100)
+  const bottomScroll = await drawerScroll.evaluate((el) => ({
+    scrollTop: el.scrollTop,
+    clientHeight: el.clientHeight,
+    scrollHeight: el.scrollHeight,
+  }))
+  assert.ok(bottomScroll.scrollTop > 0, `Drawer must scroll down at width ${width}`)
+  assert.ok(bottomScroll.scrollTop + bottomScroll.clientHeight >= bottomScroll.scrollHeight - 2, `Drawer must reach bottom at width ${width}`)
+  await page.screenshot({path:path.join(output,`composer-tasks-scrolled-bottom-${width}.png`)})
+  await drawerScroll.evaluate((el) => { el.scrollTop = 0 })
+  assert.equal(await drawerScroll.evaluate((el) => el.scrollTop), 0, 'Drawer must scroll back to top cleanly')
   assert.equal(await page.getByText('Files from this work session',{exact:true}).count(),0)
   assert.equal(await card.locator('[data-timeline-trigger]').count(), 0, 'Linear progress timeline eliminates nested accordion triggers')
   assert.equal(await page.locator('[data-testid="composer-tasks-back"]').count(), 0, 'Inline back button must be eliminated')
