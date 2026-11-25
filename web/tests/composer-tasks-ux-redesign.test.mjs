@@ -6,11 +6,13 @@ import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const composerTasksPath = path.resolve(__dirname, '../src/features/inbox/ComposerTasks.tsx')
+const slideDrawerPath = path.resolve(__dirname, '../src/components/layout/SlideDrawer.tsx')
 const chatCalmCssPath = path.resolve(__dirname, '../src/features/inbox/chat-calm.css')
 const enJsonPath = path.resolve(__dirname, '../src/locales/en.json')
 const idJsonPath = path.resolve(__dirname, '../src/locales/id.json')
 
 const composerTasksSrc = fs.readFileSync(composerTasksPath, 'utf8')
+const slideDrawerSrc = fs.readFileSync(slideDrawerPath, 'utf8')
 const chatCalmCssSrc = fs.readFileSync(chatCalmCssPath, 'utf8')
 const enJson = JSON.parse(fs.readFileSync(enJsonPath, 'utf8'))
 const idJson = JSON.parse(fs.readFileSync(idJsonPath, 'utf8'))
@@ -67,10 +69,14 @@ test('4. Terminal action button uses concise "Terminal" label', () => {
   )
 })
 
-test('5. Breathing room & scroll fighting isolation', () => {
+test('5. Breathing room & single scroll container isolation', () => {
   assert.ok(
-    composerTasksSrc.includes('overscroll-contain overflow-y-auto scroll-pb-2'),
-    'Panel must isolate scroll with overscroll-contain and overflow-y-auto'
+    slideDrawerSrc.includes('min-h-0 overflow-y-auto overscroll-contain'),
+    'SlideDrawer body must own the single min-h-0 overflow-y-auto overscroll-contain scroll container'
+  )
+  assert.ok(
+    composerTasksSrc.includes('bodyRef={panelRef}') && !composerTasksSrc.includes('composer-tasks-panel overscroll-contain overflow-y-auto'),
+    'ComposerTasks must delegate scrolling to SlideDrawer bodyRef without nested overflow-y-auto'
   )
 })
 

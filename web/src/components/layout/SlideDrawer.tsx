@@ -127,7 +127,7 @@ export function SlideDrawer({
         onScroll={onBodyScroll}
         data-drawer-scroll
         className={cn(
-          "flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5 min-w-0 focus:outline-none",
+          "flex-1 min-h-0 overflow-y-auto overscroll-contain scroll-pb-2 px-4 py-4 sm:px-6 sm:py-5 min-w-0 focus:outline-none",
           contentClassName
         )}
       >
