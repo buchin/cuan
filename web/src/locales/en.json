@@ -960,5 +960,6 @@
   "Start terminal": "Start terminal",
   "Primary": "Primary",
   "Versi baru aktif": "New version live",
-  "Muat Ulang": "Reload"
+  "Muat Ulang": "Reload",
+  "Memuat ulang...": "Reloading..."
 }

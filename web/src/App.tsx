@@ -282,6 +282,7 @@ export function App() {
 
   const { t } = useLanguage()
   const [newReleaseAvailable, setNewReleaseAvailable] = useState(false)
+  const [reloadingRelease, setReloadingRelease] = useState(false)
   const initialShaRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -1427,16 +1428,22 @@ export function App() {
         <aside
           role="status"
           aria-live="polite"
-          className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50 flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-secondary/95 backdrop-blur border border-border/40 shadow-sm text-xs text-foreground transition-all animate-in fade-in slide-in-from-bottom-2"
+          className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50 flex items-center gap-2.5 pl-3.5 pr-2 py-1.5 rounded-full bg-secondary/95 backdrop-blur border border-border/40 shadow-sm text-xs text-foreground transition-all animate-in fade-in slide-in-from-bottom-2"
         >
           <span className="flex h-2 w-2 rounded-full bg-emerald-500" />
           <span className="font-normal text-muted-foreground">{t('Versi baru aktif')}</span>
           <button
             type="button"
-            onClick={() => void reloadApp()}
-            className="px-2.5 py-0.5 rounded-full bg-foreground text-background font-medium hover:opacity-90 transition-opacity text-[11px]"
+            disabled={reloadingRelease}
+            onClick={() => {
+              if (reloadingRelease) return
+              setReloadingRelease(true)
+              void reloadApp().catch(() => setReloadingRelease(false))
+            }}
+            className="inline-flex min-h-8 items-center gap-1.5 px-3 py-1 rounded-full bg-foreground text-background font-medium hover:opacity-90 disabled:opacity-60 transition-opacity text-xs cursor-pointer"
           >
-            {t('Muat Ulang')}
+            {reloadingRelease && <Loader2 className="h-3 w-3 animate-spin" />}
+            {reloadingRelease ? t('Memuat ulang...') : t('Muat Ulang')}
           </button>
         </aside>
       )}

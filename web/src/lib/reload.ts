@@ -6,33 +6,41 @@
  * 4. Force-reloads the window bypassing the browser cache
  */
 export async function reloadApp(): Promise<void> {
-  // 1. Clear Cache Storage API
-  if (typeof window !== 'undefined' && 'caches' in window) {
-    try {
-      const keys = await window.caches.keys()
-      await Promise.all(keys.map((key) => window.caches.delete(key)))
-    } catch {
-      // Ignore cache clearing errors
+  const cleanup = async (): Promise<void> => {
+    // 1. Clear Cache Storage API
+    if (typeof window !== 'undefined' && 'caches' in window) {
+      try {
+        const keys = await window.caches.keys()
+        await Promise.all(keys.map((key) => window.caches.delete(key)))
+      } catch {
+        // Ignore cache clearing errors
+      }
+    }
+
+    // 2. Clear or update service worker registrations
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations()
+        await Promise.all(
+          registrations.map(async (reg) => {
+            try {
+              await reg.update()
+            } catch {
+              await reg.unregister()
+            }
+          }),
+        )
+      } catch {
+        // Ignore service worker registration errors
+      }
     }
   }
 
-  // 2. Clear or update service worker registrations
-  if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-    try {
-      const registrations = await navigator.serviceWorker.getRegistrations()
-      await Promise.all(
-        registrations.map(async (reg) => {
-          try {
-            await reg.update()
-          } catch {
-            await reg.unregister()
-          }
-        }),
-      )
-    } catch {
-      // Ignore service worker registration errors
-    }
-  }
+  // Bound cache/SW cleanup so a slow or stalled update never blocks reload.
+  await Promise.race([
+    cleanup(),
+    new Promise<void>((resolve) => setTimeout(resolve, 1500)),
+  ])
 
   // 3. Trigger hard reload with bypass cache
   try {
