@@ -897,7 +897,7 @@ func (s *Server) reconcileVerifiedPublicationTasks(ctx context.Context) {
 			// Autonomous reconciliation for tasks whose verification is confirmed or whose DoD is 100% satisfied
 			latestFailed := detail.LatestAttempt != nil && detail.LatestAttempt.Status == task.AttemptStatusFailed
 			awaitingDeploy := strings.Contains(detail.CompleteNote, "Verifikasi deployment production belum dikonfirmasi")
-			if !isVerified && !latestFailed && !awaitingDeploy && detail.Status == task.TaskStatusReview {
+			if !isVerified && !latestFailed && !awaitingDeploy && detail.Status == task.TaskStatusReview && (obs == nil || !obs.Required) {
 				allDoDMet := len(detail.DoDChecklist) > 0
 				for _, item := range detail.DoDChecklist {
 					if !item.Completed {
