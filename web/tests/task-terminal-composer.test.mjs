@@ -198,3 +198,11 @@ test('11. Binary wire protocol & xterm.js auto-response drop guard', () => {
   assert.match(terminalContent, /encodeTerminalDataFrame\(data\)/, 'TaskTerminal must use binary data frame encoding')
   assert.match(terminalContent, /isXtermJsAutoResponse\(data\)/, 'TaskTerminal must drop stock xterm probe auto-responses')
 })
+
+test('12. TerminalComposer uses server-returned upload path and quotes whitespace', () => {
+  const composerContent = fs.readFileSync(path.join(rootDir, 'src/features/tasks/terminal/TerminalComposer.tsx'), 'utf8')
+  assert.match(composerContent, /data\?\.files/, 'TerminalComposer must read uploaded file metadata from server response')
+  assert.match(composerContent, /serverFile\?\.path/, 'TerminalComposer must use server-returned path')
+  assert.match(composerContent, /\/\\s\/\.test\(f\.path\)/, 'TerminalComposer must quote paths containing whitespace')
+  assert.match(composerContent, /const quotedPath = `"\$\{target\.path\}"`/, 'handleRemoveFile must cleanly remove quoted paths with spaces')
+})

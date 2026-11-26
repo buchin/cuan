@@ -383,9 +383,20 @@ export function TaskTerminal({
           throw new Error(errJson.error || errJson.message || `Upload failed (${res.status})`)
         }
 
-        const paths = fileList
-          .map((f) => (f.name.includes(' ') ? `"./${f.name}"` : `./${f.name}`))
-          .join(' ')
+        const data = await res.json().catch(() => ({}))
+        const serverFiles: Array<{ filename?: string; path?: string }> =
+          Array.isArray(data?.files) ? data.files : []
+        const paths =
+          serverFiles.length > 0
+            ? serverFiles
+                .map((sf) => {
+                  const p = sf.path || `./${sf.filename || ''}`
+                  return /\s/.test(p) ? `"${p}"` : p
+                })
+                .join(' ')
+            : fileList
+                .map((f) => (f.name.includes(' ') ? `"./${f.name}"` : `./${f.name}`))
+                .join(' ')
 
         // Inject relative path into terminal stdin with trailing space
         sendKey(paths + ' ')

@@ -16,6 +16,7 @@ import (
 
 	projectpkg "github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
+	"github.com/buchin/cuan/internal/terminal"
 )
 
 // resolveTaskExecutionWorkspace resolves the actual active execution workspace for a task,
@@ -65,16 +66,67 @@ func (s *Server) resolveTaskExecutionWorkspace(ctx context.Context, rawTaskID st
 	// 2. Check if task belongs to a project with its own execution workspace
 	if s.taskSvc != nil && s.projectSvc != nil {
 		detail, err := s.taskSvc.GetTaskDetail(ctx, taskID)
-		if err == nil && detail != nil && detail.ProjectID != "" {
-			project, pErr := s.projectSvc.TaskContext(ctx, detail.ProjectID, detail.Instructions)
-			if pErr == nil && project != nil && (project.RepoURL != "" || project.LocalPath != "") {
-				workDir, e := s.projectSvc.TaskExecutionWorkspace(ctx, taskID, detail.Instructions, project)
-				if errors.Is(e, projectpkg.ErrExecutionWorkspaceMissing) {
-					workDir, e = s.projectSvc.ReconstructTaskExecutionWorkspace(ctx, taskID, project)
+		if err == nil && detail != nil {
+			targetProjID := strings.TrimSpace(detail.ProjectID)
+			if targetProjID == "" && len(detail.ProjectIDs) > 0 {
+				targetProjID = strings.TrimSpace(detail.ProjectIDs[0])
+			}
+
+			cleanTitle := strings.TrimSpace(detail.Title)
+			isDedicatedTerminal := task.IsDedicatedTerminalTitle(cleanTitle) ||
+				strings.HasPrefix(cleanTitle, "Terminal ") ||
+				strings.Contains(cleanTitle, "Terminal ·") ||
+				(detail.LatestAttempt != nil && detail.LatestAttempt.RunnerID == "local_terminal")
+
+			if isDedicatedTerminal {
+				if targetProjID == "" {
+					if projs, pListErr := s.projectSvc.List(ctx); pListErr == nil && len(projs) > 0 {
+						for _, p := range projs {
+							if strings.EqualFold(p.Name, "cuan") {
+								targetProjID = p.ID
+								break
+							}
+						}
+						if targetProjID == "" {
+							targetProjID = projs[0].ID
+						}
+					}
 				}
-				if e == nil && workDir != "" {
-					_ = os.MkdirAll(workDir, 0755)
-					return taskID, workDir, nil
+				if targetProjID != "" {
+					if s.terminalManager != nil {
+						sessionKey := terminal.ProjectSessionKey(targetProjID)
+						if sess, ok := s.terminalManager.GetSession(sessionKey); ok && sess != nil && sess.PTY() != nil {
+							if dir := sess.PTY().WorkDir(); dir != "" {
+								if info, statErr := os.Stat(dir); statErr == nil && info.IsDir() {
+									return taskID, dir, nil
+								}
+							}
+						}
+					}
+					if proj, pErr := s.projectSvc.Get(ctx, targetProjID); pErr == nil && proj != nil {
+						workDir, wErr := s.projectSvc.ProjectTerminalWorkspace(ctx, proj.ID, proj)
+						if wErr != nil || workDir == "" {
+							workDir = proj.LocalPath
+						}
+						if workDir != "" {
+							_ = os.MkdirAll(workDir, 0755)
+							return taskID, workDir, nil
+						}
+					}
+				}
+			}
+
+			if targetProjID != "" {
+				project, pErr := s.projectSvc.TaskContext(ctx, targetProjID, detail.Instructions)
+				if pErr == nil && project != nil && (project.RepoURL != "" || project.LocalPath != "") {
+					workDir, e := s.projectSvc.TaskExecutionWorkspace(ctx, taskID, detail.Instructions, project)
+					if errors.Is(e, projectpkg.ErrExecutionWorkspaceMissing) {
+						workDir, e = s.projectSvc.ReconstructTaskExecutionWorkspace(ctx, taskID, project)
+					}
+					if e == nil && workDir != "" {
+						_ = os.MkdirAll(workDir, 0755)
+						return taskID, workDir, nil
+					}
 				}
 			}
 		}
@@ -131,6 +183,7 @@ func (s *Server) handleUploadTaskFile(w http.ResponseWriter, r *http.Request) {
 	type UploadedFileResult struct {
 		Filename string `json:"filename"`
 		Path     string `json:"path"`
+		AbsPath  string `json:"abs_path"`
 		Size     int64  `json:"size"`
 	}
 	uploaded := make([]UploadedFileResult, 0, len(files))
@@ -148,6 +201,10 @@ func (s *Server) handleUploadTaskFile(w http.ResponseWriter, r *http.Request) {
 		}
 
 		destPath := filepath.Join(workDir, cleanName)
+		absPath, absErr := filepath.Abs(destPath)
+		if absErr != nil {
+			absPath = destPath
+		}
 		dst, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 		if err != nil {
 			src.Close()
@@ -166,6 +223,7 @@ func (s *Server) handleUploadTaskFile(w http.ResponseWriter, r *http.Request) {
 		uploaded = append(uploaded, UploadedFileResult{
 			Filename: cleanName,
 			Path:     "./" + cleanName,
+			AbsPath:  absPath,
 			Size:     written,
 		})
 	}
@@ -176,13 +234,15 @@ func (s *Server) handleUploadTaskFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"ok":       true,
-		"task_id":  taskID,
-		"files":    uploaded,
-		"filename": uploaded[0].Filename,
-		"path":     uploaded[0].Path,
-		"size":     uploaded[0].Size,
-		"message":  fmt.Sprintf("Uploaded %d file(s) to workspace", len(uploaded)),
+		"ok":            true,
+		"task_id":       taskID,
+		"workspace_dir": workDir,
+		"files":         uploaded,
+		"filename":      uploaded[0].Filename,
+		"path":          uploaded[0].Path,
+		"abs_path":      uploaded[0].AbsPath,
+		"size":          uploaded[0].Size,
+		"message":       fmt.Sprintf("Uploaded %d file(s) to workspace", len(uploaded)),
 	})
 }
 

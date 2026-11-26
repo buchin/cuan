@@ -542,24 +542,32 @@ export function TerminalComposer({
         throw new Error(errJson.error || errJson.message || `Upload failed (${res.status})`)
       }
 
+      const data = await res.json().catch(() => ({}))
+      const serverFiles: Array<{ filename?: string; path?: string; abs_path?: string; size?: number }> =
+        Array.isArray(data?.files) ? data.files : []
+
       const newUploaded: { name: string; path: string; size: number; previewUrl?: string }[] = []
 
-      for (const f of fileList) {
-        const isImg = isImageFile(f.name, f.type)
+      for (let i = 0; i < fileList.length; i++) {
+        const f = fileList[i]
+        const serverFile = serverFiles[i]
+        const savedName = serverFile?.filename || f.name
+        const savedPath = serverFile?.path || `./${savedName}`
+        const isImg = isImageFile(savedName, f.type)
         const previewUrl = isImg ? URL.createObjectURL(f) : undefined
         newUploaded.push({
-          name: f.name,
-          path: f.name,
-          size: f.size,
+          name: savedName,
+          path: savedPath,
+          size: serverFile?.size ?? f.size,
           previewUrl,
         })
       }
 
       setUploadedFiles((prev) => [...prev, ...newUploaded])
 
-      // Automatically append uploaded paths into composer input (quote if filename contains spaces)
+      // Automatically append uploaded paths into composer input (quote if path contains spaces)
       const paths = newUploaded
-        .map((f) => (f.name.includes(' ') ? `"./${f.name}"` : `./${f.name}`))
+        .map((f) => (/\s/.test(f.path) ? `"${f.path}"` : f.path))
         .join(' ')
       setText((prev) => (prev ? `${prev.trim()} ${paths} ` : `${paths} `))
       if (textareaRef.current) {
@@ -597,7 +605,16 @@ export function TerminalComposer({
       if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl)
       const next = prev.filter((_, i) => i !== idx)
       if (target) {
-        setText((current) => current.replace(`./${target.name}`, '').replace(target.name, '').trim())
+        const quotedPath = `"${target.path}"`
+        setText((current) =>
+          current
+            .replace(quotedPath, '')
+            .replace(target.path, '')
+            .replace(`./${target.name}`, '')
+            .replace(target.name, '')
+            .replace(/\s{2,}/g, ' ')
+            .trim(),
+        )
       }
       return next
     })
