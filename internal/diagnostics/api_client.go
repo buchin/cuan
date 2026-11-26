@@ -442,6 +442,31 @@ func (c *CuanClient) GetConversationSnapshot(ctx context.Context, roomID string,
 	return map[string]any{"room_id": roomID, "messages": data.Messages, "total": len(data.Messages), "requests": data.Requests, "task_count": data.TaskCount}, nil
 }
 
+// DeleteMessage deletes a message by its UUID via /api/v1/messages/{id}.
+func (c *CuanClient) DeleteMessage(ctx context.Context, messageID string) (map[string]any, error) {
+	messageID = strings.TrimSpace(messageID)
+	if messageID == "" {
+		return nil, fmt.Errorf("message_id is required")
+	}
+	endpoint := fmt.Sprintf("/api/v1/messages/%s", url.PathEscape(messageID))
+	resp, err := c.doRequest(ctx, http.MethodDelete, endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("delete message: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("delete message failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(bodyBytes, &result); err != nil || result == nil {
+		return map[string]any{"ok": true, "deleted": true, "id": messageID}, nil
+	}
+	return result, nil
+}
+
 // ListConversations returns available inbox conversations and contacts.
 func (c *CuanClient) ListConversations(ctx context.Context, projectID string, limit int) ([]map[string]any, error) {
 	if limit <= 0 || limit > 100 {

@@ -573,6 +573,7 @@ func ClassifyMessageContext(msg string) ChatContextRole {
 
 // extractMentionHandle finds the first @handle mention in the message, e.g. "@dev" -> "@dev".
 func extractMentionHandle(msg string) string {
+	msg, _ = decodeAttachmentMessage(msg)
 	parts := strings.Fields(msg)
 	for _, p := range parts {
 		clean := strings.Trim(p, ",!?:;\"'()[]{}")

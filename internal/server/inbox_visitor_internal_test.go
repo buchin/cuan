@@ -221,3 +221,128 @@ func TestFormatConversationHistoryContext_VisitorRole(t *testing.T) {
 		t.Fatalf("expected visitor turn to be labeled '**Visitor**:', got:\n%s", result)
 	}
 }
+
+func TestCustomerMessageVisibility_WhisperWithAttachmentAndDelete(t *testing.T) {
+	srv, token := setupTestChatServer(t)
+
+	// 1. Initialize visitor chat session
+	initBody, _ := json.Marshal(map[string]any{
+		"guest_uuid": "guest-whisper-attachment-1",
+		"product":    "cuan",
+		"name":       "Test Visitor",
+		"email":      "visitor@example.com",
+		"message":    "Halo min",
+	})
+	reqInit := httptest.NewRequest(http.MethodPost, "/api/chat/session", bytes.NewReader(initBody))
+	reqInit.Header.Set("Content-Type", "application/json")
+	recInit := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recInit, reqInit)
+	if recInit.Code != http.StatusOK {
+		t.Fatalf("expected 200 on session init, got %d: %s", recInit.Code, recInit.Body.String())
+	}
+	var initResp struct {
+		OK      bool `json:"ok"`
+		Session struct {
+			UUID string `json:"uuid"`
+		} `json:"session"`
+	}
+	if err := json.Unmarshal(recInit.Body.Bytes(), &initResp); err != nil || !initResp.OK {
+		t.Fatalf("failed to decode session init response: %v", err)
+	}
+	sessionUUID := initResp.Session.UUID
+
+	// 2. Operator creates an internal whisper message with an attachment (CUAN_MESSAGE_V1 envelope)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	whisperID := cuanDB.GenerateUUID()
+	attID := cuanDB.GenerateUUID()
+	whisperContent := encodeAttachmentMessage("@cuan ini creds prod rahasia", []string{attID})
+	if err := srv.projectStudioRepo.CreateMessage(ctx, &cuanDB.ProjectMessage{
+		ID:         whisperID,
+		RoomID:     sessionUUID,
+		AuthorType: "user",
+		AuthorID:   "operator_user",
+		AuthorName: "You",
+		Content:    whisperContent,
+		CreatedAt:  now.Add(5 * time.Second),
+		UpdatedAt:  now.Add(5 * time.Second),
+	}); err != nil {
+		t.Fatalf("failed to create whisper with attachment: %v", err)
+	}
+
+	// 3. Internal conversation endpoint must mark it IsInternal=true
+	reqInternal := httptest.NewRequest(http.MethodGet, "/api/v1/chat/conversations/"+sessionUUID+"/messages", nil)
+	reqInternal.Header.Set("Authorization", "Bearer "+token)
+	recInternal := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recInternal, reqInternal)
+	if recInternal.Code != http.StatusOK {
+		t.Fatalf("failed to fetch internal messages: %d", recInternal.Code)
+	}
+	var internalResp struct {
+		Messages []ChatMessageDTO `json:"messages"`
+	}
+	if err := json.Unmarshal(recInternal.Body.Bytes(), &internalResp); err != nil {
+		t.Fatalf("failed to parse internal messages: %v", err)
+	}
+	foundInternal := false
+	for _, m := range internalResp.Messages {
+		if m.UUID == whisperID {
+			foundInternal = true
+			if !m.IsInternal {
+				t.Fatalf("LEAK: whisper with attachment was not marked IsInternal=true")
+			}
+		}
+	}
+	if !foundInternal {
+		t.Fatalf("expected whisper with attachment to appear in internal conversation endpoint")
+	}
+
+	// 4. Visitor poll endpoint MUST NOT return the whisper with attachment
+	reqPoll := httptest.NewRequest(http.MethodGet, "/api/chat/messages?session_uuid="+sessionUUID, nil)
+	recPoll := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recPoll, reqPoll)
+	if recPoll.Code != http.StatusOK {
+		t.Fatalf("failed to poll visitor messages: %d", recPoll.Code)
+	}
+	var pollResp struct {
+		OK       bool             `json:"ok"`
+		Messages []ChatMessageDTO `json:"messages"`
+	}
+	if err := json.Unmarshal(recPoll.Body.Bytes(), &pollResp); err != nil || !pollResp.OK {
+		t.Fatalf("failed to parse visitor poll response: %v", err)
+	}
+	for _, m := range pollResp.Messages {
+		if m.UUID == whisperID || strings.Contains(m.Content, "creds prod rahasia") {
+			t.Fatalf("LEAK DETECTED: whisper with attachment leaked to visitor poll endpoint: %+v", m)
+		}
+	}
+
+	// 5. Delete message via DELETE /api/messages/{id}
+	reqDel := httptest.NewRequest(http.MethodDelete, "/api/messages/"+whisperID, nil)
+	reqDel.Header.Set("Authorization", "Bearer "+token)
+	recDel := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recDel, reqDel)
+	if recDel.Code != http.StatusOK {
+		t.Fatalf("expected 200 deleting message, got %d: %s", recDel.Code, recDel.Body.String())
+	}
+
+	// 6. Deleted message must no longer appear in internal conversation endpoint
+	reqAfter := httptest.NewRequest(http.MethodGet, "/api/v1/chat/conversations/"+sessionUUID+"/messages", nil)
+	reqAfter.Header.Set("Authorization", "Bearer "+token)
+	recAfter := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recAfter, reqAfter)
+	if recAfter.Code != http.StatusOK {
+		t.Fatalf("failed to fetch internal messages after delete: %d", recAfter.Code)
+	}
+	var afterResp struct {
+		Messages []ChatMessageDTO `json:"messages"`
+	}
+	if err := json.Unmarshal(recAfter.Body.Bytes(), &afterResp); err != nil {
+		t.Fatalf("failed to parse internal messages after delete: %v", err)
+	}
+	for _, m := range afterResp.Messages {
+		if m.UUID == whisperID {
+			t.Fatalf("expected deleted message %s to be removed from conversation", whisperID)
+		}
+	}
+}

@@ -399,6 +399,7 @@ func (s *inboxRuntimeStream) consume(line []byte) {
 				"create_task_draft":        "Create task draft",
 				"list_inbox_conversations": "List inbox conversations",
 				"get_inbox_messages":       "Get inbox messages",
+				"delete_inbox_message":     "Delete inbox message",
 				"list_contacts":            "List contacts",
 				"get_contact":              "Get contact",
 				"list_scheduled_jobs":      "List scheduled jobs",

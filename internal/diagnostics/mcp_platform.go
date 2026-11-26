@@ -639,6 +639,44 @@ func GetInboxMessages(ctx context.Context, roomID string, limit int) (any, error
 	}, nil
 }
 
+// DeleteInboxMessage deletes an inbox or conversation message by its UUID.
+func DeleteInboxMessage(ctx context.Context, messageID string) (any, error) {
+	messageID = strings.TrimSpace(messageID)
+	if messageID == "" {
+		return nil, fmt.Errorf("message_id is required")
+	}
+	if client := GetCuanClient(); client != nil && client.IsConfigured() {
+		return client.DeleteMessage(ctx, messageID)
+	}
+	db := getPlatformDB()
+	if db == nil {
+		return nil, fmt.Errorf("configure the Cuan API to manage conversation messages")
+	}
+
+	var roomID string
+	err := db.QueryRowContext(ctx, "SELECT room_id::text FROM project_messages WHERE id::text = $1", messageID).Scan(&roomID)
+	if err != nil {
+		return nil, fmt.Errorf("message not found: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, "UPDATE project_messages SET reply_to_id = NULL WHERE reply_to_id::text = $1", messageID); err != nil {
+		return nil, fmt.Errorf("unlink replies: %w", err)
+	}
+	res, err := db.ExecContext(ctx, "DELETE FROM project_messages WHERE id::text = $1", messageID)
+	if err != nil {
+		return nil, fmt.Errorf("delete message: %w", err)
+	}
+	affected, _ := res.RowsAffected()
+	if affected == 0 {
+		return nil, fmt.Errorf("message not found")
+	}
+	return map[string]any{
+		"ok":      true,
+		"deleted": true,
+		"id":      messageID,
+		"room_id": roomID,
+	}, nil
+}
+
 // ContactSummary represents a CRM contact.
 type ContactSummary struct {
 	ID          string   `json:"id"`

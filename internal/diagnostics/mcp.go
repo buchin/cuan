@@ -370,6 +370,20 @@ var nativeMCPTools = []mcpToolDefinition{
 		},
 	},
 	{
+		Name:        "delete_inbox_message",
+		Description: "Delete an inbox or conversation message by its message ID (UUID).",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"message_id": map[string]any{
+					"type":        "string",
+					"description": "Message UUID to delete",
+				},
+			},
+			"required": []string{"message_id"},
+		},
+	},
+	{
 		Name:        "create_inbox_conversation",
 		Description: "Create a new discussion room or agent conversation in Cuan Inbox, optionally bound to an agent (@sm, @dev, @support) and project.",
 		InputSchema: map[string]any{
@@ -1112,6 +1126,9 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 				limit = int(rawLimit)
 			}
 			toolResult, toolErr = GetInboxMessages(ctx, roomID, limit)
+		case "delete_inbox_message":
+			messageID, _ := callParams.Arguments["message_id"].(string)
+			toolResult, toolErr = DeleteInboxMessage(ctx, messageID)
 		case "create_inbox_conversation":
 			agentID, _ := callParams.Arguments["agent_id"].(string)
 			projectID, _ := callParams.Arguments["project_id"].(string)
