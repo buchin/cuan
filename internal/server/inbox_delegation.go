@@ -378,8 +378,15 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 		return fail("conversation is unavailable")
 	}
 	var t *task.TaskDetailResponse
+	d.TaskID = strings.TrimSpace(strings.Trim(d.TaskID, "`\"'"))
 	if d.TaskID != "" {
 		t, err = s.taskSvc.GetTaskDetail(ctx, d.TaskID)
+		if (err != nil || t == nil) && !strings.HasPrefix(d.TaskID, "msg_") && !strings.HasPrefix(d.TaskID, "task_") {
+			if alt, altErr := s.taskSvc.GetTaskDetail(ctx, "msg_"+d.TaskID); altErr == nil && alt != nil {
+				t, err = alt, nil
+				d.TaskID = alt.ID
+			}
+		}
 		if err != nil || t == nil {
 			return fail("the task could not be found")
 		}
