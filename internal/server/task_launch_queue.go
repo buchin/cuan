@@ -27,6 +27,12 @@ func retryableReviewLaunchError(err error) bool {
 	return err != nil && !errors.Is(err, task.ErrRequestConflict) && !errors.Is(err, task.ErrInvalidTaskInput) && !errors.Is(err, task.ErrTaskNotFound)
 }
 
+func isTypedSystemLaunchRevision(revision string) bool {
+	return strings.Contains(revision, task.VerificationIntentMarker) ||
+		strings.Contains(revision, task.LiveInspectionMarker) ||
+		strings.Contains(revision, task.NativeReleaseIntentMarker)
+}
+
 func (s *Server) startAuthorizedLaunch(ctx context.Context, q db.InboxRequest, t *task.TaskDetailResponse, launchID, sourceRequestID, revision string, deadline ...time.Time) string {
 	// System-generated phase turns are execution context, never fresh consent.
 	// All continuation paths (capacity, interruption, inspection and review) must
@@ -52,13 +58,16 @@ func (s *Server) startAuthorizedLaunch(ctx context.Context, q db.InboxRequest, t
 	}
 	// Automatic corrections inherit the owner's approved continuation. Feedback
 	// from a review cannot erase a prior no-push/no-deploy or read-only boundary.
+	// Typed system launches (verification, live inspection, native release) carry
+	// their own immutable scope bindings and must not be wrapped with writable
+	// continuation instructions.
 	ownerTurn := false
 	if launchID == q.RequestID && s.projectStudioRepo != nil {
 		if message, err := s.projectStudioRepo.GetMessageByID(ctx, q.MessageID); err == nil && message != nil && message.AuthorType == "user" {
 			ownerTurn = true
 		}
 	}
-	if !ownerTurn {
+	if !ownerTurn && !isTypedSystemLaunchRevision(revision) {
 		basis, err := s.ownerContinuationLaunch(ctx, t)
 		if err != nil {
 			recordInboxReviewLaunchError(ctx, err)

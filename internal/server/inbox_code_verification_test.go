@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/executionpolicy"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -94,5 +96,76 @@ func TestCodePassRequiresSeparateVerifier(t *testing.T) {
 				t.Fatal("verification admission waived or replaced original criterion")
 			}
 		})
+	}
+}
+
+func TestVerificationLaunchDoesNotWrapWritableOwnerContinuation(t *testing.T) {
+	s, d, q := stalledReviewFixture(t, "completed")
+	ctx := context.Background()
+	store := s.taskSvc.Store()
+	if err := store.CreateTask(ctx, &task.Task{ID: "busy", ProjectID: d.ProjectID, Status: task.TaskStatusDoing, ExecutionCategory: task.ExecutionCategoryCode}); err != nil {
+		t.Fatal(err)
+	}
+	row, _ := store.GetTask(ctx, d.ID)
+	row.ExecutionCategory = task.ExecutionCategoryCode
+	row.Instructions += "\nDo not push. Do not deploy."
+	row.CommitSHA = strings.Repeat("d", 40)
+	if err := store.UpdateTask(ctx, row); err != nil {
+		t.Fatal(err)
+	}
+	// Simulate an owner-approved writable continuation prior to the current attempt.
+	ownerReqID := db.GenerateUUID()
+	ownerMsgID := db.GenerateUUID()
+	ownerAt := d.LatestAttempt.CreatedAt.Add(-2 * time.Minute)
+	ownerReq := db.InboxRequest{OwnerID: q.OwnerID, AgentID: q.AgentID, RoomID: q.RoomID, RequestID: ownerReqID, MessageID: ownerMsgID, ReplyID: db.GenerateUUID(), State: "completed", CreatedAt: ownerAt, Deadline: ownerAt.Add(time.Hour)}
+	if _, _, err := s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, ownerReq, &db.ProjectMessage{ID: ownerMsgID, RoomID: q.RoomID, AuthorType: "user", Content: "Lanjut push ke main", CreatedAt: ownerAt}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{TaskID: d.ID, ProjectID: d.ProjectID, RequestID: ownerReqID, OwnerID: q.OwnerID, RoomID: q.RoomID, SourceRequestID: ownerReqID, AgentID: q.AgentID, InstructionsHash: task.LaunchInstructionsHash(row.Instructions), Revision: "Jalankan dalam mode eksekusi penuh (bukan read-only), lalu commit dan push ke origin/main.", CreatedAt: ownerAt, AvailableAt: ownerAt, ExpiresAt: ownerAt.Add(time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	_ = s.taskSvc.FinishTaskLaunches(ctx, d.ID, "stopped")
+	stamp := time.Now()
+	for _, event := range []struct{ kind, state string }{{"agent_report", "review"}, {"agent_result_kind", "implementation"}} {
+		if err := store.CreateActivity(ctx, &task.TaskActivity{ID: event.kind, TaskID: d.ID, AttemptID: &d.LatestAttempt.ID, ActivityType: event.kind, NewStatus: event.state, Message: "Current implementation evidence", CreatedAt: stamp}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rawCheck, _ := json.Marshal(task.RunnerVerificationRecord{Summary: "Project verification: npm run build (exit 0)"})
+	if err := store.CreateActivity(ctx, &task.TaskActivity{ID: "source-checks", TaskID: d.ID, AttemptID: &d.LatestAttempt.ID, ActivityType: task.ActivityTypeRunnerVerification, Author: d.LatestAttempt.RunnerID, Message: string(rawCheck), CreatedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	handoff, routed := s.inboxCodeVerificationHandoff(ctx, q)
+	if !routed {
+		t.Fatal("expected code verification handoff")
+	}
+	var eval inboxReviewEvaluation
+	if err := json.Unmarshal([]byte(handoff), &eval); err != nil {
+		t.Fatal(err)
+	}
+	before, err := s.taskSvc.GetTaskDetail(ctx, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.saveReviewAssessment(ctx, before, q, eval); err != nil {
+		t.Fatal(err)
+	}
+	notice, scheduled := s.startVerificationFollowup(ctx, q, before, eval)
+	if !scheduled {
+		t.Fatalf("expected verification followup to schedule: %s", notice)
+	}
+	launch, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, task.VerificationRequestID(d.ID, row.CommitSHA, d.LatestAttempt.ID)))
+	if err != nil || launch == nil {
+		t.Fatalf("expected verification launch: %v", err)
+	}
+	if strings.Contains(launch.Revision, "Binding approved continuation:") || strings.Contains(launch.Revision, "mode eksekusi penuh") {
+		t.Fatalf("verification launch polluted by writable owner continuation: %s", launch.Revision)
+	}
+	if !strings.HasPrefix(launch.Revision, "Scope: read-only repository. Do not push. Do not deploy.\n"+task.VerificationIntentMarker) {
+		t.Fatalf("verification launch lost read-only prefix: %s", launch.Revision)
+	}
+	policy := executionpolicy.FromInstructions(launch.Revision)
+	if !policy.ReadOnlyRepository || !policy.DenyPush || !policy.DenyDeploy {
+		t.Fatalf("verification launch lost read-only/no-push/no-deploy policy: %+v", policy)
 	}
 }
