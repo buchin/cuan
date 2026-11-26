@@ -387,7 +387,26 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 				d.TaskID = alt.ID
 			}
 		}
+		if (err != nil || t == nil) && len(d.TaskID) >= 8 {
+			if roomTasks, listErr := s.taskSvc.ListTasks(ctx, task.TaskFilter{SourceRoomID: q.RoomID}); listErr == nil {
+				var matchedID string
+				matches := 0
+				for _, cand := range roomTasks {
+					if strings.HasPrefix(cand.ID, d.TaskID) || strings.HasPrefix(strings.TrimPrefix(cand.ID, "msg_"), d.TaskID) {
+						matchedID = cand.ID
+						matches++
+					}
+				}
+				if matches == 1 {
+					if alt, altErr := s.taskSvc.GetTaskDetail(ctx, matchedID); altErr == nil && alt != nil {
+						t, err = alt, nil
+						d.TaskID = alt.ID
+					}
+				}
+			}
+		}
 		if err != nil || t == nil {
+			log.Printf("inbox delegation task_id lookup failed room=%s raw_task_id=%q err=%v", q.RoomID, d.TaskID, err)
 			return fail("the task could not be found")
 		}
 		if d.ProjectID == "" || d.ProjectID != t.ProjectID {
