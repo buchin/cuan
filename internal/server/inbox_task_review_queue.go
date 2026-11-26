@@ -165,7 +165,8 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 			}
 		}
 	}
-	key := "task-review:" + detail.LatestAttempt.ID
+	baseKey := "task-review:" + detail.LatestAttempt.ID
+	key := baseKey
 	requestID := delegationMessageID(key)
 	// Reconcile terminal legacy reviews using current snapshots, with deterministic
 	// keys and a bounded retry. Never replay the original provider or user execution.
@@ -191,50 +192,50 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 				return
 			}
 			if recoverSnapshot && s.verifierCorrectionContext(ctx, detail) != nil && !strings.Contains(previous.Content, inboxVerifierCorrectionPolicy) {
-				key += ":verifier-correction-v6:" + inboxReviewEvidenceDigest(detail)
+				key = baseKey + ":verifier-correction-v6:" + inboxReviewEvidenceDigest(detail)
 				requestID = delegationMessageID(key)
 			} else if recoverSnapshot && legacyReviewProviderFailed(*matched) && !strings.Contains(previous.Content, inboxReviewProviderPolicy) {
-				key += ":provider-assessment:" + inboxReviewEvidenceDigest(detail)
+				key = baseKey + ":provider-assessment:" + inboxReviewEvidenceDigest(detail)
 				requestID = delegationMessageID(key)
 			} else if observation := s.inboxReviewPublication(ctx, detail); recoverSnapshot && observation != nil && observation.Required && !observation.Verified && !strings.Contains(previous.Content, inboxPublicationReviewPolicy) && publicationReviewNeedsRefresh(previous.Content, s.missingManagedSourceAdmission(ctx, detail)) {
-				key += ":publication-assessment:" + inboxReviewEvidenceDigest(detail)
+				key = baseKey + ":publication-assessment:" + inboxReviewEvidenceDigest(detail)
 				requestID = delegationMessageID(key)
 			} else if recoverSnapshot && isReconciliationOperation(detail) && !strings.Contains(previous.Content, inboxOperationalReviewPolicy) {
-				key += ":operational-assessment:" + inboxReviewEvidenceDigest(detail)
+				key = baseKey + ":operational-assessment:" + inboxReviewEvidenceDigest(detail)
 				requestID = delegationMessageID(key)
 			} else if recoverSnapshot && inboxReviewNeedsProvenanceRepair(detail) && !strings.Contains(previous.Content, inboxReportProvenancePolicy) {
 				// Re-evaluate a misattributed historical report once. This does not
 				// reset execution limits or replay the previous provider process.
-				key += ":report-provenance:" + inboxReviewEvidenceDigest(detail)
+				key = baseKey + ":report-provenance:" + inboxReviewEvidenceDigest(detail)
 				requestID = delegationMessageID(key)
 			} else if recoverSnapshot && reviewAssessmentMissing(detail) && !strings.Contains(previous.Content, inboxReviewAssessmentPolicy) {
 				// Recover the discarded assessment once, not execution approval
 				// or additional correction budget. The review remains tool-free.
-				key += ":assessment:" + inboxReviewEvidenceDigest(detail)
+				key = baseKey + ":assessment:" + inboxReviewEvidenceDigest(detail)
 				requestID = delegationMessageID(key)
 			} else if recoverSnapshot && s.sourceReviewClassificationMissing(ctx, detail) && !strings.Contains(previous.Content, inboxSourceReviewPolicy) {
-				key += ":source-assessment:" + inboxReviewEvidenceDigest(detail)
+				key = baseKey + ":source-assessment:" + inboxReviewEvidenceDigest(detail)
 				requestID = delegationMessageID(key)
 			} else if recoverSnapshot && visualReviewNeedsRefresh(previous.Content, len(s.inboxReviewImages(ctx, detail))) {
-				key += ":visual-assessment-v2:" + inboxReviewEvidenceDigest(detail)
+				key = baseKey + ":visual-assessment-v2:" + inboxReviewEvidenceDigest(detail)
 				requestID = delegationMessageID(key)
 			} else if recoverSnapshot && verificationClassificationMissing(detail) && !strings.Contains(previous.Content, inboxVerificationReviewPolicy) {
-				key += ":verification-assessment:" + inboxReviewEvidenceDigest(detail)
+				key = baseKey + ":verification-assessment:" + inboxReviewEvidenceDigest(detail)
 				requestID = delegationMessageID(key)
 			} else if recoverSnapshot && !strings.Contains(previous.Content, inboxOwnershipPolicy) {
-				key += ":ownership-assessment:" + inboxReviewEvidenceDigest(detail)
+				key = baseKey + ":ownership-assessment:" + inboxReviewEvidenceDigest(detail)
 				requestID = delegationMessageID(key)
 			} else if !strings.Contains(previous.Content, "Review evidence digest: ") && recoverSnapshot {
 				// Historical text-only reviews did not reliably apply their decision.
 				// Evaluate the current snapshot once under the tool-free contract.
-				key += ":reconcile:" + inboxReviewEvidenceDigest(detail)
+				key = baseKey + ":reconcile:" + inboxReviewEvidenceDigest(detail)
 				requestID = delegationMessageID(key)
 			} else if recoverSnapshot && inboxReviewEvidenceChanged(detail, previous.Content) {
-				key += ":evidence:" + inboxReviewEvidenceDigest(detail)
+				key = baseKey + ":evidence:" + inboxReviewEvidenceDigest(detail)
 				requestID = delegationMessageID(key)
 			} else if recoverSnapshot && !strings.Contains(key, ":ownership-assessment:") && inboxReviewExecutionSucceeded(detail) && len(task.AcceptanceGaps(&detail.Task)) == 0 && (reviewAssessmentMissing(detail) || detail.Status == task.TaskStatusReview) {
 				if !strings.Contains(key, ":evaluation:") {
-					key += ":evaluation:" + inboxReviewEvidenceDigest(detail)
+					key = baseKey + ":evaluation:" + inboxReviewEvidenceDigest(detail)
 					requestID = delegationMessageID(key)
 				} else {
 					return

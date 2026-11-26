@@ -9,6 +9,7 @@ import (
 	"time"
 
 	cuanDB "github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/task"
 )
 
 func TestSystemLifecycleNoticeUnreadAndResolution(t *testing.T) {
@@ -154,5 +155,90 @@ func TestSystemLifecycleNoticeUnreadAndResolution(t *testing.T) {
 	// Preview should keep the conversational message instead of system update spam
 	if resp4.Contacts[0].LastMessage != "Pekerjaan bagus, terima kasih." {
 		t.Fatalf("expected preview to retain user message, got %q", resp4.Contacts[0].LastMessage)
+	}
+}
+
+func TestSystemNoticeWithUnfinishedTaskStaysUnresolved(t *testing.T) {
+	srv, token := setupTestChatServer(t)
+	agentRepo := cuanDB.NewMemoryAgentRepository()
+	srv.SetAgentRepository(agentRepo)
+	if err := agentRepo.CreateAgent(context.Background(), &cuanDB.Agent{
+		ID:      cuanDB.AgentIDCuan,
+		Name:    "Cuan",
+		Role:    "Coordinator",
+		Harness: "agy",
+		Enabled: true,
+		Status:  cuanDB.AgentStatusActive,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	roomID := cuanDB.GenerateUUID()
+	_ = srv.projectStudioRepo.CreateRoom(context.Background(), &cuanDB.ProjectRoom{
+		ID:        roomID,
+		ProjectID: "default",
+		Title:     "Beckthe98",
+		Topic:     "agent-topic:agent_cuan",
+	})
+
+	// Create an unfinished task in review status
+	created, err := srv.taskSvc.CreateTask(context.Background(), "system", task.CreateTaskRequest{
+		ProjectID:    "default",
+		SourceRoomID: roomID,
+		Title:        "Unfinished task",
+		Instructions: "Investigate issue",
+	})
+	if err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	reviewStatus := task.TaskStatusReview
+	if _, err := srv.taskSvc.UpdateTask(context.Background(), created.ID, "system", task.UpdateTaskRequest{Status: &reviewStatus}); err != nil {
+		t.Fatalf("update task status: %v", err)
+	}
+
+	// Recent messages are all system lifecycle/review notices
+	now := time.Now().UTC()
+	for i := 0; i < 5; i++ {
+		_ = srv.projectStudioRepo.CreateMessage(context.Background(), &cuanDB.ProjectMessage{
+			ID:         cuanDB.GenerateUUID(),
+			RoomID:     roomID,
+			AuthorType: "system",
+			AuthorID:   "cuan_work_review",
+			AuthorName: "Cuan",
+			Content:    "Review the result for [Unfinished task](/tasks/" + created.ID + ").",
+			CreatedAt:  now.Add(time.Duration(i) * time.Second),
+			UpdatedAt:  now.Add(time.Duration(i) * time.Second),
+		})
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/chat/contacts?type=agents", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var resp struct {
+		Contacts []ChatContact `json:"contacts"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	var found *ChatContact
+	for i := range resp.Contacts {
+		if resp.Contacts[i].ConversationID == roomID {
+			found = &resp.Contacts[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("expected room %s in contacts", roomID)
+	}
+	if found.OnlySystemNotices {
+		t.Fatalf("expected OnlySystemNotices=false when room has unfinished tasks")
+	}
+	if found.Resolved {
+		t.Fatalf("expected Resolved=false when room has unfinished tasks")
 	}
 }

@@ -456,8 +456,8 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 		}
 		contacts[i].ResolutionObservedAt = observed
 		onlySystemNotices := hasOnlySystemLifecycleNotices(allMessages[contacts[i].ConversationID])
-		contacts[i].OnlySystemNotices = onlySystemNotices
 		hasNoUnfinishedTasks := contacts[i].ActiveTasks == 0 && contacts[i].QueuedTasks == 0 && contacts[i].ReviewTasks == 0 && contacts[i].FailedTasks == 0 && contacts[i].TaskCount == contacts[i].DoneTasks+contacts[i].CanceledTasks
+		contacts[i].OnlySystemNotices = onlySystemNotices && hasNoUnfinishedTasks
 		if onlySystemNotices && hasNoUnfinishedTasks {
 			contacts[i].Resolved = true
 			contacts[i].UnreadCount = 0
