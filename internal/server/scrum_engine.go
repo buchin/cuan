@@ -147,6 +147,7 @@ func (s *Server) ensureTaskCompletionDelivered(ctx context.Context, detail *task
 					strings.Contains(m.Content, "Pekerjaan ditandai selesai") ||
 					strings.Contains(m.Content, "Pekerjaan telah diselesaikan") ||
 					strings.Contains(m.Content, "Pekerjaan telah selesai") ||
+					strings.Contains(m.Content, "telah selesai dan diverifikasi") ||
 					strings.Contains(m.Content, "Draf balasan untuk pengunjung")) {
 				return
 			}

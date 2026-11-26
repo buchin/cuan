@@ -606,3 +606,32 @@ func TestShouldSkipDuplicateInboxReply(t *testing.T) {
 		t.Fatal("expected duplicate customer reply draft to be skipped")
 	}
 }
+
+func TestEnsureTaskCompletionDeliveredSkipsUnifiedCompletionMessage(t *testing.T) {
+	srv, _, _, _ := inboxFixture(t)
+	ctx := context.Background()
+	roomID := cuanDB.GenerateUUID()
+	now := time.Now().UTC()
+	if err := srv.projectStudioRepo.CreateMessage(ctx, &cuanDB.ProjectMessage{
+		ID:         cuanDB.GenerateUUID(),
+		RoomID:     roomID,
+		AuthorType: "agent",
+		AuthorID:   "agent_cuan",
+		AuthorName: "cuan",
+		Content:    "Pekerjaan **Audit Branch** telah selesai dan diverifikasi.\n\n[Lihat rincian pekerjaan](/tasks/t_456)",
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	srv.ensureTaskCompletionDelivered(ctx, &task.TaskDetailResponse{
+		Task: task.Task{ID: "t_456", Status: task.TaskStatusDone, SourceRoomID: roomID, Summary: "Audit selesai"},
+	}, roomID)
+	msgs, err := srv.projectStudioRepo.ListMessagesByRoomID(ctx, roomID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected no duplicate Scrum Master message, got %d messages", len(msgs))
+	}
+}
