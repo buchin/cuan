@@ -35,6 +35,7 @@ const earlierTasks=[
   {id:'task-3',title:'Sinkronisasi dan Deploy Release HEAD ke Production VPS',status:'done',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-20000).toISOString(),updated_at:now,complete_note:'Ringkasan rilis:\n\n- Sinkronisasi branch utama dan verifikasi build aset produksi selesai.\n- Migrasi skema database berjalan tanpa downtime.\n- Health check endpoint `/healthz` mengembalikan status 200 OK.'},
   {id:'task-4',title:'Validasi Status dan Respons Server Baru Pasca Migrasi',status:'done',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-10000).toISOString(),updated_at:now,complete_note:'Pemeriksaan pasca migrasi:\n\n- Verifikasi DNS, sertifikat TLS, dan reverse proxy Nginx.\n- Pengujian login magic link, pengiriman email SMTP, dan antrean background worker.\n- Pemantauan metrik CPU, memori, serta log aplikasi selama 15 menit tanpa error.'},
   {id:'task-review',title:'Optimasi & Pembersihan Ruang Penyimpanan',status:'review',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,created_at:new Date(Date.parse(now)-5000).toISOString(),updated_at:now,latest_progress:'Menunggu pemeriksaan',summary:'Identified disk usage bottlenecks (89% used, 9.0 GiB free)...'},
+  {id:'task-attention',title:'Investigasi dan perbaiki pemutaran video dracin',status:'blocked',priority:'normal',project_id:'project',project_name:'Website',source_room_id:room,latest_attempt:{id:'attempt-attention',task_id:'task-attention',status:'failed',created_at:new Date(Date.parse(now)-4000).toISOString()},created_at:new Date(Date.parse(now)-4000).toISOString(),updated_at:now,summary:'Pemutaran video langsung terhalang karena layanan API upstream mengembalikan error 502.'},
   {
     id:'task-done-live',
     title:'Investigasi & Perbaiki Pembacaan Lampiran Gambar di Chat',
@@ -393,6 +394,9 @@ try{
   const tasks=page.locator('.composer-tasks > div > button[aria-expanded]')
   await tasks.waitFor({state:'visible'})
   assert.equal(await tasks.getAttribute('aria-expanded'),'false')
+  assert.equal(await tasks.getAttribute('data-status'),'working','Header bar badge must reflect latest running task even when an older task needs attention')
+  assert.equal(await tasks.locator('[data-status-dot="working"]').count(),1,'Header bar must show working dot next to running latest task title')
+  assert.equal(await tasks.locator('svg.lucide-circle-alert, svg.lucide-alert-circle').count(),0,'Header bar must not show red alert icon when latest task is working')
   assert.equal(await page.locator('.inbox-message-list [data-card="task-card"]').count(),0)
   assert.ok(await page.locator('.inbox-message-list').getByText('Sistem baru saja diperbarui').count() >= 1, 'System update notice message must remain visible in conversation timeline')
   await page.screenshot({path:path.join(output,`inbox-timeline-notice-${width}.png`)})
@@ -426,6 +430,12 @@ try{
   const reviewCard = page.locator('.composer-tasks-panel [data-timeline-item="task-review"]')
   await reviewCard.waitFor({state:'visible'})
   assert.equal(await reviewCard.locator('svg.lucide-eye').count(), 1, 'Task in review must display Eye icon')
+  const attentionCard = page.locator('.composer-tasks-panel [data-timeline-item="task-attention"]')
+  await attentionCard.waitFor({state:'visible'})
+  assert.equal(await attentionCard.locator('svg.lucide-circle-alert, svg.lucide-alert-circle').count(), 1, 'Stopped/failed task in drawer must display AlertCircle icon')
+  const attentionText = await attentionCard.innerText()
+  assert.ok(!attentionText.includes('Sedang dikerjakan'), 'Stopped/failed task with red ! icon must not show Sedang dikerjakan label')
+  assert.ok(attentionText.includes('Belum selesai'), 'Stopped/failed task must show Belum selesai label matching its icon')
   const doneLiveCard = page.locator('.composer-tasks-panel [data-timeline-item="task-done-live"]')
   await doneLiveCard.waitFor({state:'visible'})
   const doneLiveText = await doneLiveCard.innerText()

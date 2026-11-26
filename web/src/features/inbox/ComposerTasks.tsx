@@ -6,7 +6,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import { StatusDot } from '../../components/ui/StatusDot'
 import { SlideDrawer } from '../../components/ui/SlideDrawer'
 import { CollapsibleChatText } from './CollapsibleChatText'
-import { workStatus, workDisplayStatus, taskExecutionActive, taskConversationSummary, TASK_STATUS_THEMES } from '../tasks/task-ui'
+import { workStatus, workDisplayStatus, taskExecutionActive, taskConversationSummary, TASK_STATUS_THEMES, type TaskStateKey } from '../tasks/task-ui'
 import { tasksApi } from '../../api/tasks'
 import { CardActions } from './CardActions'
 import { TaskDuration } from '../tasks/TaskDuration'
@@ -80,19 +80,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
 
   if (!tasks.length && !modes) return null
   const latestTask = ordered[0]
-
-  const hasAttention = ordered.some(t => workStatus(t) === 'Needs attention')
-  const hasActive = ordered.some(taskExecutionActive)
-  const hasReview = !hasActive && ordered.some(t => workStatus(t) === 'Ready for review')
-  const isAllDone = ordered.length > 0 && ordered.every(t => ['Completed', 'Answered', 'Cancelled'].includes(workStatus(t))) && ordered.some(t => ['Completed', 'Answered'].includes(workStatus(t)))
-  const hasQueued = !hasActive && !hasReview && !isAllDone && ordered.some(t => workStatus(t) === 'Queued')
-
-  const badgeStatus = hasAttention ? 'attention'
-    : hasActive ? 'working'
-    : hasReview ? 'review'
-    : isAllDone ? 'done'
-    : hasQueued ? 'queued'
-    : 'neutral'
+  const badgeStatus = getComposerTaskBadgeStatus(latestTask)
 
   return <section className="composer-tasks border-b border-border/40 px-3 sm:px-6 py-0.5 transition-colors z-10 shrink-0" aria-label={t('Conversation tasks')} data-testid="task-banner" onKeyDown={event => {
     if (event.key === 'Escape' && open) {
@@ -114,19 +102,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
         onClick={() => setOpen(value => !value)}>
         {latestTask && (
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            {hasAttention ? (
-              <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" aria-label={t('Needs attention')} />
-            ) : hasActive ? (
-              <StatusDot status="working" size="xs" label={t('In progress')} />
-            ) : hasReview ? (
-              <Eye className={cn("h-3.5 w-3.5 shrink-0", TASK_STATUS_THEMES.review.textColor)} aria-label={t('Ready for review')} />
-            ) : isAllDone ? (
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-[color:var(--status-success)]" aria-label={t('Completed')} />
-            ) : hasQueued ? (
-              <Clock3 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label={t('Queued')} />
-            ) : (
-              <StatusDot status="neutral" size="xs" label={t('Status')} />
-            )}
+            <TaskStatusIcon task={latestTask} size="sm" />
             <span className="text-xs font-medium text-foreground line-clamp-2 min-w-0 flex-1 sm:line-clamp-1 leading-snug" title={latestTask.title}>
               {latestTask.title}
             </span>
@@ -162,7 +138,6 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
         <div id={id} className="composer-tasks-panel">
           <ol className="relative min-w-0 space-y-6 pb-2.5" data-timeline="linear-progress">
             {ordered.map((task, index) => {
-              const work = workStatus(task)
               const status = workDisplayStatus(task)
               const progress = taskConversationSummary(task)
               return (
@@ -180,19 +155,7 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
                     />
                   )}
                   <span className="absolute left-0 top-0.5 flex h-4 w-4 items-center justify-center bg-card z-1">
-                    {status === 'Completed' ? (
-                      <CheckCircle2 className="h-4 w-4 shrink-0 text-[color:var(--status-success)]" aria-label={t(status)} />
-                    ) : taskExecutionActive(task) ? (
-                      <StatusDot status="working" size="xs" label={t(status)} />
-                    ) : work === 'Queued' ? (
-                      <Clock3 className="h-4 w-4 shrink-0 text-muted-foreground" aria-label={t(status)} />
-                    ) : work === 'Ready for review' ? (
-                      <Eye className={cn("h-4 w-4 shrink-0", TASK_STATUS_THEMES.review.textColor)} aria-label={t(status)} />
-                    ) : work === 'Needs attention' ? (
-                      <AlertCircle className="h-4 w-4 shrink-0 text-destructive" aria-label={t(status)} />
-                    ) : (
-                      <StatusDot status="neutral" size="xs" label={t(status)} />
-                    )}
+                    <TaskStatusIcon task={task} size="md" />
                   </span>
                   <div className="min-w-0 space-y-1.5">
                     <div className="flex items-start justify-between gap-3">
@@ -244,6 +207,41 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
       </SlideDrawer>
     )}
   </section>
+}
+
+function getComposerTaskBadgeStatus(task?: Task): TaskStateKey {
+  if (!task) return 'neutral'
+  const work = workStatus(task)
+  const status = workDisplayStatus(task)
+  if (status === 'Completed' || work === 'Answered') return 'done'
+  if (taskExecutionActive(task)) return 'working'
+  if (work === 'Queued') return 'queued'
+  if (work === 'Ready for review') return 'review'
+  if (work === 'Needs attention') return 'attention'
+  return 'neutral'
+}
+
+function TaskStatusIcon({ task, size = 'md' }: { task: Task; size?: 'sm' | 'md' }) {
+  const { t } = useLanguage()
+  const work = workStatus(task)
+  const status = workDisplayStatus(task)
+  const sizeClass = size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4'
+  if (status === 'Completed' || work === 'Answered') {
+    return <CheckCircle2 className="h-4 w-4 shrink-0 text-[color:var(--status-success)]" aria-label={t(status)} />
+  }
+  if (taskExecutionActive(task)) {
+    return <StatusDot status="working" size="xs" label={t(status)} />
+  }
+  if (work === 'Queued') {
+    return <Clock3 className={cn(sizeClass, 'shrink-0 text-muted-foreground')} aria-label={t(status)} />
+  }
+  if (work === 'Ready for review') {
+    return <Eye className={cn(sizeClass, 'shrink-0', TASK_STATUS_THEMES.review.textColor)} aria-label={t(status)} />
+  }
+  if (work === 'Needs attention') {
+    return <AlertCircle className={cn(sizeClass, 'shrink-0 text-destructive')} aria-label={t(status)} />
+  }
+  return <StatusDot status="neutral" size="xs" label={t(status)} />
 }
 
 function TaskTerminalAction({ task, onTerminal }: { task: Task; onTerminal: (task: Task) => void }) {
