@@ -57,6 +57,7 @@ Whenever inspecting or operating on Cuan (projects, tasks, inbox rooms, or talki
   - `cuan task list [--status doing]`
   - `cuan task get <task-id>`
   - `cuan task update <task-id> --status done [--complete-note "..."]`
+  - `cuan repo push --project <id> [--allow-default]` (push branch via Cuan server; prefer over raw `git push` when `GIT_ASKPASS` is unavailable)
   - `cuan mcp` (stdio MCP server)
   - `cuan config show` / `cuan config set <key> <val>`
 - See [cuan-agent SKILL](docs/skills/cuan-agent/SKILL.md) for complete reference.
