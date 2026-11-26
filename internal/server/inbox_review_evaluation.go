@@ -631,7 +631,9 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 	decision = s.requirePublicationReview(ctx, d, decision)
 	decision = s.requireIndependentCodeReview(ctx, d, decision)
 	decision = s.requireIndependentArtifactReview(ctx, q, d, decision)
-	if decision.SourceReview == "pass" && decision.RemainingWork == "publication" {
+	canAutoApplyPendingRelease := (decision.SourceReview == "pass" && decision.RemainingWork == "publication") ||
+		(decision.Decision == "revise" && (decision.RemainingWork == "publication" || decision.RemainingWork == "verification") && strings.Contains(decision.Finding, "Bukti rilis hasil pekerjaan belum lengkap"))
+	if canAutoApplyPendingRelease {
 		if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
 			if requests, err := store.ListInboxRequests(ctx, d.SourceRoomID); err == nil && s.recoverNativeReleaseHandoff(ctx, d, requests) {
 				return "Hasil perubahan sudah diperiksa secara independen. Cuan sedang menerapkannya melalui jalur rilis proyek.\n\n[View work](/tasks/" + d.ID + ")"
