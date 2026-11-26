@@ -3,10 +3,15 @@ package server
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	cuanDB "github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/project"
+	"github.com/buchin/cuan/internal/task"
 )
 
 func TestDeployCoordinator_SingleExecution(t *testing.T) {
@@ -186,5 +191,100 @@ func TestDeployCoordinator_MultipleProjectsAreIndependent(t *testing.T) {
 	}
 	if _, ok := executedProjects.Load("proj_B"); !ok {
 		t.Fatal("proj_B did not execute")
+	}
+}
+
+func TestDeployCoordinatorSuccessAndFailureLifecycle(t *testing.T) {
+	s, _ := setupTestChatServer(t)
+	ctx := context.Background()
+
+	projects := project.NewMemoryStore()
+	p := &project.Project{ID: "proj_lp", Name: "cuan-landing", RepoName: "cuan-landing", DefaultBranch: "main"}
+	if err := projects.CreateProject(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
+	depRepo := cuanDB.NewMemoryProjectDeploymentRepository()
+	s.projectDeploymentRepo = depRepo
+
+	commitOK := strings.Repeat("a", 40)
+	tOK := &task.Task{
+		ID:           "task-deploy-ok",
+		ProjectID:    p.ID,
+		Title:        "Deploy OK",
+		Status:       task.TaskStatusReview,
+		CommitSHA:    commitOK,
+		CompleteNote: "🚀 Perubahan telah berhasil diterapkan (Commit " + commitOK + "). Verifikasi deployment production belum dikonfirmasi.",
+	}
+	if err := s.taskSvc.Store().CreateTask(ctx, tOK); err != nil {
+		t.Fatal(err)
+	}
+	started := time.Now().Add(-time.Minute)
+	attOK := &task.TaskAttempt{ID: "att-ok", TaskID: tOK.ID, RunnerID: "r1", Status: task.AttemptStatusSucceeded, CreatedAt: started, StartedAt: &started}
+	if err := s.taskSvc.Store().CreateAttempt(ctx, attOK); err != nil {
+		t.Fatal(err)
+	}
+
+	s.handleDeployCoordinatorSuccess(ctx, DeployJob{
+		ProjectID:  p.ID,
+		TaskID:     tOK.ID,
+		Branch:     "main",
+		CommitSHA:  commitOK,
+		EnqueuedAt: started,
+	})
+
+	gotOK, err := s.taskSvc.GetTaskDetail(ctx, tOK.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotOK.Status != task.TaskStatusDone {
+		t.Fatalf("expected task status done after deploy success, got %s", gotOK.Status)
+	}
+	if strings.Contains(gotOK.CompleteNote, "Verifikasi deployment production belum dikonfirmasi") {
+		t.Fatalf("expected pending verification note to be cleared, got %q", gotOK.CompleteNote)
+	}
+	if !strings.Contains(gotOK.CompleteNote, "telah diverifikasi aktif pada rilis live") {
+		t.Fatalf("expected live verification marker in CompleteNote, got %q", gotOK.CompleteNote)
+	}
+	if !task.VerifiedDeployment(gotOK.Activities, gotOK.LatestAttempt, commitOK, time.Now().UTC()) {
+		t.Fatal("expected deployment_verified activity to be recorded on deploy success")
+	}
+	depOK, err := depRepo.GetByID(ctx, "dep_"+commitOK[:16])
+	if err != nil || depOK == nil || depOK.Status != cuanDB.DeploymentStatusSuccess {
+		t.Fatalf("expected success ProjectDeployment record, got %+v (err=%v)", depOK, err)
+	}
+
+	commitFail := strings.Repeat("b", 40)
+	tFail := &task.Task{
+		ID:        "task-deploy-fail",
+		ProjectID: p.ID,
+		Title:     "Deploy Fail",
+		Status:    task.TaskStatusReview,
+		CommitSHA: commitFail,
+	}
+	if err := s.taskSvc.Store().CreateTask(ctx, tFail); err != nil {
+		t.Fatal(err)
+	}
+	s.handleDeployCoordinatorFailure(ctx, DeployJob{
+		ProjectID:  p.ID,
+		TaskID:     tFail.ID,
+		Branch:     "main",
+		CommitSHA:  commitFail,
+		EnqueuedAt: started,
+	}, errors.New("wrangler exit 1"))
+
+	gotFail, err := s.taskSvc.GetTaskDetail(ctx, tFail.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotFail.Status != task.TaskStatusBlocked {
+		t.Fatalf("expected task status blocked after deploy failure, got %s", gotFail.Status)
+	}
+	if !strings.Contains(gotFail.CompleteNote, "Deploy production gagal") {
+		t.Fatalf("expected failure note in CompleteNote, got %q", gotFail.CompleteNote)
+	}
+	depFail, err := depRepo.GetByID(ctx, "dep_"+commitFail[:16])
+	if err != nil || depFail == nil || depFail.Status != cuanDB.DeploymentStatusFailed {
+		t.Fatalf("expected failed ProjectDeployment record, got %+v (err=%v)", depFail, err)
 	}
 }

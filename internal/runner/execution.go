@@ -5,11 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/buchin/cuan/internal/executionpolicy"
-	"github.com/buchin/cuan/internal/project"
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -140,21 +138,11 @@ func (r *Runner) confirmAutoDeployCompliance(ctx context.Context, claim ClaimTas
 	}
 
 	if !task.VerifiedDeployment(snapshot.Activities, claim.Attempt, expectedCommit, time.Now().UTC()) {
-		if strings.TrimSpace(claim.DeployScript) != "" && claim.WorkingDir != "" {
-			cmd := exec.CommandContext(ctx, "bash", "-c", claim.DeployScript)
-			cmd.Dir = claim.WorkingDir
-			if claim.Environment != "" {
-				envMap := project.ParseEnvironment(claim.Environment)
-				var envSlice []string
-				for k, v := range envMap {
-					envSlice = append(envSlice, fmt.Sprintf("%s=%s", k, v))
-				}
-				cmd.Env = append(os.Environ(), envSlice...)
-			}
-			out, err := cmd.CombinedOutput()
-			if err != nil {
-				return false, fmt.Sprintf("Kepatuhan auto_deploy: deploy_script gagal (%v): %s", err, string(out))
-			}
+		// Projects configured with a deploy_script deploy from the merged target
+		// branch via DeployCoordinator after review passes, never from an unmerged
+		// runner worktree branch.
+		if strings.TrimSpace(claim.DeployScript) != "" {
+			return true, ""
 		}
 		if r.verifyRegisteredPublication(ctx, claim, expectedCommit) {
 			return true, ""

@@ -21,6 +21,7 @@ type DeployJob struct {
 	LocalPath      string
 	DeployScript   string
 	Environment    string
+	Branch         string
 	CommitSHA      string
 	CoalescedCount int
 	EnqueuedAt     time.Time
@@ -42,6 +43,7 @@ type DeployCoordinator struct {
 	projects        map[string]*projectDeployState
 	execute         func(ctx context.Context, job DeployJob) error
 	onDeploySuccess func(ctx context.Context, job DeployJob)
+	onDeployFailure func(ctx context.Context, job DeployJob, err error)
 }
 
 // NewDeployCoordinator creates a new deployment coordinator with the default shell executor.
@@ -65,6 +67,13 @@ func (c *DeployCoordinator) SetOnDeploySuccess(fn func(ctx context.Context, job 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.onDeploySuccess = fn
+}
+
+// SetOnDeployFailure sets an asynchronous callback invoked whenever a deployment fails.
+func (c *DeployCoordinator) SetOnDeployFailure(fn func(ctx context.Context, job DeployJob, err error)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.onDeployFailure = fn
 }
 
 // Enqueue submits a deployment job. If a deployment is already in-flight for this project,
@@ -133,6 +142,10 @@ func (c *DeployCoordinator) runLeader(initialJob DeployJob) {
 
 		if err != nil {
 			log.Printf("[DeployCoordinator] Deploy failed for project %s: %v", currentJob.ProjectID, err)
+			onFailure := c.onDeployFailure
+			if onFailure != nil {
+				go onFailure(context.Background(), currentJob, err)
+			}
 		} else {
 			log.Printf("[DeployCoordinator] Deploy succeeded for project %s (task %s, coalesced %d)",
 				currentJob.ProjectID, currentJob.TaskID, currentJob.CoalescedCount)
@@ -199,6 +212,12 @@ func (c *DeployCoordinator) defaultExecute(ctx context.Context, job DeployJob) e
 			"DEBIAN_FRONTEND=noninteractive",
 			"GIT_OPTIONAL_LOCKS=0",
 		)
+		if job.Branch != "" {
+			baseEnv = append(baseEnv, "CUAN_BRANCH="+job.Branch, "CUAN_DEPLOY_BRANCH="+job.Branch)
+		}
+		if job.CommitSHA != "" {
+			baseEnv = append(baseEnv, "CUAN_COMMIT_SHA="+job.CommitSHA)
+		}
 		if job.Environment != "" {
 			envMap := project.ParseEnvironment(job.Environment)
 			var envSlice []string

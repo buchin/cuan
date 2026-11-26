@@ -704,7 +704,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 							compReq.ErrorMessage = errNote
 						} else {
 							compReq.CommitSHA = commit
-							compReq.LiveDeploymentConfirmed = claim.ManagedRelease == nil
+							compReq.LiveDeploymentConfirmed = claim.ManagedRelease == nil && strings.TrimSpace(claim.DeployScript) == ""
 						}
 					} else if claim.ManagedRelease != nil && lane == task.ExecutionCategoryCode {
 						if err := observeUnchangedManagedSource(ctx, ws, &compReq); err != nil {

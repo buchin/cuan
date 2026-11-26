@@ -247,12 +247,20 @@ func (s *Server) triggerAutoDeploy(ctx context.Context, projectID, taskID string
 		proj, err := s.projectSvc.Get(ctx, projectID)
 		if err == nil && proj != nil {
 			settings := project.SettingsFromMetadata(proj.Metadata)
+			branch := strings.TrimSpace(settings.DeployBranch)
+			if branch == "" {
+				branch = strings.TrimSpace(proj.DefaultBranch)
+			}
+			if branch == "" {
+				branch = "main"
+			}
 			job := DeployJob{
 				ProjectID:    projectID,
 				TaskID:       taskID,
 				LocalPath:    proj.LocalPath,
 				DeployScript: settings.DeployScript,
 				Environment:  settings.Environment,
+				Branch:       branch,
 				CommitSHA:    detail.CommitSHA,
 			}
 			if s.deployCoordinator == nil {

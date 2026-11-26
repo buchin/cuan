@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"strconv"
@@ -18,7 +19,11 @@ import (
 func (s *Server) InitScrumEngine(ctx context.Context) {
 	if s.deployCoordinator != nil {
 		s.deployCoordinator.SetOnDeploySuccess(func(bgCtx context.Context, job DeployJob) {
+			s.handleDeployCoordinatorSuccess(bgCtx, job)
 			s.reconcileVerifiedPublicationTasks(bgCtx)
+		})
+		s.deployCoordinator.SetOnDeployFailure(func(bgCtx context.Context, job DeployJob, err error) {
+			s.handleDeployCoordinatorFailure(bgCtx, job, err)
 		})
 	}
 
@@ -52,6 +57,177 @@ func (s *Server) onRunnerAttemptCompleted(ctx context.Context, att *task.TaskAtt
 		defer cancel()
 		s.handleRunnerAttemptCompleted(bgCtx, att.TaskID, att.ID, string(att.Status), exitCode, "", "", att.ErrorMessage, "")
 	}()
+}
+
+func (s *Server) handleDeployCoordinatorSuccess(ctx context.Context, job DeployJob) {
+	now := time.Now().UTC()
+	if s.projectDeploymentRepo != nil && job.ProjectID != "" && releaseObjectID.MatchString(job.CommitSHA) {
+		isCuan := false
+		if s.projectSvc != nil {
+			if proj, err := s.projectSvc.Get(ctx, job.ProjectID); err == nil {
+				isCuan = isCuanProject(proj)
+			}
+		}
+		if !isCuan {
+			branch := job.Branch
+			if branch == "" {
+				branch = "main"
+			}
+			depID := fmt.Sprintf("dep_%s", job.CommitSHA[:16])
+			existing, _ := s.projectDeploymentRepo.GetByID(ctx, depID)
+			if existing == nil {
+				_ = s.projectDeploymentRepo.Create(ctx, &db.ProjectDeployment{
+					ID:          depID,
+					ProjectID:   job.ProjectID,
+					CommitSHA:   job.CommitSHA,
+					ShortSHA:    job.CommitSHA[:7],
+					Branch:      branch,
+					Status:      db.DeploymentStatusSuccess,
+					StartedAt:   job.EnqueuedAt,
+					CompletedAt: &now,
+					CreatedAt:   now,
+					UpdatedAt:   now,
+				})
+			} else {
+				existing.Status = db.DeploymentStatusSuccess
+				existing.CompletedAt = &now
+				existing.UpdatedAt = now
+				_ = s.projectDeploymentRepo.Update(ctx, existing)
+			}
+		}
+	}
+
+	if job.TaskID == "" || s.taskSvc == nil {
+		return
+	}
+	detail, err := s.taskSvc.GetTaskDetail(ctx, job.TaskID)
+	if err != nil || detail == nil || detail.Status == task.TaskStatusDone || detail.Status == "cancelled" || detail.Status == "canceled" {
+		return
+	}
+	commitSHA := job.CommitSHA
+	if !releaseObjectID.MatchString(commitSHA) {
+		commitSHA = detail.CommitSHA
+	}
+	if detail.LatestAttempt != nil && releaseObjectID.MatchString(commitSHA) && !task.VerifiedDeployment(detail.Activities, detail.LatestAttempt, commitSHA, now) {
+		receipt := task.DeploymentReceipt{
+			Version:     1,
+			TaskID:      detail.ID,
+			AttemptID:   detail.LatestAttempt.ID,
+			CommitSHA:   commitSHA,
+			ReleaseSHA:  commitSHA,
+			Environment: "production",
+			Health:      "healthy",
+		}
+		raw, _ := json.Marshal(receipt)
+		_ = s.taskSvc.Store().CreateActivity(ctx, &task.TaskActivity{
+			ID:           task.DeploymentReceiptID(detail.ID, detail.LatestAttempt.ID, commitSHA),
+			TaskID:       detail.ID,
+			AttemptID:    &detail.LatestAttempt.ID,
+			ActivityType: "deployment_verified",
+			Author:       "cuan-deploy",
+			Message:      string(raw),
+			CreatedAt:    now,
+		})
+	}
+
+	completedDoD := make([]task.DoDItem, len(detail.DoDChecklist))
+	for i, itm := range detail.DoDChecklist {
+		completedDoD[i] = task.DoDItem{
+			ID:        itm.ID,
+			Text:      itm.Text,
+			Evidence:  itm.Evidence,
+			Completed: true,
+		}
+	}
+	note := strings.ReplaceAll(detail.CompleteNote, " Verifikasi deployment production belum dikonfirmasi.", "")
+	note = strings.TrimSpace(note)
+	shortSHA := commitSHA
+	if len(shortSHA) > 8 {
+		shortSHA = shortSHA[:8]
+	}
+	if shortSHA == "" {
+		shortSHA = "live"
+	}
+	verifiedMarker := fmt.Sprintf("🚀 Perubahan telah diverifikasi aktif pada rilis live (%s).", shortSHA)
+	if !strings.Contains(note, "telah diverifikasi aktif pada rilis live") {
+		if note != "" {
+			note += "\n\n"
+		}
+		note += verifiedMarker
+	}
+	doneStatus := task.TaskStatusDone
+	summary := strings.TrimSpace(detail.Summary)
+	if summary == "" {
+		summary = fmt.Sprintf("Pekerjaan '%s' telah selesai dan di-deploy ke production.", detail.Title)
+	}
+	updated, err := s.taskSvc.UpdateTask(ctx, detail.ID, "system", task.UpdateTaskRequest{
+		Status:       &doneStatus,
+		Summary:      &summary,
+		CompleteNote: &note,
+		DoDChecklist: &completedDoD,
+	})
+	if err == nil && updated != nil {
+		log.Printf("[DeployCoordinator] Completed task %s -> DONE after deploy_script succeeded (commit %s)", detail.ID, shortSHA)
+		_ = s.PostTaskCompletionMessage(ctx, updated)
+		s.DispatchTaskCompletedPush(ctx, updated)
+		if detail.SourceRoomID != "" {
+			s.publishInbox(detail.SourceRoomID)
+		}
+	}
+}
+
+func (s *Server) handleDeployCoordinatorFailure(ctx context.Context, job DeployJob, deployErr error) {
+	now := time.Now().UTC()
+	if s.projectDeploymentRepo != nil && job.ProjectID != "" && releaseObjectID.MatchString(job.CommitSHA) {
+		branch := job.Branch
+		if branch == "" {
+			branch = "main"
+		}
+		depID := fmt.Sprintf("dep_%s", job.CommitSHA[:16])
+		existing, _ := s.projectDeploymentRepo.GetByID(ctx, depID)
+		if existing == nil {
+			_ = s.projectDeploymentRepo.Create(ctx, &db.ProjectDeployment{
+				ID:          depID,
+				ProjectID:   job.ProjectID,
+				CommitSHA:   job.CommitSHA,
+				ShortSHA:    job.CommitSHA[:7],
+				Branch:      branch,
+				Status:      db.DeploymentStatusFailed,
+				StartedAt:   job.EnqueuedAt,
+				CompletedAt: &now,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			})
+		} else {
+			existing.Status = db.DeploymentStatusFailed
+			existing.CompletedAt = &now
+			existing.UpdatedAt = now
+			_ = s.projectDeploymentRepo.Update(ctx, existing)
+		}
+	}
+	if job.TaskID == "" || s.taskSvc == nil || deployErr == nil {
+		return
+	}
+	detail, err := s.taskSvc.GetTaskDetail(ctx, job.TaskID)
+	if err != nil || detail == nil || detail.Status == task.TaskStatusDone {
+		return
+	}
+	failMarker := "⚠️ Deploy production gagal"
+	note := strings.TrimSpace(detail.CompleteNote)
+	if !strings.Contains(note, failMarker) {
+		if note != "" {
+			note += "\n\n"
+		}
+		note += fmt.Sprintf("%s: %v", failMarker, deployErr)
+	}
+	blockedStatus := task.TaskStatusBlocked
+	_, _ = s.taskSvc.UpdateTask(ctx, detail.ID, "system", task.UpdateTaskRequest{
+		Status:       &blockedStatus,
+		CompleteNote: &note,
+	})
+	if detail.SourceRoomID != "" {
+		s.publishInbox(detail.SourceRoomID)
+	}
 }
 
 // handleRunnerAttemptCompleted processes the completion of an attempt (exit 0 or non-zero/failed),

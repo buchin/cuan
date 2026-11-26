@@ -693,7 +693,8 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 				if s.projectSvc != nil && d.ProjectID != "" && (d.ExecutionCategory == "" || d.ExecutionCategory == task.ExecutionCategoryCode) && (d.BranchName != "" || d.PRNumber > 0) && releaseObjectID.MatchString(d.CommitSHA) {
 					if proj, err := s.projectSvc.Get(ctx, d.ProjectID); err == nil && proj != nil && project.SettingsFromMetadata(proj.Metadata).IsAutoDeployEnabled() {
 						observation := s.inboxReviewPublication(ctx, d)
-						needsMerge := observation != nil && observation.Required && (!observation.Verified || (observation.Provenance == "verified_attempt_deployment" && !strings.Contains(d.CompleteNote, "Perubahan telah berhasil diterapkan") && extractNativeReleaseHandoffCommit(d.Activities) == ""))
+						hasDeployScript := strings.TrimSpace(project.SettingsFromMetadata(proj.Metadata).DeployScript) != ""
+						needsMerge := observation != nil && observation.Required && (!observation.Verified || (hasDeployScript && observation.Provenance == "verified_attempt_deployment" && !strings.Contains(d.CompleteNote, "Perubahan telah berhasil diterapkan") && extractNativeReleaseHandoffCommit(d.Activities) == ""))
 						if needsMerge {
 							if s.autoApplyAndDeployTask(ctx, d.ID, d.ProjectID) {
 								return "Hasil perubahan sudah diperiksa secara independen. Cuan sedang menerapkannya melalui jalur rilis proyek.\n\n[View work](/tasks/" + d.ID + ")"

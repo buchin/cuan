@@ -51,3 +51,23 @@ func TestDeploymentReceiptReadRecoversGrantWithoutAcceptingProse(t *testing.T) {
 		})
 	}
 }
+
+func TestConfirmAutoDeployCompliance_DefersDeployScriptToPostMerge(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"summary": "Built and verified", "complete_note": "ready for merge", "activities": []*task.TaskActivity{}})
+	}))
+	defer server.Close()
+	r := NewRunner(&config.Config{RunnerID: "runner", RunnerToken: "secret", RunnerServerURL: server.URL}, nil)
+	claim := ClaimTaskResponse{
+		AutoDeploy:   true,
+		DeployScript: "exit 1", // Must NOT execute in unmerged runner worktree
+		WorkingDir:   t.TempDir(),
+		Task:         &task.Task{ID: "task"},
+		Attempt:      &task.TaskAttempt{ID: "attempt", TaskID: "task"},
+		TaskAgent:    &TaskAgentCapability{API: server.URL, Token: "tok"},
+	}
+	got, note := r.confirmAutoDeployCompliance(context.Background(), claim, true, strings.Repeat("a", 40))
+	if !got || note != "" {
+		t.Fatalf("expected source handoff to succeed without running deploy_script, got=%v note=%q", got, note)
+	}
+}
