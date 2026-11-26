@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -240,5 +241,89 @@ func TestSystemNoticeWithUnfinishedTaskStaysUnresolved(t *testing.T) {
 	}
 	if found.Resolved {
 		t.Fatalf("expected Resolved=false when room has unfinished tasks")
+	}
+}
+
+func TestCustomerRoomWithTasksAndInternalRecentMessagesVisible(t *testing.T) {
+	srv, token := setupTestChatServer(t)
+
+	// Initialize visitor chat session
+	initBody, _ := json.Marshal(map[string]any{
+		"guest_uuid": "guest-beckthe-visible-1",
+		"product":    "dracin",
+		"name":       "Beckthe98",
+		"email":      "beckthe98@example.com",
+		"message":    "dracin masih gak bisa di play videonya",
+	})
+	reqInit := httptest.NewRequest(http.MethodPost, "/api/chat/session", bytes.NewReader(initBody))
+	reqInit.Header.Set("Content-Type", "application/json")
+	recInit := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recInit, reqInit)
+	if recInit.Code != http.StatusOK {
+		t.Fatalf("session init failed: %d", recInit.Code)
+	}
+	var initResp struct {
+		Session struct {
+			UUID string `json:"uuid"`
+		} `json:"session"`
+	}
+	_ = json.Unmarshal(recInit.Body.Bytes(), &initResp)
+	roomID := initResp.Session.UUID
+
+	// Create an unfinished task in the customer room
+	created, err := srv.taskSvc.CreateTask(context.Background(), "system", task.CreateTaskRequest{
+		ProjectID:    "default",
+		SourceRoomID: roomID,
+		Title:        "Investigate player",
+		Instructions: "Investigate",
+	})
+	if err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	reviewStatus := task.TaskStatusReview
+	if _, err := srv.taskSvc.UpdateTask(context.Background(), created.ID, "system", task.UpdateTaskRequest{Status: &reviewStatus}); err != nil {
+		t.Fatalf("update task: %v", err)
+	}
+
+	// Saturate the 5-message recent window with internal review messages
+	now := time.Now().UTC()
+	for i := 0; i < 6; i++ {
+		_ = srv.projectStudioRepo.CreateMessage(context.Background(), &cuanDB.ProjectMessage{
+			ID:         cuanDB.GenerateUUID(),
+			RoomID:     roomID,
+			AuthorType: "system",
+			AuthorID:   "cuan_work_review",
+			AuthorName: "Cuan",
+			Content:    "Review the result for [Investigate player](/tasks/" + created.ID + ").",
+			CreatedAt:  now.Add(time.Duration(i+1) * time.Second),
+			UpdatedAt:  now.Add(time.Duration(i+1) * time.Second),
+		})
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/chat/contacts?view=list", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	srv.Router().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var resp struct {
+		Contacts []ChatContact `json:"contacts"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	var found *ChatContact
+	for i := range resp.Contacts {
+		if resp.Contacts[i].ConversationID == roomID {
+			found = &resp.Contacts[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("expected customer room %s to remain visible in /api/v1/chat/contacts", roomID)
+	}
+	if !found.HasMessages || found.OnlySystemNotices || found.Resolved {
+		t.Fatalf("expected HasMessages=true, OnlySystemNotices=false, Resolved=false, got %+v", *found)
 	}
 }

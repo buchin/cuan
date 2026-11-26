@@ -353,7 +353,12 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 			}
 			globalChatManager.RUnlock()
 
-			// Skip sessions that have no messages AND are no longer online to prevent clutter.
+			tc, at, qt, dt, ft, rt, ct := getRoomTaskCounts(sess.UUID, "cust_"+sess.UUID)
+			if !hasMessages && (tc > 0 || len(allMessages[sess.UUID]) >= 5) {
+				hasMessages = true
+			}
+
+			// Skip sessions that have no messages/tasks AND are no longer online to prevent clutter.
 			if !hasMessages && !isOnline {
 				continue
 			}
@@ -377,7 +382,6 @@ func (s *Server) handleInternalListContacts(w http.ResponseWriter, r *http.Reque
 				}
 			}
 
-			tc, at, qt, dt, ft, rt, ct := getRoomTaskCounts(sess.UUID, "cust_"+sess.UUID)
 			contactEmail := sess.Email
 			if contactEmail == "" && liveSess != nil && liveSess.Email != "" {
 				contactEmail = liveSess.Email
