@@ -56,6 +56,7 @@ export function TaskTerminal({
   isDedicatedTerminal,
   isPopout,
   hideStatus = false,
+  reconnectNonce = 0,
 }: {
   taskId: string
   attempt: TaskAttempt
@@ -66,6 +67,7 @@ export function TaskTerminal({
   isDedicatedTerminal?: boolean
   isPopout?: boolean
   hideStatus?: boolean
+  reconnectNonce?: number
 }) {
   const { t, language } = useLanguage()
   const [searchParams] = useSearchParams()
@@ -674,6 +676,12 @@ export function TaskTerminal({
     onRefresh()
     connectSocketRef.current()
   }, [onRefresh])
+
+  useEffect(() => {
+    if (!reconnectNonce) return
+    term.current?.clear()
+    handleReconnect()
+  }, [reconnectNonce, handleReconnect])
 
   // Handle active / online recovery
   const lastAutoRetry = useRef(0)

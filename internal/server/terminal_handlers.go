@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -410,6 +411,21 @@ func (s *Server) handleCloseTaskTerminalSession(w http.ResponseWriter, r *http.R
 	}
 	taskID := s.resolveTaskID(r.Context(), rawID)
 
+	if s.taskSvc != nil {
+		if detail, err := s.taskSvc.GetTaskDetail(r.Context(), taskID); err == nil && detail != nil {
+			if task.IsDedicatedTerminalTitle(detail.Title) || (detail.LatestAttempt != nil && detail.LatestAttempt.RunnerID == "local_terminal") {
+				projID := detail.ProjectID
+				if projID == "" && len(detail.ProjectIDs) > 0 {
+					projID = detail.ProjectIDs[0]
+				}
+				if projID != "" {
+					s.markProjectTerminalStopped(projID)
+					_ = s.terminalManager.ResetProjectSession(projID)
+				}
+			}
+		}
+	}
+
 	_ = terminal.TerminateProjectWorker(taskID)
 	if s.terminalManager != nil {
 		_ = s.terminalManager.CloseSession(taskID)
@@ -526,27 +542,43 @@ func (s *Server) handleProjectTerminalWebSocket(w http.ResponseWriter, r *http.R
 	if requestedAccountID == "" {
 		requestedAccountID = strings.TrimSpace(r.URL.Query().Get("brain_id"))
 	}
+	var selectedBrain *agent.ProviderAccount
+	selectedModel := ""
 	if ownerID != "" {
 		var home string
 		var brain *agent.ProviderAccount
 		var release func()
 		var err error
 
+		preferredAccountID, lastStoppedID, rotateOffset := s.consumeProjectTerminalPreference(proj.ID)
 		if requestedAccountID != "" {
 			if h, b, rel, e := agent.LeaseSpecificBrain(ownerID, requestedAccountID); e == nil {
 				home, brain, release = h, b, rel
 			}
+		} else if preferredAccountID != "" {
+			if h, b, rel, e := agent.LeaseSpecificBrain(ownerID, preferredAccountID); e == nil {
+				home, brain, release = h, b, rel
+			}
 		}
 		if home == "" {
-			home, brain, release, err = agent.LeaseHealthyBrainForProject(ownerID, proj.ID, nil)
+			var excluded map[string]bool
+			if lastStoppedID != "" {
+				excluded = map[string]bool{lastStoppedID: true}
+			}
+			home, brain, release, err = agent.LeaseHealthyBrainForProjectWithOffset(ownerID, proj.ID, rotateOffset, excluded)
+			if (err != nil || home == "") && len(excluded) > 0 {
+				home, brain, release, err = agent.LeaseHealthyBrainForProjectWithOffset(ownerID, proj.ID, rotateOffset, nil)
+			}
 		}
 		if err == nil && home != "" {
 			_ = agent.PrepareAntigravitySettings(home, workDir)
 			_ = agent.EnsureAntigravityOnboarding(home)
 			env = append(env, agent.AntigravityProfileEnvironment(home)...)
 			if brain != nil {
-				if brain.ModelID != "" {
-					env = append(env, "CUAN_AGENT_MODEL="+brain.ModelID)
+				selectedBrain = brain
+				selectedModel = brain.ExecutionModelID()
+				if selectedModel != "" {
+					env = append(env, "CUAN_AGENT_MODEL="+selectedModel)
 				}
 				if brain.Provider != "" {
 					env = append(env, "CUAN_AGENT_PROVIDER="+brain.Provider)
@@ -566,7 +598,16 @@ func (s *Server) handleProjectTerminalWebSocket(w http.ResponseWriter, r *http.R
 		ProjectID: proj.ID,
 		WorkDir:   workDir,
 		Env:       env,
+		OwnerID:   ownerID,
 	}
+	if selectedBrain != nil {
+		payload.AccountID = selectedBrain.ID
+		payload.AccountLabel = selectedBrain.Label
+		payload.ModelID = selectedModel
+		payload.Provider = selectedBrain.Provider
+	}
+	s.recordProjectTerminalBrain(proj.ID, selectedBrain, selectedModel)
+
 	runnerBin := ""
 	if s.cfg != nil {
 		runnerBin = s.cfg.RunnerBinPath
@@ -667,14 +708,20 @@ func (s *Server) handleGetProjectTerminalStatus(w http.ResponseWriter, r *http.R
 		}
 	}
 
-	respondJSON(w, http.StatusOK, map[string]interface{}{
+	resp := map[string]interface{}{
 		"project_id":      proj.ID,
 		"project_name":    proj.Name,
 		"work_dir":        workDir,
 		"session":         sessSummary,
 		"upstream":        integrity,
 		"worker_log_tail": terminal.ProjectWorkerLogTail(proj.ID, 25),
-	})
+	}
+	if active, _ := sessSummary["active"].(bool); active {
+		if brainInfo := s.activeProjectTerminalBrain(proj.ID); brainInfo != nil {
+			resp["brain"] = brainInfo
+		}
+	}
+	respondJSON(w, http.StatusOK, resp)
 }
 
 // handleProjectTerminalSyncUpstream triggers a non-destructive git fetch to check upstream commits.
@@ -749,7 +796,7 @@ func (s *Server) handleCloseProjectTerminalSession(w http.ResponseWriter, r *htt
 	})
 }
 
-// handleRotateProjectTerminalBrain rotates the AI brain for an active project terminal session upon quota limits.
+// handleRotateProjectTerminalBrain rotates the AI brain for a project terminal session upon quota limits or user request.
 // POST /api/projects/{id}/terminal/rotate-brain or POST /api/v1/projects/{id}/terminal/rotate-brain
 func (s *Server) handleRotateProjectTerminalBrain(w http.ResponseWriter, r *http.Request) {
 	rawProjID := strings.TrimSpace(r.URL.Query().Get("project_id"))
@@ -772,26 +819,57 @@ func (s *Server) handleRotateProjectTerminalBrain(w http.ResponseWriter, r *http
 		return
 	}
 
-	sess, ok := s.terminalManager.GetProjectSession(rawProjID)
-	if !ok || sess == nil || sess.IsClosed() {
-		respondJSONError(w, http.StatusNotFound, "No active terminal session for project")
-		return
+	var req struct {
+		AccountID string `json:"account_id"`
+	}
+	if r.Body != nil && r.ContentLength != 0 {
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+			respondJSONError(w, http.StatusBadRequest, "Invalid rotation request")
+			return
+		}
+	}
+	req.AccountID = strings.TrimSpace(req.AccountID)
+
+	currentBrain := s.activeProjectTerminalBrain(rawProjID)
+	currentAccountID := ""
+	if currentBrain != nil {
+		currentAccountID = currentBrain.AccountID
 	}
 
-	// Lease healthy backup brain
-	home, brain, release, err := agent.LeaseHealthyBrainForTask(ownerID, nil)
-	if err != nil || brain == nil {
-		respondJSON(w, http.StatusConflict, map[string]string{
-			"error": "No healthy backup AI model available",
-			"code":  "provider_capacity",
-		})
-		return
+	var home string
+	var brain *agent.ProviderAccount
+	var release func()
+	var err error
+
+	if req.AccountID != "" {
+		home, brain, release, err = agent.LeaseSpecificBrain(ownerID, req.AccountID)
+		if err != nil || brain == nil {
+			respondJSON(w, http.StatusConflict, map[string]string{
+				"error": "Selected AI account is unavailable",
+				"code":  "provider_capacity",
+			})
+			return
+		}
+	} else {
+		excluded := map[string]bool{}
+		if currentAccountID != "" {
+			excluded[currentAccountID] = true
+		}
+		offset := s.bumpProjectTerminalRotateOffset(rawProjID)
+		home, brain, release, err = agent.LeaseHealthyBrainForProjectWithOffset(ownerID, rawProjID, offset, excluded)
+		if err != nil || brain == nil {
+			respondJSON(w, http.StatusConflict, map[string]string{
+				"error": "No healthy backup AI model available",
+				"code":  "provider_capacity",
+			})
+			return
+		}
 	}
 	defer release()
 
 	workDir := ""
 	if s.projectSvc != nil {
-		if proj, err := s.projectSvc.Get(r.Context(), rawProjID); err == nil && proj != nil {
+		if proj, pErr := s.projectSvc.Get(r.Context(), rawProjID); pErr == nil && proj != nil {
 			if wd, e := s.projectSvc.ProjectTerminalWorkspace(r.Context(), proj.ID, proj); e == nil && wd != "" {
 				workDir = wd
 			} else {
@@ -802,15 +880,150 @@ func (s *Server) handleRotateProjectTerminalBrain(w http.ResponseWriter, r *http
 	_ = agent.PrepareAntigravitySettings(home, workDir)
 	_ = agent.EnsureAntigravityOnboarding(home)
 
-	notice := fmt.Sprintf("\r\n\x1b[32m[cuan]\x1b[0m Rotated to healthy brain %s (%s). Terminal session remains active.\r\n", brain.ModelID, brain.ID)
-	sess.BroadcastBytes([]byte(notice))
+	selectedModel := brain.ExecutionModelID()
+	s.setProjectTerminalPreferredBrain(rawProjID, brain, selectedModel)
+
+	// Terminate any active detached worker or in-process session so the client
+	// reconnects cleanly to a fresh terminal session using the newly selected brain.
+	if s.terminalManager != nil {
+		_ = s.terminalManager.ResetProjectSession(rawProjID)
+	} else {
+		_ = terminal.TerminateProjectWorker(rawProjID)
+	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"status":     "rotated",
-		"account_id": brain.ID,
-		"model_id":   brain.ModelID,
-		"home":       home,
+		"status":        "rotated",
+		"account_id":    brain.ID,
+		"account_label": brain.Label,
+		"model_id":      selectedModel,
+		"provider":      brain.Provider,
 	})
+}
+
+type projectTerminalBrainInfo struct {
+	AccountID    string `json:"account_id,omitempty"`
+	AccountLabel string `json:"account_label,omitempty"`
+	ModelID      string `json:"model_id,omitempty"`
+	Provider     string `json:"provider,omitempty"`
+}
+
+type projectTerminalBrainState struct {
+	active             *projectTerminalBrainInfo
+	preferredAccountID string
+	lastStoppedID      string
+	rotateOffset       int
+}
+
+func (s *Server) ensureProjectTerminalStateLocked(projID string) *projectTerminalBrainState {
+	if s.projectTerminalState == nil {
+		s.projectTerminalState = make(map[string]*projectTerminalBrainState)
+	}
+	st, ok := s.projectTerminalState[projID]
+	if !ok {
+		st = &projectTerminalBrainState{}
+		s.projectTerminalState[projID] = st
+	}
+	return st
+}
+
+func (s *Server) recordProjectTerminalBrain(projID string, brain *agent.ProviderAccount, model string) {
+	if projID == "" {
+		return
+	}
+	s.projectTerminalMu.Lock()
+	defer s.projectTerminalMu.Unlock()
+	st := s.ensureProjectTerminalStateLocked(projID)
+	if brain == nil {
+		st.active = nil
+		return
+	}
+	st.active = &projectTerminalBrainInfo{
+		AccountID:    brain.ID,
+		AccountLabel: brain.Label,
+		ModelID:      model,
+		Provider:     brain.Provider,
+	}
+}
+
+func (s *Server) setProjectTerminalPreferredBrain(projID string, brain *agent.ProviderAccount, model string) {
+	if projID == "" || brain == nil {
+		return
+	}
+	s.projectTerminalMu.Lock()
+	defer s.projectTerminalMu.Unlock()
+	st := s.ensureProjectTerminalStateLocked(projID)
+	st.preferredAccountID = brain.ID
+	st.active = &projectTerminalBrainInfo{
+		AccountID:    brain.ID,
+		AccountLabel: brain.Label,
+		ModelID:      model,
+		Provider:     brain.Provider,
+	}
+}
+
+func (s *Server) markProjectTerminalStopped(projID string) {
+	if projID == "" {
+		return
+	}
+	meta, hasMeta := terminal.ReadProjectWorkerMeta(projID)
+	s.projectTerminalMu.Lock()
+	defer s.projectTerminalMu.Unlock()
+	st := s.ensureProjectTerminalStateLocked(projID)
+	if st.active != nil && st.active.AccountID != "" {
+		st.lastStoppedID = st.active.AccountID
+	} else if hasMeta && meta.AccountID != "" {
+		st.lastStoppedID = meta.AccountID
+	}
+	st.active = nil
+	st.preferredAccountID = ""
+	st.rotateOffset++
+}
+
+func (s *Server) bumpProjectTerminalRotateOffset(projID string) int {
+	if projID == "" {
+		return 0
+	}
+	s.projectTerminalMu.Lock()
+	defer s.projectTerminalMu.Unlock()
+	st := s.ensureProjectTerminalStateLocked(projID)
+	st.rotateOffset++
+	return st.rotateOffset
+}
+
+func (s *Server) consumeProjectTerminalPreference(projID string) (preferredAccountID, lastStoppedID string, rotateOffset int) {
+	if projID == "" {
+		return "", "", 0
+	}
+	s.projectTerminalMu.Lock()
+	defer s.projectTerminalMu.Unlock()
+	st, ok := s.projectTerminalState[projID]
+	if !ok {
+		return "", "", 0
+	}
+	preferredAccountID = st.preferredAccountID
+	st.preferredAccountID = ""
+	return preferredAccountID, st.lastStoppedID, st.rotateOffset
+}
+
+func (s *Server) activeProjectTerminalBrain(projID string) *projectTerminalBrainInfo {
+	if projID == "" {
+		return nil
+	}
+	if meta, ok := terminal.ReadProjectWorkerMeta(projID); ok && (meta.AccountID != "" || meta.ModelID != "") {
+		return &projectTerminalBrainInfo{
+			AccountID:    meta.AccountID,
+			AccountLabel: meta.AccountLabel,
+			ModelID:      meta.ModelID,
+			Provider:     meta.Provider,
+		}
+	}
+	s.projectTerminalMu.Lock()
+	defer s.projectTerminalMu.Unlock()
+	if st, ok := s.projectTerminalState[projID]; ok && st.active != nil {
+		copyInfo := *st.active
+		return &copyInfo
+	}
+	return nil
 }
 
 type runTaskAgentPayload struct {

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/buchin/cuan/internal/agent"
 )
 
 func TestProjectWorker_RunAndSocketBridge(t *testing.T) {
@@ -239,5 +241,31 @@ func TestSpawnDetachedProjectWorker_RealBinary(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	if ProjectSocketExists(projectID) {
 		t.Fatal("expected socket to be cleaned up after terminate")
+	}
+}
+
+func TestProjectQuotaWatcher_RecordsModelCooldown(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	owner := "owner_quota_watcher"
+	acct, err := agent.CreateProviderAccount(owner, "quota-test-brain")
+	if err != nil {
+		t.Fatalf("CreateProviderAccount failed: %v", err)
+	}
+	watcher := newProjectQuotaWatcher(owner, acct.ID, "gemini-3.8-flash-high")
+	if watcher == nil {
+		t.Fatal("expected non-nil projectQuotaWatcher")
+	}
+
+	// Feed ANSI-colored quota error output split across chunks
+	watcher.Observe([]byte("\x1b[33m⚠ Individual quota reached. "))
+	watcher.Observe([]byte("Please upgrade your subscription to increase your limits. Resets in 2h0m0s.\x1b[0m\n"))
+
+	updated, err := agent.GetProviderAccount(owner, acct.ID)
+	if err != nil {
+		t.Fatalf("GetProviderAccount failed: %v", err)
+	}
+	until, ok := updated.ModelCooldowns["gemini-3.8-flash-high"]
+	if !ok || !time.Now().Before(until) {
+		t.Fatalf("expected model cooldown to be recorded for gemini-3.8-flash-high, got %+v", updated.ModelCooldowns)
 	}
 }
