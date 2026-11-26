@@ -757,7 +757,7 @@ export function App() {
         },
       })
     }
-    if (rootSegment === 'account' && ['general', 'team', 'ai-providers', 'memory', 'agent', 'agents', 'apps-skills', 'integrations'].includes(subParam)) {
+    if (rootSegment === 'account' && ['general', 'team', 'ai-providers', 'memory', 'agent', 'agents', 'apps-skills', 'integrations', 'schedules'].includes(subParam)) {
       navigate('/settings/' + encodeURIComponent(subParam) + location.search + location.hash, {
         replace: true,
         state: location.state,
@@ -991,7 +991,15 @@ export function App() {
       ? projects.find((p) => p.id === subParam)
       : undefined
   const projectDetail = currentTab === 'projects' && !!subParam
-  const projectSettings = projectDetail && pathSegments[2] !== 'tasks'
+  const projectSubSection = projectDetail ? pathSegments[2] : ''
+  const projectSubTitles: Record<string, string> = {
+    repository: 'Repository',
+    environment: 'Environment',
+    deployments: 'Deployments',
+    activity: 'Activity',
+    settings: 'Settings',
+  }
+  const projectSettings = projectDetail && projectSubSection !== 'tasks'
   const settingTitles: Record<string, string> = {
     agent: 'Assistant & AI brains',
     'apps-skills': 'Apps & Skills',
@@ -1007,16 +1015,20 @@ export function App() {
     general: 'General',
     schedules: 'Schedules',
   }
+  const integrationSubTitles: Record<string, string> = {
+    'live-chat': 'Live Chat',
+    github: 'GitHub',
+    resend: 'Resend Email',
+    instabox: 'Instabox',
+  }
   const isAccountOrSettings = currentTab === 'settings' || currentTab === 'account'
   const settingsDetail = isAccountOrSettings && !!settingTitles[subParam]
   const headerTitle = projectDetail
     ? projectSettings
-      ? pathSegments[2] === 'repository' ? 'Repository' : 'Settings'
+      ? projectSubTitles[projectSubSection] || 'Settings'
       : headerProject?.name || 'Project'
     : settingsDetail
-      ? pathSegments[2] === 'live-chat'
-        ? 'Live Chat'
-        : pathSegments[2] === 'github' ? 'GitHub' : pathSegments[2] === 'resend' ? 'Resend Email' : settingTitles[subParam]
+      ? integrationSubTitles[pathSegments[2]] || settingTitles[subParam]
       : currentTab === 'account'
         ? 'Account'
         : currentTab === 'studio'
@@ -1040,7 +1052,7 @@ export function App() {
             label: currentTab === 'account' ? 'Account' : 'Settings',
             to: currentTab === 'account' ? '/account' : '/settings',
           },
-          ...(['live-chat', 'github', 'resend'].includes(pathSegments[2])
+          ...(integrationSubTitles[pathSegments[2]]
             ? [{ label: 'Integrations', to: '/settings/integrations' }]
             : []),
         ]

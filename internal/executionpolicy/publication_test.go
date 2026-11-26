@@ -230,3 +230,21 @@ func TestFalsePositiveAssertionDoesNotProhibitDeployment(t *testing.T) {
 		}
 	}
 }
+
+func TestRunnerPushCautionDoesNotBlockManagedAutoDeploy(t *testing.T) {
+	for _, tc := range []struct {
+		text       string
+		push, deny bool
+	}{
+		{"Jangan melakukan push langsung ke main atau menjalankan deploy manual ke Cloudflare Pages dari dalam sesi runner. Setelah verifikasi lulus, biarkan pipeline auto-deploy Cuan yang melakukan merge ke main dan deploy ke Cloudflare Pages.", false, false},
+		{"Do not push directly to main from inside the runner session. Let Cuan auto-deploy merge and deploy.", false, false},
+		{"Jangan melakukan push langsung ke main dari dalam sesi runner.", true, false},
+		{"Do not push. Do not deploy.", true, true},
+		{"Jangan push ke repo. Biarkan pipeline auto-deploy Cuan yang merge.", true, false},
+	} {
+		got := FromInstructions(tc.text)
+		if got.DenyPush != tc.push || got.DenyDeploy != tc.deny {
+			t.Errorf("%q: got %+v, want denyPush=%v denyDeploy=%v", tc.text, got, tc.push, tc.deny)
+		}
+	}
+}

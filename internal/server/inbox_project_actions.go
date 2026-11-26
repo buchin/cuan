@@ -124,13 +124,39 @@ func (s *Server) applyInboxProject(ctx context.Context, q db.InboxRequest, conte
 	switch action.Action {
 	case "create":
 		name := strings.TrimSpace(action.Name)
-		projID := strings.TrimSpace(action.ProjectID)
-		if projID == "" || !strings.HasPrefix(projID, "proj_") || len(projID) != 37 {
-			projID = generateManagedProjectID(name)
+		repoURL := strings.TrimSpace(action.RepoURL)
+		desc := strings.TrimSpace(action.Description)
+		var proj *project.ProjectResponse
+		var err error
+		if repoURL != "" {
+			proj, err = s.projectSvc.Connect(ctx, project.ConnectProjectRequest{
+				Name:    name,
+				RepoURL: repoURL,
+			})
+		} else {
+			projID := strings.TrimSpace(action.ProjectID)
+			if projID == "" || !strings.HasPrefix(projID, "proj_") || len(projID) != 37 {
+				projID = generateManagedProjectID(name)
+			}
+			proj, err = s.projectSvc.CreateManagedWorkspace(ctx, projID, name)
 		}
-		proj, err := s.projectSvc.CreateManagedWorkspace(ctx, projID, name)
 		if err != nil {
 			return cleanText + fmt.Sprintf("\n\n⚠️ Gagal membuat project: %v", err)
+		}
+		if desc != "" {
+			settings := project.SettingsFromMetadata(proj.Metadata)
+			_, _ = s.projectSvc.UpdateSettings(ctx, proj.ID, project.UpdateSettingsRequest{
+				Name:              proj.Name,
+				RepoURL:           proj.RepoURL,
+				DefaultBranch:     proj.DefaultBranch,
+				Goal:              desc,
+				Instructions:      settings.Instructions,
+				DeployBranch:      settings.DeployBranch,
+				DeployScript:      settings.DeployScript,
+				AutoDeploy:        settings.AutoDeploy,
+				Environment:       settings.Environment,
+				ExpectedUpdatedAt: proj.UpdatedAt,
+			})
 		}
 		return cleanText + fmt.Sprintf("\n\n✓ **Project Baru Berhasil Dibuat:** `%s` (`%s`)", proj.Name, proj.ID)
 

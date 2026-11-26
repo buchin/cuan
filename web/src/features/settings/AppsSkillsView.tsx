@@ -544,6 +544,7 @@ export function AppsSkillsView({ initialTab = 'apps', showHeading = true }: Apps
                 { id: 'finance', label: t('Finance & Accounting') },
                 { id: 'productivity', label: t('Productivity') },
                 { id: 'automation', label: t('Automation') },
+                { id: 'custom', label: t('Custom') },
               ].map((cat) => (
                 <button
                   key={cat.id}

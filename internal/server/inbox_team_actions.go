@@ -47,6 +47,9 @@ func parseInboxTeam(content string) (string, *inboxTeamAction, error) {
 	if a.Action == "invite" && strings.TrimSpace(a.Email) == "" {
 		return "", nil, errors.New("Email is required to invite a team member.")
 	}
+	if a.Action == "remove" && strings.TrimSpace(a.ID) == "" {
+		return "", nil, errors.New("ID is required to remove a team member or invite.")
+	}
 	return strings.TrimSpace(normalized[:start]), &a, nil
 }
 
@@ -130,6 +133,35 @@ func (s *Server) applyInboxTeam(ctx context.Context, q db.InboxRequest, content 
 		sb.WriteString(fmt.Sprintf("• **Kadaluarsa:** %s\n\n", resp.Invitation.ExpiresAt.Format("02 Jan 2006 15:04 UTC")))
 		sb.WriteString("Tautan undangan ini dapat langsung dikirimkan ke calon anggota tim untuk aktivasi akun.")
 		return strings.TrimSpace(sb.String())
+
+	case "remove":
+		targetID := strings.TrimSpace(action.ID)
+		ownerID := q.OwnerID
+		if ownerID != "" && ownerID == targetID {
+			return cleanText + "\n\n⚠️ Tidak dapat menghapus akun Owner yang sedang aktif."
+		}
+		members, invites, listErr := s.authSvc.ListTeamMembers(ctx)
+		if listErr == nil {
+			if ownerID != "" && ownerID != "owner_admin" {
+				for _, m := range members {
+					if m.ID == ownerID && strings.EqualFold(strings.TrimSpace(m.Role), auth.RoleMember) {
+						return cleanText + "\n\n⚠️ Hanya pemilik workspace (Owner) yang dapat menghapus anggota tim atau undangan."
+					}
+				}
+			}
+			for _, inv := range invites {
+				if inv.ID == targetID {
+					if err := s.authSvc.DeleteInvite(ctx, targetID); err != nil {
+						return cleanText + fmt.Sprintf("\n\n⚠️ Gagal membatalkan undangan: %v", err)
+					}
+					return cleanText + fmt.Sprintf("\n\n✓ Undangan untuk `%s` berhasil dibatalkan.", inv.Email)
+				}
+			}
+		}
+		if err := s.authSvc.DeleteMember(ctx, targetID); err != nil {
+			return cleanText + fmt.Sprintf("\n\n⚠️ Gagal menghapus anggota tim: %v", err)
+		}
+		return cleanText + fmt.Sprintf("\n\n✓ Anggota tim (`%s`) berhasil dihapus.", targetID)
 
 	default:
 		return cleanText + fmt.Sprintf("\n\n⚠️ Aksi tim '%s' tidak didukung.", action.Action)

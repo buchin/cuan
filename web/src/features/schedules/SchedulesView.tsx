@@ -61,6 +61,7 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
   const [editingTask, setEditingTask] = useState<ScheduledTask | null>(null)
   const [triggeringId, setTriggeringId] = useState<string | null>(null)
   const [actionFeedback, setActionFeedback] = useState<string | null>(null)
+  const [errorFeedback, setErrorFeedback] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   // URL deep-linking: ?action=new opens creation drawer, ?edit=<id> opens edit drawer
@@ -113,12 +114,15 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
     try {
       setLoading(true)
       const res = await fetch('/api/system/scheduler/tasks')
-      if (res.ok) {
-        const data = await res.json()
-        setTasks(data.tasks || [])
+      if (!res.ok) {
+        setErrorFeedback(t('Failed to load scheduled routines.'))
+        return
       }
+      const data = await res.json()
+      setTasks(data.tasks || [])
+      setErrorFeedback(null)
     } catch {
-      // ignore
+      setErrorFeedback(t('Failed to load scheduled routines.'))
     } finally {
       setLoading(false)
     }
@@ -242,47 +246,56 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
 
   const handleToggle = async (id: string, currentEnabled: boolean) => {
     try {
+      setErrorFeedback(null)
       const res = await fetch(`/api/system/scheduler/tasks/${encodeURIComponent(id)}/toggle`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: !currentEnabled }),
       })
-      if (res.ok) {
-        fetchTasks()
+      if (!res.ok) {
+        setErrorFeedback(t('Failed to update schedule status.'))
+        return
       }
+      fetchTasks()
     } catch {
-      // ignore
+      setErrorFeedback(t('Failed to update schedule status.'))
     }
   }
 
   const handleDelete = async (id: string) => {
     if (!window.confirm(t('Are you sure you want to delete this schedule?'))) return
     try {
+      setErrorFeedback(null)
       const res = await fetch(`/api/system/scheduler/tasks/${encodeURIComponent(id)}`, {
         method: 'DELETE',
       })
-      if (res.ok) {
-        if (expandedId === id) setExpandedId(null)
-        fetchTasks()
+      if (!res.ok) {
+        setErrorFeedback(t('Failed to delete schedule.'))
+        return
       }
+      if (expandedId === id) setExpandedId(null)
+      fetchTasks()
     } catch {
-      // ignore
+      setErrorFeedback(t('Failed to delete schedule.'))
     }
   }
 
   const handleTrigger = async (id: string) => {
     try {
       setTriggeringId(id)
+      setErrorFeedback(null)
       const res = await fetch(`/api/system/scheduler/tasks/${encodeURIComponent(id)}/trigger`, {
         method: 'POST',
       })
-      if (res.ok) {
-        setActionFeedback(t('Task triggered in background'))
-        setTimeout(() => setActionFeedback(null), 3000)
-        setTimeout(fetchTasks, 1500)
+      if (!res.ok) {
+        setErrorFeedback(t('Failed to trigger schedule.'))
+        return
       }
+      setActionFeedback(t('Task triggered in background'))
+      setTimeout(() => setActionFeedback(null), 3000)
+      setTimeout(fetchTasks, 1500)
     } catch {
-      // ignore
+      setErrorFeedback(t('Failed to trigger schedule.'))
     } finally {
       setTriggeringId(null)
     }
@@ -360,6 +373,19 @@ export function SchedulesView({ embedded = false }: SchedulesViewProps) {
         <div className="text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-2 bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20">
           <CheckCircle2 className="h-4 w-4 shrink-0" />
           <span>{actionFeedback}</span>
+        </div>
+      )}
+
+      {errorFeedback && (
+        <div role="alert" className="text-sm text-destructive flex items-center justify-between gap-2 bg-destructive/10 p-3 rounded-xl border border-destructive/20">
+          <span>{errorFeedback}</span>
+          <button
+            type="button"
+            onClick={() => setErrorFeedback(null)}
+            className="text-xs underline underline-offset-2 shrink-0"
+          >
+            {t('Dismiss')}
+          </button>
         </div>
       )}
 

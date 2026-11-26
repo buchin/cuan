@@ -53,6 +53,11 @@ var publicationEvidenceLimit = regexp.MustCompile(`(?i)^\s*(?:do not repeat depl
 // manual releases, not Cuan's automated apply/merge and deployment pipeline.
 var manualDeployCaution = regexp.MustCompile(`(?i)^\s*(?:jangan|dilarang|tanpa|tidak|do not|don't|must not|never|no)\s+(?:(?:lakukan|melakukan|jalankan|menjalankan|run|execute|perform)\s+)?(?:manual\s+(?:deploy|deployment|deploying)|(?:deploy|deployment|deploying)\s+(?:manual|secara\s+manual|manually)|manually\s+(?:deploy|deployment|deploying))(?:\s+(?:ke|to)\s+(?:production|produksi|live|prod|server|vps))?\s*$`)
 
+// Prohibiting direct push from inside a runner session (e.g. "Jangan melakukan
+// push langsung ke main ... dari dalam sesi runner") forbids runner-side pushes,
+// not Cuan's automated apply/merge pipeline when managed publication is requested.
+var runnerPushCaution = regexp.MustCompile(`(?i)\b(?:dari\s+(?:dalam\s+)?sesi\s+runner|di\s+(?:dalam\s+)?sesi\s+runner|from\s+(?:inside\s+)?(?:the\s+)?runner(?:\s+session)?|in\s+(?:the\s+)?runner\s+session)\b`)
+
 // Negating false positives (e.g. "Tidak ada false positive: deployment ...")
 // asserts product correctness, not a prohibition on deployment.
 var falsePositiveAssertion = regexp.MustCompile(`(?i)\b(?:tidak\s+ada|tanpa|no)\s+false\s+positives?\b\s*:?`)
@@ -69,8 +74,8 @@ func FromInstructions(instructions string) PublicationPolicy {
 	}
 	clauses := publicationClauseTransition.ReplaceAllString(instructions, "\n$0")
 	for _, clause := range publicationProhibition.FindAllString(clauses, -1) {
-		policy.DenyPush = policy.DenyPush || pushAction.MatchString(clause)
-		policy.DenyDeploy = policy.DenyDeploy || (deployAction.MatchString(clause) && !manualDeployCaution.MatchString(clause) && !((inspectBehaviorLimit.MatchString(clause) || publicationEvidenceLimit.MatchString(clause)) && managedPublicationRequested(instructions)))
+		policy.DenyPush = policy.DenyPush || (pushAction.MatchString(clause) && !(runnerPushCaution.MatchString(clause) && managedPublicationRequested(instructions)))
+		policy.DenyDeploy = policy.DenyDeploy || (deployAction.MatchString(clause) && !manualDeployCaution.MatchString(clause) && !((inspectBehaviorLimit.MatchString(clause) || publicationEvidenceLimit.MatchString(clause) || runnerPushCaution.MatchString(clause)) && managedPublicationRequested(instructions)))
 	}
 	if policy.DenyDeploy && standaloneArtifactShape(instructions) {
 		policy.DenyPush = true

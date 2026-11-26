@@ -1059,6 +1059,9 @@ func InspectAppLogs(ctx context.Context, lines int, filter string) (any, error) 
 
 // ListApps lists external third-party applications in Cuan.
 func ListApps(ctx context.Context) (any, error) {
+	if client := GetCuanClient(); client != nil && client.IsConfigured() {
+		return client.ListApps(ctx)
+	}
 	reg := mcp.GetDefaultRegistry()
 	apps := reg.ListApps()
 	return map[string]any{
@@ -1070,6 +1073,9 @@ func ListApps(ctx context.Context) (any, error) {
 
 // ListSkills lists modular intelligence skills in Cuan.
 func ListSkills(ctx context.Context) (any, error) {
+	if client := GetCuanClient(); client != nil && client.IsConfigured() {
+		return client.ListSkills(ctx)
+	}
 	reg := mcp.GetDefaultRegistry()
 	skills := reg.ListSkills()
 	return map[string]any{
@@ -1085,6 +1091,9 @@ func ToggleAgentSkill(ctx context.Context, agentID, skillID string, enabled bool
 		return nil, err
 	}
 
+	if client := GetCuanClient(); client != nil && client.IsConfigured() {
+		return client.ToggleAgentSkill(ctx, agentID, skillID, enabled)
+	}
 	reg := mcp.GetDefaultRegistry()
 	if err := reg.ToggleAgentSkill(agentID, skillID, enabled); err != nil {
 		return nil, err

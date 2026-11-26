@@ -236,6 +236,9 @@ func (c *CuanClient) CreateConversation(ctx context.Context, agentID, projectID,
 		"request_id": requestID,
 		"project_id": projectID,
 	}
+	if title != "" && title != "New conversation" {
+		payload["title"] = title
+	}
 
 	resp, err := c.doRequest(ctx, http.MethodPost, "/api/v1/chat/conversations", payload)
 	if err != nil {
@@ -955,6 +958,55 @@ func (c *CuanClient) CreateProject(ctx context.Context, name, description, repoU
 	return res, nil
 }
 
+// ListApps lists apps from the running Cuan server.
+func (c *CuanClient) ListApps(ctx context.Context) (map[string]any, error) {
+	return c.getJSONMap(ctx, "/api/v1/apps", "list apps")
+}
+
+// ListSkills lists skills from the running Cuan server.
+func (c *CuanClient) ListSkills(ctx context.Context) (map[string]any, error) {
+	return c.getJSONMap(ctx, "/api/v1/skills", "list skills")
+}
+
+// ToggleAgentSkill toggles a skill for an agent via the running Cuan server.
+func (c *CuanClient) ToggleAgentSkill(ctx context.Context, agentID, skillID string, enabled bool) (map[string]any, error) {
+	endpoint := fmt.Sprintf("/api/v1/agents/%s/skills", url.PathEscape(NormalizeAgentAlias(agentID)))
+	payload := map[string]any{
+		"skills": []map[string]any{{"skill_id": skillID, "enabled": enabled}},
+	}
+	resp, err := c.doRequest(ctx, http.MethodPut, endpoint, payload)
+	if err != nil {
+		return nil, fmt.Errorf("toggle agent skill: %w", err)
+	}
+	defer resp.Body.Close()
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("toggle agent skill failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+	var res map[string]any
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return nil, fmt.Errorf("unmarshal toggle agent skill: %w", err)
+	}
+	return res, nil
+}
+
+func (c *CuanClient) getJSONMap(ctx context.Context, endpoint, op string) (map[string]any, error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+	defer resp.Body.Close()
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("%s failed (status %d): %s", op, resp.StatusCode, string(bodyBytes))
+	}
+	var res map[string]any
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return nil, fmt.Errorf("unmarshal %s: %w", op, err)
+	}
+	return res, nil
+}
+
 // UpdateProject updates an existing project in Cuan.
 func (c *CuanClient) UpdateProject(ctx context.Context, id, name, description, repoURL, branch string) (map[string]any, error) {
 	proj, err := c.GetProject(ctx, id)
@@ -980,11 +1032,23 @@ func (c *CuanClient) UpdateProject(ctx context.Context, id, name, description, r
 			branch = "main"
 		}
 	}
+	var cuanSettings map[string]any
+	if meta, ok := proj["metadata"].(map[string]any); ok {
+		if cs, ok := meta["cuan_settings"].(map[string]any); ok {
+			cuanSettings = cs
+		}
+	}
 	goal, _ := proj["goal"].(string)
+	if goal == "" && cuanSettings != nil {
+		goal, _ = cuanSettings["goal"].(string)
+	}
 	if description != "" {
 		goal = description
 	}
 	instructions, _ := proj["instructions"].(string)
+	if instructions == "" && cuanSettings != nil {
+		instructions, _ = cuanSettings["instructions"].(string)
+	}
 
 	payload := map[string]any{
 		"name":           name,
@@ -992,6 +1056,13 @@ func (c *CuanClient) UpdateProject(ctx context.Context, id, name, description, r
 		"default_branch": branch,
 		"goal":           goal,
 		"instructions":   instructions,
+	}
+	if cuanSettings != nil {
+		for _, k := range []string{"deploy_branch", "deploy_script", "auto_deploy", "environment"} {
+			if v, ok := cuanSettings[k]; ok {
+				payload[k] = v
+			}
+		}
 	}
 	if updatedAtStr, ok := proj["updated_at"].(string); ok && updatedAtStr != "" {
 		if t, parseErr := time.Parse(time.RFC3339Nano, updatedAtStr); parseErr == nil {
@@ -1182,9 +1253,9 @@ func (c *CuanClient) UpdateContact(ctx context.Context, id, name, email, phone, 
 	return res, nil
 }
 
-// ListTeamMembers lists team members and agents in Cuan.
+// ListTeamMembers lists human team members in Cuan.
 func (c *CuanClient) ListTeamMembers(ctx context.Context) ([]map[string]any, error) {
-	resp, err := c.doRequest(ctx, http.MethodGet, "/api/v1/agents", nil)
+	resp, err := c.doRequest(ctx, http.MethodGet, "/api/v1/team/members", nil)
 	if err != nil {
 		return nil, fmt.Errorf("list team members: %w", err)
 	}
@@ -1193,23 +1264,47 @@ func (c *CuanClient) ListTeamMembers(ctx context.Context) ([]map[string]any, err
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("list team members failed (status %d): %s", resp.StatusCode, string(bodyBytes))
 	}
-	var agents []map[string]any
-	if err := json.Unmarshal(bodyBytes, &agents); err != nil {
-		var wrapper struct {
-			Agents []map[string]any `json:"agents"`
+	var wrapper struct {
+		Members     []map[string]any `json:"members"`
+		Invitations []map[string]any `json:"invitations"`
+	}
+	if err := json.Unmarshal(bodyBytes, &wrapper); err == nil && (wrapper.Members != nil || wrapper.Invitations != nil) {
+		result := make([]map[string]any, 0, len(wrapper.Members)+len(wrapper.Invitations))
+		result = append(result, wrapper.Members...)
+		for _, inv := range wrapper.Invitations {
+			inv["status"] = "invited"
+			result = append(result, inv)
 		}
-		if err2 := json.Unmarshal(bodyBytes, &wrapper); err2 == nil {
-			return wrapper.Agents, nil
-		}
+		return result, nil
+	}
+	var members []map[string]any
+	if err := json.Unmarshal(bodyBytes, &members); err != nil {
 		return nil, fmt.Errorf("unmarshal team members: %w", err)
 	}
-	return agents, nil
+	return members, nil
 }
 
 // UpdateProviderAccount updates AI provider account settings.
 func (c *CuanClient) UpdateProviderAccount(ctx context.Context, accountID, label, modelID, fallbackModelID string, allowFallback *bool) (map[string]any, error) {
 	endpoint := fmt.Sprintf("/api/v1/provider-accounts/%s", url.PathEscape(accountID))
 	payload := map[string]any{}
+	if label != "" || modelID != "" {
+		// Preserve existing label/model_id because PATCH /provider-accounts/{id}
+		// requires non-empty label and overwrites both fields.
+		if accounts, listErr := c.ListProviderAccounts(ctx); listErr == nil {
+			for _, acct := range accounts {
+				if acct != nil && acct.ID == accountID {
+					if label == "" {
+						label = acct.Label
+					}
+					if modelID == "" {
+						modelID = acct.ModelID
+					}
+					break
+				}
+			}
+		}
+	}
 	if label != "" {
 		payload["label"] = label
 	}

@@ -138,9 +138,15 @@ func (s *Server) ensureTaskCompletionDelivered(ctx context.Context, detail *task
 	if targetRoom == "" {
 		return
 	}
+	msgID := delegationMessageID("task-completed-closing:" + detail.ID)
+	if existing, err := s.projectStudioRepo.GetMessageByID(ctx, msgID); err == nil && existing != nil {
+		return
+	}
 	// Single-bubble idempotency: verify whether a completion notification was already delivered to targetRoom
 	msgs, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, targetRoom)
-	if err == nil {
+	if err != nil {
+		log.Printf("[scrum_engine] list messages failed for room=%s task=%s: %v", targetRoom, detail.ID, err)
+	} else {
 		for _, m := range msgs {
 			if strings.Contains(m.Content, "/tasks/"+detail.ID) &&
 				(strings.Contains(m.Content, "Hasil pekerjaan memenuhi kriteria") ||
@@ -148,7 +154,8 @@ func (s *Server) ensureTaskCompletionDelivered(ctx context.Context, detail *task
 					strings.Contains(m.Content, "Pekerjaan telah diselesaikan") ||
 					strings.Contains(m.Content, "Pekerjaan telah selesai") ||
 					strings.Contains(m.Content, "telah selesai dan diverifikasi") ||
-					strings.Contains(m.Content, "Draf balasan untuk pengunjung")) {
+					strings.Contains(m.Content, "Draf balasan untuk pengunjung") ||
+					strings.Contains(m.Content, "Customer reply draft")) {
 				return
 			}
 		}
@@ -177,20 +184,32 @@ func (s *Server) ensureTaskCompletionDelivered(ctx context.Context, detail *task
 	} else {
 		content = fmt.Sprintf("Hasil pekerjaan memenuhi kriteria yang disepakati.\n\n%s\n\n[View work](/tasks/%s)", summary, detail.ID)
 	}
+	authorID := "agent_cuan"
+	authorName := "@cuan"
+	if detail.AssignedAgent != "" {
+		authorID = detail.AssignedAgent
+		if s.agentRepo != nil {
+			if ag, err := s.runtimeAgent(ctx, detail.AssignedAgent); err == nil && ag != nil && ag.Name != "" {
+				authorName = ag.Name
+			}
+		}
+	}
 	now := time.Now().UTC()
 	msg := &db.ProjectMessage{
-		ID:         db.GenerateUUID(),
+		ID:         msgID,
 		RoomID:     targetRoom,
 		AuthorType: "agent",
-		AuthorID:   "scrum_master",
-		AuthorName: "Scrum Master",
+		AuthorID:   authorID,
+		AuthorName: authorName,
 		Content:    content,
 		CreatedAt:  now,
 		UpdatedAt:  now,
 	}
-	if err := s.projectStudioRepo.CreateMessage(ctx, msg); err == nil {
-		s.publishInbox(targetRoom)
+	if err := s.projectStudioRepo.CreateMessage(ctx, msg); err != nil {
+		log.Printf("[scrum_engine] create completion message failed for room=%s task=%s: %v", targetRoom, detail.ID, err)
+		return
 	}
+	s.publishInbox(targetRoom)
 }
 
 // evaluateTaskDoDDeterministic performs autonomous deterministic DoD evaluation when
