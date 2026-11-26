@@ -104,6 +104,28 @@ func (s *Server) inboxReviewPublication(ctx context.Context, d *task.TaskDetailR
 			}
 		}
 	}
+	if !result.Verified && s.projectDeploymentRepo != nil {
+		if deps, err := s.projectDeploymentRepo.ListByProjectID(ctx, effectiveDetail.ProjectID, 20); err == nil {
+			for _, dep := range deps {
+				if dep == nil || dep.Status != db.DeploymentStatusSuccess || !releaseObjectID.MatchString(dep.CommitSHA) {
+					continue
+				}
+				if dep.CommitSHA == effectiveDetail.CommitSHA {
+					contained := true
+					result.ObservedRelease = dep.CommitSHA
+					result.ResultCommitContained = &contained
+					result.Verified, result.Provenance = true, "project_deployment_success_exact_commit"
+					break
+				}
+				if contained, err := s.projectSvc.PublishedCommitContained(ctx, effectiveDetail.ProjectID, effectiveDetail.CommitSHA, dep.CommitSHA); err == nil && contained {
+					result.ObservedRelease = dep.CommitSHA
+					result.ResultCommitContained = &contained
+					result.Verified, result.Provenance = true, "project_deployment_success_contains_result_commit"
+					break
+				}
+			}
+		}
+	}
 	return result
 }
 
