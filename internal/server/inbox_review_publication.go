@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -123,10 +125,32 @@ func (s *Server) inboxReviewPublication(ctx context.Context, d *task.TaskDetailR
 					result.Verified, result.Provenance = true, "project_deployment_success_contains_result_commit"
 					break
 				}
+				if p.LocalPath != "" && commitAppliesTask(ctx, p.LocalPath, dep.CommitSHA, effectiveDetail.ID) {
+					contained := true
+					result.ObservedRelease = dep.CommitSHA
+					result.ResultCommitContained = &contained
+					result.Verified, result.Provenance = true, "project_deployment_success_applied_task_commit"
+					break
+				}
 			}
 		}
 	}
 	return result
+}
+
+// commitAppliesTask verifies that a deployed squash-merge commit on the project
+// repository was created specifically by Cuan One-Click Apply for taskID.
+func commitAppliesTask(ctx context.Context, repoPath, commitSHA, taskID string) bool {
+	if repoPath == "" || commitSHA == "" || taskID == "" {
+		return false
+	}
+	out, err := exec.CommandContext(ctx, "git", "-C", repoPath, "log", "-n", "1", "--format=%s", commitSHA).Output()
+	if err != nil {
+		return false
+	}
+	subject := strings.TrimSpace(string(out))
+	return strings.HasPrefix(subject, fmt.Sprintf("Apply Task %s:", taskID)) ||
+		subject == fmt.Sprintf("Apply Task %s", taskID)
 }
 
 func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetailResponse, decision inboxReviewEvaluation) inboxReviewEvaluation {

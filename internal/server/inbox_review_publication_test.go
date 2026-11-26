@@ -3,6 +3,9 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -242,5 +245,84 @@ func TestPublicationReviewBypassedWhenStagesOmitPublish(t *testing.T) {
 	result := s.requirePublicationReview(ctx, d, inboxReviewEvaluation{Decision: "pass", Finding: "All clean", RemainingWork: "none"})
 	if result.Decision != "pass" {
 		t.Fatalf("expected pass decision, got %+v", result)
+	}
+}
+
+func TestInboxReviewPublication_ProjectDeploymentSuccessAppliedTaskCommit(t *testing.T) {
+	ctx := context.Background()
+	s, _, _, _ := inboxFixture(t)
+	repoDir := t.TempDir()
+	runGit := func(args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", repoDir}, args...)...)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v failed: %v (%s)", args, err, string(out))
+		}
+		return strings.TrimSpace(string(out))
+	}
+	runGit("init", "-b", "main")
+	runGit("config", "user.email", "test@cuan.work")
+	runGit("config", "user.name", "Cuan Test")
+	if err := os.WriteFile(filepath.Join(repoDir, "README.md"), []byte("hello\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	runGit("add", "README.md")
+	runGit("commit", "-m", "Apply Task task-squash-1: Test squash apply")
+	appliedSHA := runGit("rev-parse", "HEAD")
+
+	projects := project.NewMemoryStore()
+	if err := projects.CreateProject(ctx, &project.Project{
+		ID:        "squash-project",
+		Name:      "Squash Project",
+		LocalPath: repoDir,
+		RepoURL:   "https://github.com/buchin/cuan-landing",
+		Metadata:  []byte(`{"auto_deploy":true,"deploy_script":"echo deploy"}`),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
+	depRepo := db.NewMemoryProjectDeploymentRepository()
+	if err := depRepo.Create(ctx, &db.ProjectDeployment{
+		ID:        "dep-1",
+		ProjectID: "squash-project",
+		CommitSHA: appliedSHA,
+		Branch:    "main",
+		Status:    db.DeploymentStatusSuccess,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	s.projectDeploymentRepo = depRepo
+
+	preSquashSHA := strings.Repeat("a", 40)
+	d := &task.TaskDetailResponse{
+		Task: task.Task{
+			ID:        "task-squash-1",
+			ProjectID: "squash-project",
+			Title:     "Test squash apply",
+			CommitSHA: preSquashSHA,
+		},
+		LatestAttempt: &task.TaskAttempt{
+			ID:     "att-1",
+			TaskID: "task-squash-1",
+			Status: task.AttemptStatusSucceeded,
+		},
+	}
+	if err := s.taskSvc.Store().CreateTask(ctx, &d.Task); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.taskSvc.Store().CreateAttempt(ctx, d.LatestAttempt); err != nil {
+		t.Fatal(err)
+	}
+
+	observed := s.inboxReviewPublication(ctx, d)
+	if observed == nil || !observed.Verified {
+		t.Fatalf("expected squash-applied deployment commit to verify publication, got %+v", observed)
+	}
+	if observed.Provenance != "project_deployment_success_applied_task_commit" {
+		t.Fatalf("unexpected provenance: %s", observed.Provenance)
+	}
+	if observed.ObservedRelease != appliedSHA {
+		t.Fatalf("expected observed release %s, got %s", appliedSHA, observed.ObservedRelease)
 	}
 }
