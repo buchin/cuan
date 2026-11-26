@@ -384,13 +384,13 @@ export function TaskTerminal({
         }
 
         const data = await res.json().catch(() => ({}))
-        const serverFiles: Array<{ filename?: string; path?: string }> =
+        const serverFiles: Array<{ filename?: string; path?: string; abs_path?: string }> =
           Array.isArray(data?.files) ? data.files : []
         const paths =
           serverFiles.length > 0
             ? serverFiles
                 .map((sf) => {
-                  const p = sf.path || `./${sf.filename || ''}`
+                  const p = sf.abs_path || sf.path || `./${sf.filename || ''}`
                   return /\s/.test(p) ? `"${p}"` : p
                 })
                 .join(' ')

@@ -41,6 +41,7 @@ type ProjectWorkerPayload struct {
 type ProjectWorkerMeta struct {
 	ProjectID    string `json:"project_id"`
 	SessionID    string `json:"session_id,omitempty"`
+	WorkDir      string `json:"work_dir,omitempty"`
 	AccountID    string `json:"account_id,omitempty"`
 	AccountLabel string `json:"account_label,omitempty"`
 	ModelID      string `json:"model_id,omitempty"`
@@ -122,6 +123,26 @@ func ReadProjectWorkerMeta(projectID string) (*ProjectWorkerMeta, bool) {
 		return nil, false
 	}
 	return &meta, true
+}
+
+// ReadProjectWorkerWorkDir returns the active working directory of a detached project terminal worker, if known.
+func ReadProjectWorkerWorkDir(projectID string) string {
+	trimmed := strings.TrimSpace(projectID)
+	if trimmed == "" {
+		return ""
+	}
+	if meta, ok := ReadProjectWorkerMeta(trimmed); ok && strings.TrimSpace(meta.WorkDir) != "" {
+		return strings.TrimSpace(meta.WorkDir)
+	}
+	safeID := safeSocketNameRegex.ReplaceAllString(strings.TrimPrefix(trimmed, "project-term-"), "_")
+	payloadFile := filepath.Join(socketDir(), "cuan-workers", fmt.Sprintf("project-payload-%s.json", safeID))
+	if data, err := os.ReadFile(payloadFile); err == nil {
+		var payload ProjectWorkerPayload
+		if json.Unmarshal(data, &payload) == nil && strings.TrimSpace(payload.WorkDir) != "" {
+			return strings.TrimSpace(payload.WorkDir)
+		}
+	}
+	return ""
 }
 
 // ProjectSocketPath returns the standard Unix domain socket path for a project terminal session.
@@ -216,6 +237,7 @@ func RunProjectWorker(ctx context.Context, payload ProjectWorkerPayload) error {
 	if metaBytes, mErr := json.Marshal(ProjectWorkerMeta{
 		ProjectID:    projectID,
 		SessionID:    sessionID,
+		WorkDir:      payload.WorkDir,
 		AccountID:    payload.AccountID,
 		AccountLabel: payload.AccountLabel,
 		ModelID:      payload.ModelID,

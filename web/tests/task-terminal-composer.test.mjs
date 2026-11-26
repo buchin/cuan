@@ -202,7 +202,10 @@ test('11. Binary wire protocol & xterm.js auto-response drop guard', () => {
 test('12. TerminalComposer uses server-returned upload path and quotes whitespace', () => {
   const composerContent = fs.readFileSync(path.join(rootDir, 'src/features/tasks/terminal/TerminalComposer.tsx'), 'utf8')
   assert.match(composerContent, /data\?\.files/, 'TerminalComposer must read uploaded file metadata from server response')
-  assert.match(composerContent, /serverFile\?\.path/, 'TerminalComposer must use server-returned path')
+  assert.match(composerContent, /serverFile\?\.abs_path\s*\|\|\s*serverFile\?\.path/, 'TerminalComposer must prefer server-returned abs_path with path fallback')
   assert.match(composerContent, /\/\\s\/\.test\(f\.path\)/, 'TerminalComposer must quote paths containing whitespace')
   assert.match(composerContent, /const quotedPath = `"\$\{target\.path\}"`/, 'handleRemoveFile must cleanly remove quoted paths with spaces')
+
+  const terminalContent = fs.readFileSync(path.join(rootDir, 'src/features/tasks/TaskTerminal.tsx'), 'utf8')
+  assert.match(terminalContent, /sf\.abs_path\s*\|\|\s*sf\.path/, 'TaskTerminal drag-drop upload must prefer server-returned abs_path with path fallback')
 })

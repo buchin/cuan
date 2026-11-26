@@ -32,23 +32,17 @@ func (s *Server) resolveTaskExecutionWorkspace(ctx context.Context, rawTaskID st
 		taskID = canonicalID
 	}
 
-	// 0. Project terminal sessions ("project-term-<id>" or "project:<id>") run inside ProjectTerminalWorkspace
+	// 0. Project terminal sessions ("project-term-<id>" or "project:<id>") run inside the active project terminal workDir
 	var termProjID string
 	if strings.HasPrefix(taskID, "project-term-") {
 		termProjID = strings.TrimSpace(strings.TrimPrefix(taskID, "project-term-"))
 	} else if strings.HasPrefix(taskID, "project:") {
 		termProjID = strings.TrimSpace(strings.TrimPrefix(taskID, "project:"))
 	}
-	if termProjID != "" && s.projectSvc != nil {
-		if proj, err := s.projectSvc.Get(ctx, termProjID); err == nil && proj != nil {
-			workDir, wErr := s.projectSvc.ProjectTerminalWorkspace(ctx, proj.ID, proj)
-			if wErr != nil || workDir == "" {
-				workDir = proj.LocalPath
-			}
-			if workDir != "" {
-				_ = os.MkdirAll(workDir, 0755)
-				return taskID, workDir, nil
-			}
+	if termProjID != "" {
+		if dir := s.resolveProjectTerminalWorkDir(ctx, termProjID); dir != "" {
+			_ = os.MkdirAll(dir, 0755)
+			return taskID, dir, nil
 		}
 	}
 
@@ -93,25 +87,9 @@ func (s *Server) resolveTaskExecutionWorkspace(ctx context.Context, rawTaskID st
 					}
 				}
 				if targetProjID != "" {
-					if s.terminalManager != nil {
-						sessionKey := terminal.ProjectSessionKey(targetProjID)
-						if sess, ok := s.terminalManager.GetSession(sessionKey); ok && sess != nil && sess.PTY() != nil {
-							if dir := sess.PTY().WorkDir(); dir != "" {
-								if info, statErr := os.Stat(dir); statErr == nil && info.IsDir() {
-									return taskID, dir, nil
-								}
-							}
-						}
-					}
-					if proj, pErr := s.projectSvc.Get(ctx, targetProjID); pErr == nil && proj != nil {
-						workDir, wErr := s.projectSvc.ProjectTerminalWorkspace(ctx, proj.ID, proj)
-						if wErr != nil || workDir == "" {
-							workDir = proj.LocalPath
-						}
-						if workDir != "" {
-							_ = os.MkdirAll(workDir, 0755)
-							return taskID, workDir, nil
-						}
+					if dir := s.resolveProjectTerminalWorkDir(ctx, targetProjID); dir != "" {
+						_ = os.MkdirAll(dir, 0755)
+						return taskID, dir, nil
 					}
 				}
 			}
@@ -143,6 +121,48 @@ func (s *Server) resolveTaskExecutionWorkspace(ctx context.Context, rawTaskID st
 	}
 
 	return taskID, "", fmt.Errorf("terminal manager is not configured")
+}
+
+// resolveProjectTerminalWorkDir resolves the active working directory for a dedicated project terminal,
+// preferring the live PTY WorkDir (in-memory session or detached project worker) before falling back to ProjectTerminalWorkspace.
+func (s *Server) resolveProjectTerminalWorkDir(ctx context.Context, projID string) string {
+	projID = strings.TrimSpace(strings.TrimPrefix(projID, "project-term-"))
+	if projID == "" {
+		return ""
+	}
+
+	if s.terminalManager != nil {
+		sessionKey := terminal.ProjectSessionKey(projID)
+		if sess, ok := s.terminalManager.GetSession(sessionKey); ok && sess != nil && sess.PTY() != nil {
+			if dir := sess.PTY().WorkDir(); dir != "" {
+				if info, statErr := os.Stat(dir); statErr == nil && info.IsDir() {
+					return dir
+				}
+			}
+		}
+	}
+
+	if terminal.ProjectSocketExists(projID) {
+		if dir := terminal.ReadProjectWorkerWorkDir(projID); dir != "" {
+			if info, statErr := os.Stat(dir); statErr == nil && info.IsDir() {
+				return dir
+			}
+		}
+	}
+
+	if s.projectSvc != nil {
+		if proj, pErr := s.projectSvc.Get(ctx, projID); pErr == nil && proj != nil {
+			workDir, wErr := s.projectSvc.ProjectTerminalWorkspace(ctx, proj.ID, proj)
+			if wErr != nil || workDir == "" {
+				workDir = proj.LocalPath
+			}
+			if workDir != "" {
+				return workDir
+			}
+		}
+	}
+
+	return ""
 }
 
 // handleUploadTaskFile handles uploading files directly into the canonical workspace of a task.
