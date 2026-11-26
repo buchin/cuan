@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
@@ -286,5 +287,90 @@ func TestDeployCoordinatorSuccessAndFailureLifecycle(t *testing.T) {
 	depFail, err := depRepo.GetByID(ctx, "dep_"+commitFail[:16])
 	if err != nil || depFail == nil || depFail.Status != cuanDB.DeploymentStatusFailed {
 		t.Fatalf("expected failed ProjectDeployment record, got %+v (err=%v)", depFail, err)
+	}
+}
+
+func TestApplyInboxReviewEvaluation_AutoApplyPendingReleaseForDeployScript(t *testing.T) {
+	s, _ := setupTestChatServer(t)
+	ctx := context.Background()
+
+	projects := project.NewMemoryStore()
+	autoDeploy := true
+	meta, _ := json.Marshal(map[string]any{
+		"cuan_settings": project.Settings{
+			AutoDeploy:   &autoDeploy,
+			DeployBranch: "main",
+			DeployScript: "./scripts/deploy.sh",
+		},
+	})
+	p := &project.Project{ID: "proj_lp_test", Name: "cuan-landing", RepoName: "cuan-landing", DefaultBranch: "main", Metadata: meta}
+	if err := projects.CreateProject(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
+
+	room := &cuanDB.ProjectRoom{ID: "11111111-1111-4111-8111-111111111111", ProjectID: p.ID, Title: "Test LP Room"}
+	if err := s.projectStudioRepo.CreateRoom(ctx, room); err != nil {
+		t.Fatal(err)
+	}
+	ownerMsg := &cuanDB.ProjectMessage{ID: "22222222-2222-4222-8222-222222222222", RoomID: room.ID, AuthorType: "user", AuthorID: "owner", Content: "Approved: fix LP"}
+	if err := s.projectStudioRepo.CreateMessage(ctx, ownerMsg); err != nil {
+		t.Fatal(err)
+	}
+
+	commit := strings.Repeat("e", 40)
+	tk, err := s.taskSvc.CreateTaskFromMessage(ctx, "owner", ownerMsg.ID, task.CreateTaskRequest{
+		SourceRoomID: room.ID,
+		ProjectID:    p.ID,
+		Title:        "Fix LP Hero",
+		Instructions: "Cuan managed delegation v1.\nApproval message: " + ownerMsg.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	att, err := s.taskSvc.CreateAttempt(ctx, tk.ID, "owner", task.CreateAttemptRequest{RunnerID: "r1", AgentName: "agent_cuan"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.taskSvc.UpdateAttemptStatus(ctx, att.ID, "runner", task.UpdateAttemptRequest{Status: task.AttemptStatusSucceeded}); err != nil {
+		t.Fatal(err)
+	}
+	reviewStatus := task.TaskStatusReview
+	branch := "task/" + tk.ID
+	prNum := 6
+	if _, err := s.taskSvc.UpdateTask(ctx, tk.ID, "runner", task.UpdateTaskRequest{Status: &reviewStatus, CommitSHA: &commit, BranchName: &branch, PRNumber: &prNum}); err != nil {
+		t.Fatal(err)
+	}
+
+	key := "task-review:" + att.ID
+	reqID := delegationMessageID(key)
+	inputMsgID := delegationMessageID(key + ":input")
+	replyMsgID := delegationMessageID(key + ":reply")
+	reviewMsg := &cuanDB.ProjectMessage{
+		ID:         inputMsgID,
+		RoomID:     room.ID,
+		AuthorType: "system",
+		AuthorID:   "cuan_work_review",
+		Content:    "Review result for [/tasks/" + tk.ID + "]",
+	}
+	if err := s.projectStudioRepo.CreateMessage(ctx, reviewMsg); err != nil {
+		t.Fatal(err)
+	}
+
+	q := cuanDB.InboxRequest{
+		OwnerID:   "owner",
+		AgentID:   "agent_cuan",
+		RoomID:    room.ID,
+		RequestID: reqID,
+		MessageID: inputMsgID,
+		ReplyID:   replyMsgID,
+		CreatedAt: time.Now().UTC(),
+		Deadline:  time.Now().UTC().Add(10 * time.Minute),
+	}
+	raw := `{"decision":"revise","source_review":"not_checked","requested_outcome":"unfinished","remaining_work":"verification","finding":"Bukti rilis hasil pekerjaan belum lengkap.","explanation":"Bukti rilis hasil pekerjaan belum lengkap.","revision":"Publish to cuan.work"}`
+	out := s.applyInboxReviewEvaluation(ctx, q, raw)
+	t.Logf("applyInboxReviewEvaluation output: %s", out)
+	if strings.Contains(out, "Bukti rilis hasil pekerjaan belum lengkap") {
+		t.Fatalf("expected autoApplyAndDeployTask to be attempted, but got: %s", out)
 	}
 }
