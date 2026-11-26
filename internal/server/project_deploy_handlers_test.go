@@ -592,3 +592,25 @@ func TestReconcileActiveProjectDeployments_SkipsMismatchCommit(t *testing.T) {
 		t.Fatalf("expected mismatch commit deployment CompletedAt to remain nil")
 	}
 }
+
+func TestIsCuanProject_ExcludesSiblingProjects(t *testing.T) {
+	cases := []struct {
+		name string
+		proj *project.ProjectResponse
+		want bool
+	}{
+		{name: "nil", proj: nil, want: false},
+		{name: "default id", proj: &project.ProjectResponse{ID: "default", Name: "Other"}, want: true},
+		{name: "exact repo", proj: &project.ProjectResponse{ID: "proj_1", Name: "My App", RepoName: "cuan"}, want: true},
+		{name: "exact name", proj: &project.ProjectResponse{ID: "proj_2", Name: "Cuan"}, want: true},
+		{name: "cuan-landing", proj: &project.ProjectResponse{ID: "proj_556a", Name: "cuan-landing", RepoName: "cuan-landing"}, want: false},
+		{name: "cuan-docs", proj: &project.ProjectResponse{ID: "proj_docs", Name: "cuan-docs", RepoName: "cuan-docs"}, want: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isCuanProject(tc.proj); got != tc.want {
+				t.Fatalf("isCuanProject(%+v) = %v, want %v", tc.proj, got, tc.want)
+			}
+		})
+	}
+}

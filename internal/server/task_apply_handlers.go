@@ -259,7 +259,7 @@ func (s *Server) triggerAutoDeploy(ctx context.Context, projectID, taskID string
 				s.deployCoordinator = NewDeployCoordinator()
 			}
 			s.deployCoordinator.Enqueue(ctx, job)
-			if proj.RepoName == "cuan" || strings.Contains(strings.ToLower(proj.Name), "cuan") {
+			if isCuanProject(proj) {
 				log.Printf("[AutoDeploy] Native Cuan project %s auto-deploy acknowledged", projectID)
 			}
 		}

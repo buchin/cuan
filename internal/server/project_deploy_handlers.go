@@ -325,7 +325,7 @@ func isCuanProject(proj *project.ProjectResponse) bool {
 	if proj == nil {
 		return false
 	}
-	return proj.RepoName == "cuan" || strings.Contains(strings.ToLower(proj.Name), "cuan") || proj.ID == "default"
+	return proj.RepoName == "cuan" || strings.EqualFold(strings.TrimSpace(proj.Name), "cuan") || proj.ID == "default"
 }
 
 func (s *Server) cuanCurrentSymlinkPath() string {

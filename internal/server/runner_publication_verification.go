@@ -99,7 +99,7 @@ func (s *Server) handleRunnerVerifyPublication(w http.ResponseWriter, r *http.Re
 		respondJSON(w, 200, map[string]any{"verified": true, "receipt": receipt})
 		return
 	}
-	if !hasDeployScript && !currentProcess {
+	if err == nil && !currentProcess {
 		verify := s.publicationVerifier
 		if verify == nil {
 			verify = publication.Verify

@@ -206,3 +206,49 @@ func TestDeployScriptPublicationVerification(t *testing.T) {
 		t.Fatal("expected verified deployment fact recorded for deploy_script project")
 	}
 }
+
+func TestDeployScriptWithConfiguredVerifierMustVerify(t *testing.T) {
+	s, token := setupTestChatServer(t)
+	ctx := context.Background()
+	projects := project.NewMemoryStore()
+	_, key, _ := ed25519.GenerateKey(rand.Reader)
+	signer, _ := ssh.NewSignerFromKey(key)
+	environment := "CUAN_PUBLICATION_VERIFIER=ssh-release\nCUAN_PUBLICATION_SSH_HOST=project.invalid\nCUAN_PUBLICATION_SSH_USER=project-user\nCUAN_PUBLICATION_SSH_PASSWORD=private-project-password\nCUAN_PUBLICATION_SSH_HOST_KEY=" + strings.TrimSpace(string(ssh.MarshalAuthorizedKey(signer.PublicKey()))) + "\nCUAN_PUBLICATION_DEPLOY_PATH=/var/www/project\nCUAN_PUBLICATION_HEALTH_URL=https://project.invalid/up"
+	metadata, _ := json.Marshal(map[string]any{
+		"cuan_settings": project.Settings{
+			DeployScript: "./scripts/deploy.sh",
+			Environment:  environment,
+		},
+	})
+	p := &project.Project{ID: "landing-project", Name: "cuan-landing", Metadata: metadata}
+	if err := projects.CreateProject(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
+	called := false
+	s.publicationVerifier = func(ctx context.Context, cfg publication.Config, commit string) error {
+		called = true
+		return context.DeadlineExceeded
+	}
+	commit := strings.Repeat("d", 40)
+	item := &task.Task{ID: "landing-task", ProjectID: p.ID, Title: "Landing Task", Status: task.TaskStatusDoing, CommitSHA: commit}
+	if err := s.taskSvc.Store().CreateTask(ctx, item); err != nil {
+		t.Fatal(err)
+	}
+	started := time.Now().Add(-time.Minute)
+	attempt := &task.TaskAttempt{ID: "landing-attempt", TaskID: item.ID, RunnerID: "landing-runner", Status: task.AttemptStatusRunning, CreatedAt: started, StartedAt: &started}
+	if err := s.taskSvc.Store().CreateAttempt(ctx, attempt); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(map[string]string{"task_id": item.ID, "runner_id": attempt.RunnerID, "commit_sha": commit})
+	req := httptest.NewRequest("POST", "/api/v1/runner/attempts/"+attempt.ID+"/publication/verify", strings.NewReader(string(raw)))
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	s.Router().ServeHTTP(w, req)
+	if !called {
+		t.Fatal("expected configured publicationVerifier to be called even when deploy_script is set")
+	}
+	if w.Code != 422 {
+		t.Fatalf("expected HTTP 422 when configured verifier fails, got %d: %s", w.Code, w.Body.String())
+	}
+}
