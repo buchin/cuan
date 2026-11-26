@@ -108,6 +108,8 @@ type Server struct {
 	roomEventBroker             *RoomEventBroker
 	terminalManager             *terminal.Manager
 	terminalHandler             *terminal.Handler
+	projectTerminalMu           sync.Mutex
+	projectTerminalState        map[string]*projectTerminalBrainState
 	projectDeploymentRepo       cuanDB.ProjectDeploymentRepository
 	cuanCurrentPath             string
 	projectIntegrationRepo      cuanDB.ProjectIntegrationRepository

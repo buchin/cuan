@@ -11,21 +11,117 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
+
+	"github.com/buchin/cuan/internal/agent"
 )
 
 // ProjectWorkerPayload contains all parameters needed to initialize a detached project terminal session.
 type ProjectWorkerPayload struct {
-	ProjectID string   `json:"project_id"`
-	WorkDir   string   `json:"work_dir"`
-	Shell     string   `json:"shell,omitempty"`
-	Cols      uint16   `json:"cols,omitempty"`
-	Rows      uint16   `json:"rows,omitempty"`
-	Env       []string `json:"env,omitempty"`
+	ProjectID    string   `json:"project_id"`
+	WorkDir      string   `json:"work_dir"`
+	Shell        string   `json:"shell,omitempty"`
+	Cols         uint16   `json:"cols,omitempty"`
+	Rows         uint16   `json:"rows,omitempty"`
+	Env          []string `json:"env,omitempty"`
+	OwnerID      string   `json:"owner_id,omitempty"`
+	AccountID    string   `json:"account_id,omitempty"`
+	AccountLabel string   `json:"account_label,omitempty"`
+	ModelID      string   `json:"model_id,omitempty"`
+	Provider     string   `json:"provider,omitempty"`
+}
+
+// ProjectWorkerMeta describes the active brain and session metadata for a detached project worker.
+type ProjectWorkerMeta struct {
+	ProjectID    string `json:"project_id"`
+	SessionID    string `json:"session_id,omitempty"`
+	AccountID    string `json:"account_id,omitempty"`
+	AccountLabel string `json:"account_label,omitempty"`
+	ModelID      string `json:"model_id,omitempty"`
+	Provider     string `json:"provider,omitempty"`
+}
+
+var projectQuotaANSI = regexp.MustCompile(`\x1b\[[0-?]*[ -/]*[@-~]`)
+
+type projectQuotaWatcher struct {
+	mu       sync.Mutex
+	ownerID  string
+	acctID   string
+	modelID  string
+	tail     string
+	recorded bool
+}
+
+func newProjectQuotaWatcher(ownerID, acctID, modelID string) *projectQuotaWatcher {
+	if ownerID == "" || acctID == "" {
+		return nil
+	}
+	return &projectQuotaWatcher{
+		ownerID: ownerID,
+		acctID:  acctID,
+		modelID: modelID,
+	}
+}
+
+func (w *projectQuotaWatcher) Observe(chunk []byte) {
+	if w == nil || len(chunk) == 0 {
+		return
+	}
+	w.mu.Lock()
+	if w.recorded {
+		w.mu.Unlock()
+		return
+	}
+	w.tail += string(chunk)
+	if len(w.tail) > 8192 {
+		w.tail = w.tail[len(w.tail)-8192:]
+	}
+	plain := strings.Join(strings.Fields(projectQuotaANSI.ReplaceAllString(w.tail, "")), " ")
+	hit := (strings.Contains(plain, "Individual quota reached") && strings.Contains(plain, "Please upgrade your subscription")) ||
+		(strings.Contains(plain, "RESOURCE_EXHAUSTED") && strings.Contains(plain, "Individual quota reached"))
+	if !hit {
+		w.mu.Unlock()
+		return
+	}
+	w.recorded = true
+	w.mu.Unlock()
+
+	duration, resetStr, _ := agent.ParseProviderQuotaResetDuration(plain)
+	if duration > 24*time.Hour {
+		duration = 24 * time.Hour
+	}
+	if w.modelID != "" {
+		_ = agent.RecordProviderModelQuotaWithDuration(w.ownerID, w.acctID, w.modelID, duration)
+	} else {
+		_ = agent.RecordProviderAccountQuotaWithDuration(w.ownerID, w.acctID, duration, resetStr)
+	}
+}
+
+func projectWorkerMetaPath(projectID string) string {
+	safeID := safeSocketNameRegex.ReplaceAllString(strings.TrimPrefix(strings.TrimSpace(projectID), "project-term-"), "_")
+	return filepath.Join(socketDir(), "cuan-workers", fmt.Sprintf("project-meta-%s.json", safeID))
+}
+
+// ReadProjectWorkerMeta reads the active brain metadata for a detached project terminal worker, if present.
+func ReadProjectWorkerMeta(projectID string) (*ProjectWorkerMeta, bool) {
+	if strings.TrimSpace(projectID) == "" {
+		return nil, false
+	}
+	data, err := os.ReadFile(projectWorkerMetaPath(projectID))
+	if err != nil {
+		return nil, false
+	}
+	var meta ProjectWorkerMeta
+	if err := json.Unmarshal(data, &meta); err != nil {
+		return nil, false
+	}
+	return &meta, true
 }
 
 // ProjectSocketPath returns the standard Unix domain socket path for a project terminal session.
@@ -87,7 +183,12 @@ func RunProjectWorker(ctx context.Context, payload ProjectWorkerPayload) error {
 	defer proc.Close()
 
 	sessionID := fmt.Sprintf("proj-sess-%s-%d", projectID, time.Now().Unix())
-	sess := NewSession(sessionID, sessionKey, proc, ModeInteractive)
+	quotaWatcher := newProjectQuotaWatcher(payload.OwnerID, payload.AccountID, payload.ModelID)
+	var onOutput func([]byte)
+	if quotaWatcher != nil {
+		onOutput = quotaWatcher.Observe
+	}
+	sess := NewSession(sessionID, sessionKey, proc, ModeInteractive, onOutput)
 	sess.SetPersistent(true)
 	defer sess.Close()
 
@@ -110,6 +211,19 @@ func RunProjectWorker(ctx context.Context, payload ProjectWorkerPayload) error {
 	pidFile := filepath.Join(statusDir, fmt.Sprintf("project_%s.pid", safeID))
 	_ = os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0644)
 	defer os.Remove(pidFile)
+
+	metaFile := projectWorkerMetaPath(projectID)
+	if metaBytes, mErr := json.Marshal(ProjectWorkerMeta{
+		ProjectID:    projectID,
+		SessionID:    sessionID,
+		AccountID:    payload.AccountID,
+		AccountLabel: payload.AccountLabel,
+		ModelID:      payload.ModelID,
+		Provider:     payload.Provider,
+	}); mErr == nil {
+		_ = os.WriteFile(metaFile, metaBytes, 0600)
+	}
+	defer os.Remove(metaFile)
 
 	// Detached project workers survive parent restarts and must ignore stray SIGHUP.
 	signal.Ignore(syscall.SIGHUP)
@@ -322,6 +436,7 @@ func TerminateProjectWorker(projectID string) error {
 	}
 
 	_ = os.Remove(payloadFile)
+	_ = os.Remove(projectWorkerMetaPath(rawID))
 	_ = os.Remove(sockPath)
 	return nil
 }

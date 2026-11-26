@@ -329,6 +329,14 @@ export function TaskSessionPage({
     ahead_count?: number
     status_summary?: string
   } | null>(null)
+  const [activeBrain, setActiveBrain] = useState<{
+    account_id?: string
+    account_label?: string
+    model_id?: string
+    provider?: string
+  } | null>(null)
+  const [terminalNonce, setTerminalNonce] = useState(0)
+  const [rotatingBrain, setRotatingBrain] = useState(false)
   const [upstreamLoading, setUpstreamLoading] = useState(false)
 
   const targetProjId = detail?.project_id || detail?.project_ids?.[0]
@@ -340,11 +348,60 @@ export function TaskSessionPage({
       if (res?.upstream) {
         setUpstreamStatus(res.upstream)
       }
+      setActiveBrain(res?.brain || null)
     } catch {}
     finally {
       setUpstreamLoading(false)
     }
   }, [targetProjId])
+
+  const handleRotateBrain = useCallback(async (accountId?: string) => {
+    if (!targetProjId || rotatingBrain) return
+    setRotatingBrain(true)
+    setError('')
+    try {
+      const rotated = await projectsApi.rotateTerminalBrain(targetProjId, accountId)
+      setActiveBrain({
+        account_id: rotated.account_id,
+        account_label: rotated.account_label,
+        model_id: rotated.model_id,
+        provider: rotated.provider,
+      })
+      if (
+        detail?.status === 'done' ||
+        (detail?.status as string) === 'cancelled' ||
+        (detail?.status as string) === 'canceled'
+      ) {
+        await tasksApi.updateStatus(taskId, 'todo')
+      }
+      if (!active) {
+        const runRes = await tasksApi.runAgent(taskId, {
+          request_id: crypto.randomUUID(),
+          agent_id: detail?.assignee_id || 'default',
+          runner_id: 'local_terminal',
+          account_id: rotated.account_id,
+        })
+        if (runRes.attempt?.id) {
+          navigate(
+            basePath + '/sessions/' + encodeURIComponent(runRes.attempt.id) + suffix,
+            { replace: true, state },
+          )
+        }
+      }
+      setTerminalNonce((n) => n + 1)
+      await refresh()
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : (language === 'id'
+              ? 'Tidak ada brain lain yang tersedia saat ini.'
+              : 'No other healthy brain is available right now.'),
+      )
+    } finally {
+      setRotatingBrain(false)
+    }
+  }, [targetProjId, rotatingBrain, detail?.status, detail?.assignee_id, taskId, active, navigate, basePath, suffix, state, refresh, language])
 
   const upstreamFetchedProjRef = useRef<string>('')
   useEffect(() => {
@@ -648,6 +705,14 @@ export function TaskSessionPage({
                   <span className="truncate">{assistantName}</span>
                 </span>
               )}
+              {isDedicatedTerminal && !isStoppedOrCancelled && activeBrain && (activeBrain.account_label || activeBrain.model_id) && (
+                <span
+                  className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted/80 text-muted-foreground shrink-0 max-w-[160px] truncate border border-border/40"
+                  title={[activeBrain.account_label, activeBrain.model_id].filter(Boolean).join(' · ')}
+                >
+                  <span className="truncate">{activeBrain.account_label || activeBrain.model_id}</span>
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -678,6 +743,18 @@ export function TaskSessionPage({
               <PinOff className="h-4 w-4" />
             )}
           </button>
+          {isDedicatedTerminal && targetProjId && (
+            <button
+              type="button"
+              className="icon-action shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+              aria-label={language === 'id' ? 'Ganti brain' : 'Switch brain'}
+              title={language === 'id' ? 'Ganti brain & mulai sesi baru' : 'Switch brain & start new session'}
+              disabled={rotatingBrain || busy}
+              onClick={() => void handleRotateBrain()}
+            >
+              <RefreshCw className={cn('h-3.5 w-3.5', rotatingBrain && 'animate-spin')} />
+            </button>
+          )}
           {active && (
             <button
               type="button"
@@ -737,50 +814,65 @@ export function TaskSessionPage({
                 <span className="hidden sm:inline text-muted-foreground">{t('Terminal output saved')}</span>
               </div>
               {isDedicatedTerminal ? (
-                <button
-                  type="button"
-                  className="action-primary shrink-0 text-xs py-1 px-2.5 inline-flex items-center gap-1.5 ml-2"
-                  disabled={busy}
-                  onClick={async () => {
-                    setBusy(true)
-                    setError('')
-                    try {
-                      if (
-                        detail?.status === 'done' ||
-                        (detail?.status as string) === 'cancelled' ||
-                        (detail?.status as string) === 'canceled'
-                      ) {
-                        await tasksApi.updateStatus(taskId, 'todo')
-                      }
-                      const request = {
-                        request_id: crypto.randomUUID(),
-                        agent_id: detail?.assignee_id || 'default',
-                        runner_id: 'local_terminal',
-                      }
-                      const runRes = await tasksApi.runAgent(taskId, request)
-                      if (runRes.attempt?.id) {
-                        navigate(
-                          basePath + '/sessions/' + encodeURIComponent(runRes.attempt.id) + suffix,
-                          { replace: true, state },
+                <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                  {targetProjId && (
+                    <button
+                      type="button"
+                      className="action-secondary shrink-0 text-xs py-1 px-2.5 inline-flex items-center gap-1.5"
+                      disabled={busy || rotatingBrain}
+                      onClick={() => void handleRotateBrain()}
+                    >
+                      <RefreshCw className={cn('h-3 w-3', rotatingBrain && 'animate-spin')} />
+                      <span>{language === 'id' ? 'Ganti Brain' : 'Switch brain'}</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="action-primary shrink-0 text-xs py-1 px-2.5 inline-flex items-center gap-1.5"
+                    disabled={busy || rotatingBrain}
+                    onClick={async () => {
+                      setBusy(true)
+                      setError('')
+                      try {
+                        if (
+                          detail?.status === 'done' ||
+                          (detail?.status as string) === 'cancelled' ||
+                          (detail?.status as string) === 'canceled'
+                        ) {
+                          await tasksApi.updateStatus(taskId, 'todo')
+                        }
+                        const request = {
+                          request_id: crypto.randomUUID(),
+                          agent_id: detail?.assignee_id || 'default',
+                          runner_id: 'local_terminal',
+                        }
+                        const runRes = await tasksApi.runAgent(taskId, request)
+                        if (runRes.attempt?.id) {
+                          navigate(
+                            basePath + '/sessions/' + encodeURIComponent(runRes.attempt.id) + suffix,
+                            { replace: true, state },
+                          )
+                        }
+                        setTerminalNonce((n) => n + 1)
+                        await refresh()
+                        void loadUpstreamStatus(false)
+                      } catch (e) {
+                        setError(
+                          e instanceof Error
+                            ? e.message
+                            : (language === 'id'
+                                ? 'Gagal memulai kembali sesi terminal. Coba lagi.'
+                                : 'Could not restart terminal session. Try again.'),
                         )
+                      } finally {
+                        setBusy(false)
                       }
-                      await refresh()
-                    } catch (e) {
-                      setError(
-                        e instanceof Error
-                          ? e.message
-                          : (language === 'id'
-                              ? 'Gagal memulai kembali sesi terminal. Coba lagi.'
-                              : 'Could not restart terminal session. Try again.'),
-                      )
-                    } finally {
-                      setBusy(false)
-                    }
-                  }}
-                >
-                  <Play className="h-3 w-3 fill-current" />
-                  <span>{language === 'id' ? 'Mulai Sesi Baru' : 'Start new session'}</span>
-                </button>
+                    }}
+                  >
+                    <Play className="h-3 w-3 fill-current" />
+                    <span>{language === 'id' ? 'Mulai Sesi Baru' : 'Start new session'}</span>
+                  </button>
+                </div>
               ) : (
                 <button
                   type="button"
@@ -797,6 +889,7 @@ export function TaskSessionPage({
             <Suspense fallback={<div className="h-full w-full bg-black/90 flex items-center justify-center text-xs font-mono text-muted-foreground">Connecting terminal...</div>}>
               <TaskTerminal
                 key={isDedicatedTerminal ? taskId : taskId}
+                reconnectNonce={terminalNonce}
                 taskId={taskId}
                 attempt={attempt}
                 live={live}
@@ -1243,9 +1336,26 @@ export function TaskSessionPage({
                   )}
                 </div>
               )}
-              <div className="pt-1 border-t border-border/40 flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block" />
-                <span>{t('Brain Failover: Automatic healthy model rotation on quota limit (429)')}</span>
+              <div className="pt-1 border-t border-border/40 flex items-center justify-between gap-2 text-[11px]">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block shrink-0" />
+                  <span className="truncate text-muted-foreground">
+                    {activeBrain && (activeBrain.account_label || activeBrain.model_id)
+                      ? `${language === 'id' ? 'Brain aktif' : 'Active brain'}: ${[activeBrain.account_label, activeBrain.model_id].filter(Boolean).join(' · ')}`
+                      : t('Brain Failover: Automatic healthy model rotation on quota limit (429)')}
+                  </span>
+                </div>
+                {targetProjId && (
+                  <button
+                    type="button"
+                    disabled={rotatingBrain || busy}
+                    onClick={() => void handleRotateBrain()}
+                    className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-foreground hover:text-primary transition-colors"
+                  >
+                    <RefreshCw className={cn('h-3 w-3', rotatingBrain && 'animate-spin')} />
+                    <span>{language === 'id' ? 'Ganti Brain' : 'Switch brain'}</span>
+                  </button>
+                )}
               </div>
             </div>
           )}

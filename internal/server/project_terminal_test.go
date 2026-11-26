@@ -416,9 +416,16 @@ func TestProjectTerminal_BrainFailoverRotation(t *testing.T) {
 		t.Fatalf("expected rotation to %s, got %s", acct2.ID, rotateData.AccountID)
 	}
 
-	// Verify that the bash PTY session is STILL alive!
-	if sess.IsClosed() {
-		t.Fatal("terminal session was closed or interrupted during brain failover rotation")
+	// Verify that rotating brain terminates the old PTY session so the next connect
+	// starts a clean session with the newly selected healthy brain.
+	if !sess.IsClosed() {
+		t.Fatal("expected old terminal session to be closed on brain rotation so next connect uses the new brain")
+	}
+	if _, ok := srv.terminalManager.GetProjectSession(projID); ok {
+		t.Fatal("expected old project session to be removed from manager on brain rotation")
+	}
+	if activeBrain := srv.activeProjectTerminalBrain(projID); activeBrain == nil || activeBrain.AccountID != acct2.ID {
+		t.Fatalf("expected active/preferred brain to be %s, got %+v", acct2.ID, activeBrain)
 	}
 }
 
@@ -1063,5 +1070,138 @@ func TestZombieReaper_NormalTaskDoesNotAliasOrKillProjectTerminal(t *testing.T) 
 	got, ok := srv.terminalManager.GetProjectSession(projID)
 	if !ok || got == nil || got.ID() != sess.ID() || got.IsClosed() {
 		t.Fatalf("CloseSession on a normal task must NOT kill the interactive Project Terminal session")
+	}
+}
+
+func TestCancelDedicatedProjectTerminalTask_ResetsSessionAndRotatesBrain(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	srv, token := setupTestChatServer(t)
+	owner, err := srv.authSvc.ValidateToken(context.Background(), token)
+	if err != nil {
+		t.Fatalf("ValidateToken failed: %v", err)
+	}
+
+	tempBase := t.TempDir()
+	srv.cfg.WorkspacesDir = tempBase
+	projectStore := project.NewMemoryStore()
+	projSvc := project.NewService(projectStore, nil, "fixture-secret", tempBase)
+	srv.projectSvc = projSvc
+
+	projID := "proj_cancel_reset_rotate"
+	if err := projSvc.Store().CreateProject(context.Background(), &project.Project{
+		ID:        projID,
+		Name:      "Cancel Reset Rotate",
+		LocalPath: tempBase,
+	}); err != nil {
+		t.Fatalf("CreateProject failed: %v", err)
+	}
+
+	makeBrain := func(label, model string) *agent.ProviderAccount {
+		t.Helper()
+		p, err := agent.CreateProviderAccount(owner.ID, label)
+		if err != nil {
+			t.Fatalf("CreateProviderAccount failed: %v", err)
+		}
+		home, _ := agent.ProviderAccountHome(owner.ID, p.ID)
+		_ = os.MkdirAll(agent.AntigravityConfigDirPath(home), 0700)
+		_ = os.WriteFile(agent.AntigravityCredentialsFilePath(home), []byte(`{"access_token":"fixture-valid-test-token"}`), 0600)
+		file := filepath.Join(agent.ConfigHome(), ".local", "share", "cuan", "accounts", p.ID, "account.json")
+		if data, err := os.ReadFile(file); err == nil {
+			var meta map[string]interface{}
+			if json.Unmarshal(data, &meta) == nil {
+				meta["state"] = "unknown"
+				meta["model_id"] = model
+				if updated, mErr := json.Marshal(meta); mErr == nil {
+					_ = os.WriteFile(file, updated, 0600)
+				}
+			}
+		}
+		p, _ = agent.GetProviderAccount(owner.ID, p.ID)
+		return p
+	}
+
+	acct1 := makeBrain("brain-alpha", "gemini-1.5-pro")
+	acct2 := makeBrain("brain-beta", "gemini-1.5-flash")
+
+	// Start an active session and record acct1 as active brain
+	sess1, err := srv.terminalManager.GetOrCreateProjectSession(context.Background(), projID, tempBase, "/bin/sh", 80, 24)
+	if err != nil {
+		t.Fatalf("GetOrCreateProjectSession failed: %v", err)
+	}
+	defer func() { _ = srv.terminalManager.CloseAll() }()
+	srv.recordProjectTerminalBrain(projID, acct1, acct1.ModelID)
+
+	// Status endpoint must report active session + active brain
+	statusReq := httptest.NewRequest("GET", "/api/v1/projects/"+projID+"/terminal/status", nil)
+	statusReq.Header.Set("Authorization", "Bearer "+token)
+	statusW := httptest.NewRecorder()
+	srv.Router().ServeHTTP(statusW, statusReq)
+	if statusW.Code != http.StatusOK {
+		t.Fatalf("expected 200 from terminal status, got %d: %s", statusW.Code, statusW.Body.String())
+	}
+	var statusBody struct {
+		Session struct {
+			Active bool `json:"active"`
+		} `json:"session"`
+		Brain struct {
+			AccountID    string `json:"account_id"`
+			AccountLabel string `json:"account_label"`
+			ModelID      string `json:"model_id"`
+		} `json:"brain"`
+	}
+	if err := json.Unmarshal(statusW.Body.Bytes(), &statusBody); err != nil {
+		t.Fatalf("decode status failed: %v", err)
+	}
+	if !statusBody.Session.Active || statusBody.Brain.AccountID != acct1.ID || statusBody.Brain.AccountLabel != "brain-alpha" {
+		t.Fatalf("unexpected status response: %+v", statusBody)
+	}
+
+	// Create dedicated terminal task and cancel it
+	termTask, err := srv.taskSvc.CreateTask(context.Background(), owner.ID, task.CreateTaskRequest{
+		ProjectID:    projID,
+		Title:        "Terminal · Cancel Reset Rotate",
+		Instructions: "Interactive terminal",
+	})
+	if err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+	att, err := srv.taskSvc.CreateAttempt(context.Background(), termTask.ID, "owner", task.CreateAttemptRequest{
+		RunnerID: "local_terminal",
+	})
+	if err != nil {
+		t.Fatalf("CreateAttempt failed: %v", err)
+	}
+	_, _ = srv.taskSvc.UpdateAttemptStatus(context.Background(), att.ID, "runner", task.UpdateAttemptRequest{
+		Status: task.AttemptStatusRunning,
+	})
+
+	cancelReq := httptest.NewRequest("POST", "/api/v1/tasks/"+termTask.ID+"/cancel", nil)
+	cancelReq.Header.Set("Authorization", "Bearer "+token)
+	cancelW := httptest.NewRecorder()
+	srv.Router().ServeHTTP(cancelW, cancelReq)
+	if cancelW.Code != http.StatusOK {
+		t.Fatalf("cancel failed with %d: %s", cancelW.Code, cancelW.Body.String())
+	}
+
+	// Verify old session was terminated and removed
+	if !sess1.IsClosed() {
+		t.Fatal("cancelling a dedicated project terminal task MUST close the active project terminal session")
+	}
+	if _, ok := srv.terminalManager.GetProjectSession(projID); ok {
+		t.Fatal("cancelling a dedicated project terminal task MUST remove the project session from manager")
+	}
+
+	// Verify next brain selection rotates away from acct1 to acct2
+	pref, lastStopped, offset := srv.consumeProjectTerminalPreference(projID)
+	if pref != "" || lastStopped != acct1.ID {
+		t.Fatalf("expected lastStopped=%s, got pref=%q lastStopped=%q", acct1.ID, pref, lastStopped)
+	}
+	_, nextBrain, rel, err := agent.LeaseHealthyBrainForProjectWithOffset(owner.ID, projID, offset, map[string]bool{lastStopped: true})
+	if err != nil || nextBrain == nil {
+		t.Fatalf("expected healthy fallback brain, got err=%v", err)
+	}
+	rel()
+	if nextBrain.ID != acct2.ID {
+		t.Fatalf("expected rotated brain %s after stop, got %s", acct2.ID, nextBrain.ID)
 	}
 }

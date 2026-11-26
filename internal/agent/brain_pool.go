@@ -48,6 +48,12 @@ func LeaseSpecificBrain(owner, accountID string) (string, *ProviderAccount, func
 // LeaseHealthyBrainForProject leases a consistent brain profile for a project to ensure account stickiness
 // across project terminal sessions rather than rotating accounts randomly on each reconnect or spawn.
 func LeaseHealthyBrainForProject(owner, projectID string, excluded map[string]bool, requiresVision ...bool) (string, *ProviderAccount, func(), error) {
+	return LeaseHealthyBrainForProjectWithOffset(owner, projectID, 0, excluded, requiresVision...)
+}
+
+// LeaseHealthyBrainForProjectWithOffset leases a healthy brain profile for a project starting from
+// a deterministic hash plus an explicit rotation offset.
+func LeaseHealthyBrainForProjectWithOffset(owner, projectID string, offset int, excluded map[string]bool, requiresVision ...bool) (string, *ProviderAccount, func(), error) {
 	if owner == "" {
 		return "", nil, nil, ErrBrainCapacity
 	}
@@ -60,7 +66,10 @@ func LeaseHealthyBrainForProject(owner, projectID string, excluded map[string]bo
 	if strings.TrimSpace(projectID) != "" {
 		seed = crc32.ChecksumIEEE([]byte(strings.TrimSpace(projectID)))
 	}
-	start := int(seed) % len(profiles)
+	if offset < 0 {
+		offset = 0
+	}
+	start := (int(seed) + offset) % len(profiles)
 	return leaseHealthyBrainWithStart(owner, profiles, start, excluded, TryLeaseProviderAccountForTask, requiresVision...)
 }
 

@@ -74,7 +74,26 @@ export const projectsApi = {
         sync_status: string
         warnings?: string[]
       }
+      brain?: {
+        account_id?: string
+        account_label?: string
+        model_id?: string
+        provider?: string
+      }
     }>(`/api/v1/projects/${encodeURIComponent(id)}/terminal/status${fetch ? '?fetch=1' : ''}`)
+  },
+
+  rotateTerminalBrain: async (id: string, accountId?: string) => {
+    return apiFetch<{
+      status: string
+      account_id: string
+      account_label?: string
+      model_id?: string
+      provider?: string
+    }>(`/api/v1/projects/${encodeURIComponent(id)}/terminal/rotate-brain`, {
+      method: 'POST',
+      body: JSON.stringify(accountId ? { account_id: accountId } : {}),
+    })
   },
 
   syncTerminalUpstream: async (id: string) => {

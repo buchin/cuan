@@ -16,6 +16,7 @@ import (
 	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/runner"
 	"github.com/buchin/cuan/internal/task"
+	"github.com/buchin/cuan/internal/terminal"
 )
 
 // registerTaskRoutes mounts all task, attempt, and runner endpoints on the protected router.
@@ -659,8 +660,11 @@ func (s *Server) handleCancelTask(w http.ResponseWriter, r *http.Request) {
 				_ = s.taskSvc.FinishTaskLaunches(r.Context(), taskID, "cancelled")
 				s.kickTaskLaunches()
 			}
-			if detail, e := s.taskSvc.GetTaskDetail(r.Context(), taskID); e == nil && detail.SourceRoomID != "" {
-				s.publishInbox(detail.SourceRoomID)
+			if detail, e := s.taskSvc.GetTaskDetail(r.Context(), taskID); e == nil && detail != nil {
+				s.resetDedicatedProjectTerminalOnCancel(detail, nil)
+				if detail.SourceRoomID != "" {
+					s.publishInbox(detail.SourceRoomID)
+				}
 			}
 			respondJSON(w, http.StatusOK, map[string]string{"status": "cancelled"})
 			return
@@ -686,17 +690,43 @@ func (s *Server) handleCancelTask(w http.ResponseWriter, r *http.Request) {
 			_ = s.terminalManager.CloseSession(att.ID)
 		}
 	}
+	if detail, e := s.taskSvc.GetTaskDetail(r.Context(), taskID); e == nil && detail != nil {
+		s.resetDedicatedProjectTerminalOnCancel(detail, att)
+		if detail.SourceRoomID != "" {
+			s.publishInbox(detail.SourceRoomID)
+		}
+	}
 	if s.taskSvc != nil {
 		_ = s.taskSvc.FinishTaskLaunches(r.Context(), taskID, "cancelled")
 		s.kickTaskLaunches()
-	}
-	if detail, e := s.taskSvc.GetTaskDetail(r.Context(), taskID); e == nil && detail.SourceRoomID != "" {
-		s.publishInbox(detail.SourceRoomID)
 	}
 	if att != nil {
 		respondJSON(w, http.StatusOK, att)
 	} else {
 		respondJSON(w, http.StatusOK, map[string]string{"status": "cancelled"})
+	}
+}
+
+func (s *Server) resetDedicatedProjectTerminalOnCancel(detail *task.TaskDetailResponse, att *task.TaskAttempt) {
+	if detail == nil {
+		return
+	}
+	isDedicated := task.IsDedicatedTerminalTitle(detail.Title) || (att != nil && att.RunnerID == "local_terminal")
+	if !isDedicated {
+		return
+	}
+	projID := detail.ProjectID
+	if projID == "" && len(detail.ProjectIDs) > 0 {
+		projID = detail.ProjectIDs[0]
+	}
+	if projID == "" {
+		return
+	}
+	s.markProjectTerminalStopped(projID)
+	if s.terminalManager != nil {
+		_ = s.terminalManager.ResetProjectSession(projID)
+	} else {
+		_ = terminal.TerminateProjectWorker(projID)
 	}
 }
 
