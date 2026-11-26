@@ -46,7 +46,7 @@ func inboxResponseDiagnostic(raw string) string {
 	}
 	if json.Unmarshal(fields["action"], &action) == nil && string(fields["action"]) != "null" {
 		switch action.Kind {
-		case "approval", "delegation", "memory", "memory_search", "task_draft", "task_cancel", "task_reopen", "prompt_choices", "customer_reply", "schedule", "project", "skill", "team", "brain", "brand_memory":
+		case "approval", "delegation", "memory", "memory_search", "task_draft", "task_cancel", "task_reopen", "task_link", "prompt_choices", "customer_reply", "schedule", "project", "skill", "team", "brain", "brand_memory":
 		default:
 			return "Response format: unsupported action kind."
 		}

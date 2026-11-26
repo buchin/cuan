@@ -554,6 +554,8 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 									output = s.applyInboxTaskCancel(ctx, q, output)
 								} else if strings.Contains(output, "```cuan-task-reopen") {
 									output = s.applyInboxTaskReopen(ctx, q, output)
+								} else if strings.Contains(output, "```cuan-task-link") {
+									output = s.applyInboxTaskLink(ctx, q, output)
 								} else if strings.Contains(output, "```cuan-schedule") {
 									output = s.applyInboxSchedule(ctx, q, output)
 								} else if strings.Contains(output, "```cuan-project") {

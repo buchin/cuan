@@ -96,7 +96,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 			agentID = requests[0].AgentID
 		}
 		if agentID == "" {
-			agentID = "scrum_master"
+			agentID = db.AgentIDCuan
 		}
 		origin = &db.InboxRequest{
 			OwnerID: ownerID,

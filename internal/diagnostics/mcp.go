@@ -335,6 +335,64 @@ var nativeMCPTools = []mcpToolDefinition{
 		},
 	},
 	{
+		Name:        "link_task_to_room",
+		Description: "Link an existing task to an inbox room (sets source_room_id) so task cards and completion updates appear in that conversation.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"task_id": map[string]any{
+					"type":        "string",
+					"description": "Task ID",
+				},
+				"room_id": map[string]any{
+					"type":        "string",
+					"description": "Inbox room UUID",
+				},
+			},
+			"required": []string{"task_id", "room_id"},
+		},
+	},
+	{
+		Name:        "create_inbox_conversation_with_task",
+		Description: "Create a new inbox conversation and a linked task in a single operation.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"project_id": map[string]any{
+					"type":        "string",
+					"description": "Project ID for the task",
+				},
+				"title": map[string]any{
+					"type":        "string",
+					"description": "Title for both conversation and task",
+				},
+				"instructions": map[string]any{
+					"type":        "string",
+					"description": "Task instructions and acceptance criteria",
+				},
+				"dod_checklist": map[string]any{
+					"type":        "array",
+					"items":       map[string]any{"type": "string"},
+					"description": "Optional Definition of Done checklist items",
+				},
+				"priority": map[string]any{
+					"type":        "string",
+					"enum":        []string{"low", "normal", "high", "urgent"},
+					"description": "Optional task priority (default: normal)",
+				},
+				"agent_id": map[string]any{
+					"type":        "string",
+					"description": "Optional agent ID or alias (default: agent_cuan)",
+				},
+				"initial_message": map[string]any{
+					"type":        "string",
+					"description": "Optional initial message posted to the room after creation",
+				},
+			},
+			"required": []string{"project_id", "title", "instructions"},
+		},
+	},
+	{
 		Name:        "list_inbox_conversations",
 		Description: "List customer chat conversations and project rooms in Cuan Inbox, including room ID, project ID, title, and topic.",
 		InputSchema: map[string]any{
@@ -1134,6 +1192,26 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 			projectID, _ := callParams.Arguments["project_id"].(string)
 			title, _ := callParams.Arguments["title"].(string)
 			toolResult, toolErr = CreateInboxConversation(ctx, agentID, projectID, title)
+		case "link_task_to_room":
+			taskID, _ := callParams.Arguments["task_id"].(string)
+			roomID, _ := callParams.Arguments["room_id"].(string)
+			toolResult, toolErr = LinkTaskToRoom(ctx, taskID, roomID)
+		case "create_inbox_conversation_with_task":
+			projectID, _ := callParams.Arguments["project_id"].(string)
+			title, _ := callParams.Arguments["title"].(string)
+			instructions, _ := callParams.Arguments["instructions"].(string)
+			priority, _ := callParams.Arguments["priority"].(string)
+			agentID, _ := callParams.Arguments["agent_id"].(string)
+			initialMessage, _ := callParams.Arguments["initial_message"].(string)
+			var dodList []string
+			if rawDoD, ok := callParams.Arguments["dod_checklist"].([]any); ok {
+				for _, item := range rawDoD {
+					if str, ok := item.(string); ok {
+						dodList = append(dodList, str)
+					}
+				}
+			}
+			toolResult, toolErr = CreateInboxConversationWithTask(ctx, projectID, title, instructions, priority, agentID, initialMessage, dodList)
 		case "send_inbox_message":
 			roomID, _ := callParams.Arguments["room_id"].(string)
 			message, _ := callParams.Arguments["message"].(string)

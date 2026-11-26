@@ -172,10 +172,8 @@ func (s *Server) ensureTaskCompletionDelivered(ctx context.Context, detail *task
 		}
 		if draft == "" {
 			title := strings.TrimSpace(detail.Title)
-			if title != "" && summary != "" && summary != "Pekerjaan telah diselesaikan dan diverifikasi." {
-				draft = fmt.Sprintf("Halo kak, terkait %s sudah kami tangani dan verifikasi: %s. Saat ini sudah normal kembali. Silakan dicek kembali ya kak. Terima kasih!", title, summary)
-			} else if title != "" {
-				draft = fmt.Sprintf("Halo kak, terkait %s sudah selesai kami tangani dan verifikasi. Saat ini sudah normal kembali. Silakan dicek kembali ya kak. Terima kasih!", title)
+			if title != "" {
+				draft = fmt.Sprintf("Halo kak, terkait %s sudah kami tangani dan verifikasi. Saat ini sudah normal kembali. Silakan dicek kembali ya kak. Terima kasih!", title)
 			} else {
 				draft = "Halo kak, pekerjaan sudah selesai kami tangani dan verifikasi. Saat ini sudah normal kembali. Silakan dicek kembali ya kak. Terima kasih!"
 			}

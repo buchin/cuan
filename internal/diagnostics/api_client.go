@@ -688,6 +688,26 @@ func (c *CuanClient) UpdateTask(ctx context.Context, taskID, status, summary, co
 	return res, nil
 }
 
+// LinkTaskToRoom binds an existing task to an inbox room (source_room_id).
+func (c *CuanClient) LinkTaskToRoom(ctx context.Context, taskID, roomID string) (map[string]any, error) {
+	endpoint := fmt.Sprintf("/api/v1/tasks/%s", url.PathEscape(taskID))
+	resp, err := c.doRequest(ctx, http.MethodPut, endpoint, map[string]any{"source_room_id": roomID})
+	if err != nil {
+		return nil, fmt.Errorf("link task to room: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("link task to room failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+	var res map[string]any
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return nil, fmt.Errorf("unmarshal linked task: %w", err)
+	}
+	return res, nil
+}
+
 // ListProjects queries projects from the Cuan API.
 func (c *CuanClient) ListProjects(ctx context.Context, limit int) ([]map[string]any, error) {
 	resp, err := c.doRequest(ctx, http.MethodGet, "/api/v1/projects", nil)

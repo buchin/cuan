@@ -25,6 +25,11 @@ type inboxTaskReopenAction struct {
 	AuthorizationID string `json:"authorization_message_id,omitempty"`
 }
 
+type inboxTaskLinkAction struct {
+	TaskID string `json:"task_id"`
+	RoomID string `json:"room_id,omitempty"`
+}
+
 func parseInboxTaskCancel(content string) (string, *inboxTaskCancelAction, error) {
 	const marker = "```cuan-task-cancel\n"
 	normalized := strings.TrimSpace(strings.ReplaceAll(content, "\r\n", "\n"))
@@ -173,4 +178,57 @@ func (s *Server) applyInboxTaskReopen(ctx context.Context, q db.InboxRequest, co
 		return cleanText + fmt.Sprintf("\n\n*Task [%s] (%s) has been reopened and moved to Backlog.*", detail.ID, detail.Title)
 	}
 	return cleanText + fmt.Sprintf("\n\n*Task [%s] has been reopened and moved to Backlog.*", action.TaskID)
+}
+
+func parseInboxTaskLink(content string) (string, *inboxTaskLinkAction, error) {
+	const marker = "```cuan-task-link\n"
+	normalized := strings.TrimSpace(strings.ReplaceAll(content, "\r\n", "\n"))
+	start := strings.Index(normalized, marker)
+	if start < 0 {
+		return content, nil, nil
+	}
+	bad := errors.New("Invalid task link action.")
+	if strings.Count(normalized, marker) != 1 || !strings.HasSuffix(normalized, "```") {
+		return "", nil, bad
+	}
+	raw := normalized[start+len(marker) : len(normalized)-3]
+	var a inboxTaskLinkAction
+	decoder := json.NewDecoder(strings.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if len(raw) > 32000 || decoder.Decode(&a) != nil {
+		return "", nil, bad
+	}
+	if decoder.Decode(new(any)) != io.EOF {
+		return "", nil, bad
+	}
+	if strings.TrimSpace(a.TaskID) == "" {
+		return "", nil, bad
+	}
+	return strings.TrimSpace(normalized[:start]), &a, nil
+}
+
+func (s *Server) applyInboxTaskLink(ctx context.Context, q db.InboxRequest, content string) string {
+	cleanText, action, err := parseInboxTaskLink(content)
+	if err != nil {
+		return err.Error()
+	}
+	if action == nil {
+		return content
+	}
+	if s.taskSvc == nil {
+		return cleanText + "\n\n⚠️ Task service is unavailable."
+	}
+	taskID := strings.TrimSpace(action.TaskID)
+	roomID := strings.TrimSpace(action.RoomID)
+	if roomID == "" {
+		roomID = q.RoomID
+	}
+	if roomID == "" {
+		return cleanText + "\n\n⚠️ Room ID tidak tersedia untuk menautkan task."
+	}
+	if _, err := s.taskSvc.UpdateTask(ctx, taskID, "coordinator", task.UpdateTaskRequest{SourceRoomID: &roomID}); err != nil {
+		return cleanText + fmt.Sprintf("\n\n⚠️ Gagal menautkan task `%s` ke percakapan ini: %v", taskID, err)
+	}
+	s.publishInbox(roomID)
+	return cleanText + fmt.Sprintf("\n\n✓ Task `%s` telah ditautkan ke percakapan ini.\n\n[View work](/tasks/%s)", taskID, taskID)
 }

@@ -1164,6 +1164,71 @@ func CreateInboxConversation(ctx context.Context, agentID, projectID, title stri
 	}, nil
 }
 
+// LinkTaskToRoom binds an existing task to an inbox room (source_room_id).
+func LinkTaskToRoom(ctx context.Context, taskID, roomID string) (any, error) {
+	if err := taskSessionOwnerWriteError(); err != nil {
+		return nil, err
+	}
+	taskID = strings.TrimSpace(taskID)
+	roomID = strings.TrimSpace(roomID)
+	if taskID == "" || roomID == "" {
+		return nil, fmt.Errorf("task_id and room_id are required")
+	}
+	if client := GetCuanClient(); client != nil && client.IsConfigured() {
+		return client.LinkTaskToRoom(ctx, taskID, roomID)
+	}
+	db := getPlatformDB()
+	if db == nil {
+		return nil, fmt.Errorf("cuan client is not configured and database connection is unavailable")
+	}
+	res, err := db.ExecContext(ctx, "UPDATE tasks SET source_room_id = $1, updated_at = $2 WHERE id = $3", roomID, time.Now().UTC(), taskID)
+	if err != nil {
+		return nil, fmt.Errorf("link task to room in db: %w", err)
+	}
+	if rows, _ := res.RowsAffected(); rows == 0 {
+		return nil, fmt.Errorf("task not found: %s", taskID)
+	}
+	return map[string]any{
+		"status":         "success",
+		"task_id":        taskID,
+		"source_room_id": roomID,
+	}, nil
+}
+
+// CreateInboxConversationWithTask atomically creates an inbox room and a linked task.
+func CreateInboxConversationWithTask(ctx context.Context, projectID, title, instructions, priority, agentID, initialMessage string, dodList []string) (any, error) {
+	if err := taskSessionOwnerWriteError(); err != nil {
+		return nil, err
+	}
+	convRes, err := CreateInboxConversation(ctx, agentID, projectID, title)
+	if err != nil {
+		return nil, err
+	}
+	convMap, _ := convRes.(map[string]any)
+	roomID, _ := convMap["room_id"].(string)
+	if roomID == "" {
+		roomID, _ = convMap["conversation_id"].(string)
+	}
+	if roomID == "" {
+		return nil, fmt.Errorf("created conversation did not return a room_id")
+	}
+	taskRes, err := CreateTaskDraftWithRoom(ctx, projectID, title, instructions, priority, roomID, dodList)
+	if err != nil {
+		return nil, fmt.Errorf("create linked task: %w", err)
+	}
+	var msgRes any
+	if strings.TrimSpace(initialMessage) != "" {
+		msgRes, _ = SendInboxMessage(ctx, roomID, initialMessage, false, 0)
+	}
+	return map[string]any{
+		"status":       "success",
+		"conversation": convMap,
+		"room_id":      roomID,
+		"task":         taskRes,
+		"message":      msgRes,
+	}, nil
+}
+
 // SendInboxMessage sends a user message to an inbox conversation and optionally waits for the agent's reply.
 func SendInboxMessage(ctx context.Context, roomID, message string, waitForReply bool, waitSeconds int) (any, error) {
 	if err := taskSessionOwnerWriteError(); err != nil {
