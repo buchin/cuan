@@ -128,3 +128,105 @@ func TestTaskWorkspaceFilesUploadAndUsage(t *testing.T) {
 		}
 	}
 }
+
+func TestDedicatedProjectTerminalUploadResolvesProjectWorkspace(t *testing.T) {
+	srv, token := setupTestChatServer(t)
+
+	projBody := `{"name":"cuan-term-upload"}`
+	reqProj := httptest.NewRequest(http.MethodPost, "/api/v1/projects", bytes.NewBufferString(projBody))
+	reqProj.Header.Set("Authorization", "Bearer "+token)
+	reqProj.Header.Set("Content-Type", "application/json")
+	recProj := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recProj, reqProj)
+	if recProj.Code != http.StatusCreated {
+		t.Fatalf("failed to create project: %d %s", recProj.Code, recProj.Body.String())
+	}
+	var projResp struct {
+		ID        string `json:"id"`
+		LocalPath string `json:"local_path"`
+	}
+	_ = json.Unmarshal(recProj.Body.Bytes(), &projResp)
+	if projResp.ID == "" || projResp.LocalPath == "" {
+		t.Fatalf("empty project id or local_path: %s", recProj.Body.String())
+	}
+	projDir := projResp.LocalPath
+	if absProjDir, absErr := filepath.Abs(projDir); absErr == nil {
+		projDir = absProjDir
+	}
+	t.Cleanup(func() {
+		_ = os.RemoveAll(projDir)
+	})
+
+	// Create dedicated project terminal task ("Terminal · cuan-term-upload") with no in-memory PTY session
+	taskBody := `{"title":"Terminal · cuan-term-upload","project_id":"` + projResp.ID + `"}`
+	reqTask := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBufferString(taskBody))
+	reqTask.Header.Set("Authorization", "Bearer "+token)
+	reqTask.Header.Set("Content-Type", "application/json")
+	recTask := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recTask, reqTask)
+	if recTask.Code != http.StatusCreated {
+		t.Fatalf("failed to create terminal task: %d %s", recTask.Code, recTask.Body.String())
+	}
+	var taskResp struct {
+		ID string `json:"id"`
+	}
+	_ = json.Unmarshal(recTask.Body.Bytes(), &taskResp)
+
+	// Upload a screenshot with spaces in filename (like macOS Screenshot)
+	const fileName = "Screenshot 2026-11-26 at 15.47.41.png"
+	const filePayload = "fake-png-bytes-12345"
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("file", fileName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = part.Write([]byte(filePayload))
+	_ = writer.Close()
+
+	reqUpload := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/"+taskResp.ID+"/files", &body)
+	reqUpload.Header.Set("Authorization", "Bearer "+token)
+	reqUpload.Header.Set("Content-Type", writer.FormDataContentType())
+	recUpload := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recUpload, reqUpload)
+	if recUpload.Code != http.StatusOK {
+		t.Fatalf("upload failed: %d %s", recUpload.Code, recUpload.Body.String())
+	}
+
+	var uploadResp struct {
+		OK           bool   `json:"ok"`
+		Filename     string `json:"filename"`
+		Path         string `json:"path"`
+		AbsPath      string `json:"abs_path"`
+		WorkspaceDir string `json:"workspace_dir"`
+	}
+	if err := json.Unmarshal(recUpload.Body.Bytes(), &uploadResp); err != nil || !uploadResp.OK {
+		t.Fatalf("invalid upload response: %v %s", err, recUpload.Body.String())
+	}
+	if uploadResp.Filename != fileName || uploadResp.Path != "./"+fileName {
+		t.Fatalf("unexpected upload metadata: %+v", uploadResp)
+	}
+	expectedPath := filepath.Join(projDir, fileName)
+	if uploadResp.AbsPath != expectedPath {
+		t.Fatalf("expected abs_path %q, got %q (workspace_dir=%q)", expectedPath, uploadResp.AbsPath, uploadResp.WorkspaceDir)
+	}
+	gotBytes, err := os.ReadFile(expectedPath)
+	if err != nil || string(gotBytes) != filePayload {
+		t.Fatalf("expected file at %q with payload, err=%v", expectedPath, err)
+	}
+
+	// Verify file is NOT dumped into fallback workspaces/<taskID>
+	fallbackWorkDir, _ := srv.terminalManager.ResolveTaskWorkspace(taskResp.ID)
+	if _, statErr := os.Stat(filepath.Join(fallbackWorkDir, fileName)); statErr == nil {
+		t.Fatalf("file should not be in fallback task workspace %q", fallbackWorkDir)
+	}
+
+	// Verify raw preview endpoint serves the file with spaces
+	reqRaw := httptest.NewRequest(http.MethodGet, "/api/v1/tasks/"+taskResp.ID+"/files/raw?path=./Screenshot%202026-11-26%20at%2015.47.41.png", nil)
+	reqRaw.Header.Set("Authorization", "Bearer "+token)
+	recRaw := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recRaw, reqRaw)
+	if recRaw.Code != http.StatusOK || recRaw.Body.String() != filePayload {
+		t.Fatalf("raw fetch failed: %d %q", recRaw.Code, recRaw.Body.String())
+	}
+}
