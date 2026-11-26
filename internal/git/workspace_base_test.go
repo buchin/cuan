@@ -177,3 +177,39 @@ func TestWorkspaceClonesFromLinkedProjectWorktreeWithoutRemoteFallback(t *testin
 		t.Fatal("local developer clone duplicated the shared project object", sourceErr, cloneErr)
 	}
 }
+
+func TestWorkspaceSkipsEmptyBaseRepoAndReplacesEmptyWorkspaceWhenRemoteAvailable(t *testing.T) {
+	root := t.TempDir()
+	remote := filepath.Join(root, "remote")
+	createTestBaseRepo(t, remote)
+	remoteHead := strings.TrimSpace(retentionGit(t, remote, "rev-parse", "HEAD"))
+
+	emptyBase := filepath.Join(root, "empty-base")
+	if err := os.MkdirAll(emptyBase, 0755); err != nil {
+		t.Fatal(err)
+	}
+	retentionGit(t, emptyBase, "init", "-b", "main")
+
+	workspacesDir := filepath.Join(root, "workspaces")
+	// Simulate an empty 0-commit workspace left behind by an earlier attempt.
+	staleWorkspace := filepath.Join(workspacesDir, "task-empty")
+	if err := os.MkdirAll(staleWorkspace, 0755); err != nil {
+		t.Fatal(err)
+	}
+	retentionGit(t, staleWorkspace, "init", "-b", "main")
+
+	ws, err := NewClient().PrepareTaskWorkspace(context.Background(), WorkspaceConfig{
+		TaskID:            "task-empty",
+		BaseRepoDir:       emptyBase,
+		WorkspacesBaseDir: workspacesDir,
+		DefaultBranch:     "main",
+		BranchName:        "task/task-empty",
+		RemoteURL:         remote,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(retentionGit(t, ws.Path, "rev-parse", "HEAD")); got != remoteHead {
+		t.Fatalf("expected workspace HEAD %s from remote, got %s", remoteHead, got)
+	}
+}

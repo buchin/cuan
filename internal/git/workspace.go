@@ -112,6 +112,14 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 
 	gitDir := filepath.Join(workspacePath, ".git")
 	if _, err := os.Stat(gitDir); err == nil {
+		// An empty 0-commit workspace left over from an uninitialized base repo
+		// should be replaced when a populated base or remote source is available.
+		hasRemoteOrBase := cfg.RemoteURL != "" || (cfg.BaseRepoDir != "" && c.hasCommits(ctx, cfg.BaseRepoDir))
+		if !c.hasCommits(ctx, workspacePath) && c.isWorktreeClean(ctx, workspacePath) && hasRemoteOrBase {
+			_ = os.RemoveAll(workspacePath)
+		}
+	}
+	if _, err := os.Stat(gitDir); err == nil {
 		ws.BaseRef, err = c.bindWorkspaceBase(ctx, cfg.BaseRepoDir, workspacePath, defaultBranch)
 		if err != nil {
 			return nil, err
@@ -160,7 +168,7 @@ func (c *Client) PrepareTaskWorkspace(ctx context.Context, cfg WorkspaceConfig) 
 	// without a second remote download or a separate copy of the common object store.
 	baseGitDir := filepath.Join(cfg.BaseRepoDir, ".git")
 	if cfg.BaseRepoDir != "" {
-		if fi, err := os.Stat(baseGitDir); err == nil && (fi.IsDir() || fi.Mode().IsRegular()) {
+		if fi, err := os.Stat(baseGitDir); err == nil && (fi.IsDir() || fi.Mode().IsRegular()) && (c.hasCommits(ctx, cfg.BaseRepoDir) || cfg.RemoteURL == "") {
 			_ = os.RemoveAll(workspacePath)
 			cloneCmd := exec.CommandContext(ctx, c.gitBinary, "-c", "core.hooksPath=/dev/null", "clone", "--local", cfg.BaseRepoDir, workspacePath)
 			cloneCmd.Dir = workspacesBase
@@ -251,7 +259,17 @@ func (c *Client) pinWorkspaceBase(ctx context.Context, ws *TaskWorkspace) error 
 	return nil
 }
 
-// isGitIndexLockContention reports whether git output indicates collision on .git/index.lock.
+func (c *Client) hasCommits(ctx context.Context, repoDir string) bool {
+	if repoDir == "" {
+		return false
+	}
+	return exec.CommandContext(ctx, c.gitBinary, "-C", repoDir, "rev-parse", "--verify", "HEAD^{commit}").Run() == nil
+}
+
+func (c *Client) isWorktreeClean(ctx context.Context, repoDir string) bool {
+	out, err := exec.CommandContext(ctx, c.gitBinary, "-C", repoDir, "status", "--porcelain").Output()
+	return err == nil && len(bytes.TrimSpace(out)) == 0
+}
 func isGitIndexLockContention(msg string) bool {
 	return strings.Contains(msg, "index.lock") && (strings.Contains(msg, "File exists") || strings.Contains(msg, "locked") || strings.Contains(msg, "Unable to create"))
 }

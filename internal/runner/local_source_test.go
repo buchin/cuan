@@ -141,3 +141,52 @@ func TestLocalImplementationSourceRecordsCheckpointWithoutPublication(t *testing
 		})
 	}
 }
+
+type blockedReportAdapter struct{}
+
+func (a *blockedReportAdapter) Name() string             { return "blocked-fixture" }
+func (a *blockedReportAdapter) Version() (string, error) { return "1", nil }
+func (a *blockedReportAdapter) Execute(ctx context.Context, req agent.ExecutionRequest) (*agent.ExecutionResult, error) {
+	return &agent.ExecutionResult{Status: "BLOCKED", ExitCode: 0, Error: "Agent reported a blocker; saved findings require review."}, nil
+}
+
+func TestRunAttemptPreservesConfirmedBlockedReport(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	var completion CompleteAttemptRequest
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if req.URL.Path == "/report" {
+			w.Write([]byte(`{"summary":"Blocked on missing credentials","complete_note":"Missing VPS_IP","activities":[{"attempt_id":"blocked-attempt","activity_type":"agent_report","new_status":"blocked"}]}`))
+			return
+		}
+		if strings.HasSuffix(req.URL.Path, "/complete") {
+			if err := json.NewDecoder(req.Body).Decode(&completion); err != nil {
+				t.Error(err)
+			}
+		}
+		w.Write([]byte(`{}`))
+	}))
+	defer api.Close()
+
+	r := NewRunner(&config.Config{RunnerID: "fixture", RunnerServerURL: api.URL, WorkspacesDir: filepath.Join(t.TempDir(), "workspaces")}, &blockedReportAdapter{}, api.Client())
+	r.runAttempt(context.Background(), ClaimTaskResponse{
+		Claimed:    true,
+		OwnerID:    "owner",
+		WorkingDir: t.TempDir(),
+		Task: &task.Task{
+			ID:                "blocked-task",
+			ProjectID:         "project",
+			Title:             "Blocked investigation",
+			Instructions:      "Investigate upstream issue",
+			ExecutionCategory: task.ExecutionCategoryOps,
+		},
+		Attempt:   &task.TaskAttempt{ID: "blocked-attempt", TaskID: "blocked-task", AttemptNumber: 1},
+		TaskAgent: &TaskAgentCapability{API: api.URL + "/report", Token: "fixture"},
+	})
+	if completion.Status != task.AttemptStatusFailed || completion.ExitCode != 0 || !completion.AgentReportConfirmed {
+		t.Fatalf("expected confirmed failed/blocked completion, got %+v", completion)
+	}
+	if completion.ErrorMessage != "Agent reported a blocker; saved findings require review." {
+		t.Fatalf("unexpected error message: %q", completion.ErrorMessage)
+	}
+}

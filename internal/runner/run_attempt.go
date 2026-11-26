@@ -600,8 +600,16 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 		} else {
 			compReq.Status = task.AttemptStatusSucceeded
 			compReq.ExitCode = 0
-			compReq.AgentReportConfirmed = r.confirmAgentReport(ctx, claim)
-			if !compReq.AgentReportConfirmed {
+			reportState := r.finalAgentReportState(ctx, claim)
+			compReq.AgentReportConfirmed = reportState == task.TaskStatusReview || reportState == task.TaskStatusDone
+			if result.Status == "BLOCKED" || reportState == task.TaskStatusBlocked {
+				compReq.Status = task.AttemptStatusFailed
+				compReq.AgentReportConfirmed = true
+				compReq.ErrorMessage = result.Error
+				if compReq.ErrorMessage == "" {
+					compReq.ErrorMessage = "Agent reported a blocker; saved findings require review."
+				}
+			} else if !compReq.AgentReportConfirmed {
 				compReq.Status = task.AttemptStatusFailed
 				compReq.ErrorMessage = "Agent finished without a confirmed final task report"
 			}
