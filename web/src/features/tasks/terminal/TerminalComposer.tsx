@@ -552,7 +552,7 @@ export function TerminalComposer({
         const f = fileList[i]
         const serverFile = serverFiles[i]
         const savedName = serverFile?.filename || f.name
-        const savedPath = serverFile?.path || `./${savedName}`
+        const savedPath = serverFile?.abs_path || serverFile?.path || `./${savedName}`
         const isImg = isImageFile(savedName, f.type)
         const previewUrl = isImg ? URL.createObjectURL(f) : undefined
         newUploaded.push({

@@ -696,10 +696,14 @@ func (s *Server) handleGetProjectTerminalStatus(w http.ResponseWriter, r *http.R
 		}
 	}
 	if sessSummary == nil && terminal.ProjectSocketExists(proj.ID) {
+		activeWorkDir := terminal.ReadProjectWorkerWorkDir(proj.ID)
+		if activeWorkDir == "" {
+			activeWorkDir = workDir
+		}
 		sessSummary = map[string]interface{}{
 			"active":     true,
 			"session_id": terminal.ProjectSessionKey(proj.ID),
-			"work_dir":   workDir,
+			"work_dir":   activeWorkDir,
 		}
 	}
 	if sessSummary == nil {

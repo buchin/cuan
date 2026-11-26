@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/buchin/cuan/internal/task"
+	"github.com/buchin/cuan/internal/terminal"
 )
 
 func TestTaskWorkspaceFilesUploadAndUsage(t *testing.T) {
@@ -228,5 +230,117 @@ func TestDedicatedProjectTerminalUploadResolvesProjectWorkspace(t *testing.T) {
 	srv.Router().ServeHTTP(recRaw, reqRaw)
 	if recRaw.Code != http.StatusOK || recRaw.Body.String() != filePayload {
 		t.Fatalf("raw fetch failed: %d %q", recRaw.Code, recRaw.Body.String())
+	}
+}
+
+func TestDedicatedProjectTerminalUpload_PrefersDetachedWorkerWorkDir(t *testing.T) {
+	srv, token := setupTestChatServer(t)
+
+	projBody := `{"name":"cuan-detached-term"}`
+	reqProj := httptest.NewRequest(http.MethodPost, "/api/v1/projects", bytes.NewBufferString(projBody))
+	reqProj.Header.Set("Authorization", "Bearer "+token)
+	reqProj.Header.Set("Content-Type", "application/json")
+	recProj := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recProj, reqProj)
+	if recProj.Code != http.StatusCreated {
+		t.Fatalf("failed to create project: %d %s", recProj.Code, recProj.Body.String())
+	}
+	var projResp struct {
+		ID        string `json:"id"`
+		LocalPath string `json:"local_path"`
+	}
+	_ = json.Unmarshal(recProj.Body.Bytes(), &projResp)
+	t.Cleanup(func() {
+		_ = os.RemoveAll(projResp.LocalPath)
+	})
+
+	taskBody := `{"title":"Terminal · cuan-detached-term","project_id":"` + projResp.ID + `"}`
+	reqTask := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBufferString(taskBody))
+	reqTask.Header.Set("Authorization", "Bearer "+token)
+	reqTask.Header.Set("Content-Type", "application/json")
+	recTask := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recTask, reqTask)
+	if recTask.Code != http.StatusCreated {
+		t.Fatalf("failed to create terminal task: %d %s", recTask.Code, recTask.Body.String())
+	}
+	var taskResp struct {
+		ID string `json:"id"`
+	}
+	_ = json.Unmarshal(recTask.Body.Bytes(), &taskResp)
+
+	// Simulate an active detached project worker running in a distinct WorkDir
+	activeWorkDir := t.TempDir()
+	if abs, err := filepath.Abs(activeWorkDir); err == nil {
+		activeWorkDir = abs
+	}
+	sockPath := terminal.ProjectSocketPath(projResp.ID)
+	_ = os.Remove(sockPath)
+	ln, err := net.Listen("unix", sockPath)
+	if err != nil {
+		t.Fatalf("listen unix socket: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = ln.Close()
+		_ = os.Remove(sockPath)
+	})
+
+	workersDir := filepath.Join(filepath.Dir(sockPath), "cuan-workers")
+	_ = os.MkdirAll(workersDir, 0755)
+	metaFile := filepath.Join(workersDir, "project-meta-"+projResp.ID+".json")
+	metaBytes, _ := json.Marshal(terminal.ProjectWorkerMeta{
+		ProjectID: projResp.ID,
+		SessionID: "proj-sess-test",
+		WorkDir:   activeWorkDir,
+	})
+	if err := os.WriteFile(metaFile, metaBytes, 0600); err != nil {
+		t.Fatalf("write worker meta: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Remove(metaFile)
+	})
+
+	const fileName = "Screenshot 2026-11-26 at 16.20.22.png"
+	const filePayload = "detached-worker-png-payload"
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("file", fileName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = part.Write([]byte(filePayload))
+	_ = writer.Close()
+
+	reqUpload := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/"+taskResp.ID+"/files", &body)
+	reqUpload.Header.Set("Authorization", "Bearer "+token)
+	reqUpload.Header.Set("Content-Type", writer.FormDataContentType())
+	recUpload := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recUpload, reqUpload)
+	if recUpload.Code != http.StatusOK {
+		t.Fatalf("upload failed: %d %s", recUpload.Code, recUpload.Body.String())
+	}
+
+	var uploadResp struct {
+		OK           bool   `json:"ok"`
+		Filename     string `json:"filename"`
+		Path         string `json:"path"`
+		AbsPath      string `json:"abs_path"`
+		WorkspaceDir string `json:"workspace_dir"`
+	}
+	if err := json.Unmarshal(recUpload.Body.Bytes(), &uploadResp); err != nil || !uploadResp.OK {
+		t.Fatalf("invalid upload response: %v %s", err, recUpload.Body.String())
+	}
+	if uploadResp.WorkspaceDir != activeWorkDir {
+		t.Fatalf("expected workspace_dir %q, got %q", activeWorkDir, uploadResp.WorkspaceDir)
+	}
+	expectedPath := filepath.Join(activeWorkDir, fileName)
+	if uploadResp.AbsPath != expectedPath {
+		t.Fatalf("expected abs_path %q, got %q", expectedPath, uploadResp.AbsPath)
+	}
+	gotBytes, err := os.ReadFile(expectedPath)
+	if err != nil || string(gotBytes) != filePayload {
+		t.Fatalf("expected uploaded file at %q, err=%v", expectedPath, err)
+	}
+	if _, err := os.Stat(filepath.Join(projResp.LocalPath, fileName)); err == nil {
+		t.Fatalf("file should not be written to fallback proj.LocalPath when detached worker WorkDir is active")
 	}
 }
