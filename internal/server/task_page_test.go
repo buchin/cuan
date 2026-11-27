@@ -61,4 +61,23 @@ func TestTaskBoardAPIIsBoundedAndKeepsLegacyList(t *testing.T) {
 	if len(rows) != 2 || total != 2 {
 		t.Fatalf("expected 2 tasks with limit 2, got %d (total %d)", len(rows), total)
 	}
+
+	offsetPage := read("/api/v1/tasks?limit=2&offset=2")
+	json.Unmarshal(offsetPage["tasks"], &rows)
+	var totalCount, offsetVal, nextOffset int
+	var hasMore bool
+	json.Unmarshal(offsetPage["total_count"], &totalCount)
+	json.Unmarshal(offsetPage["offset"], &offsetVal)
+	json.Unmarshal(offsetPage["has_more"], &hasMore)
+	json.Unmarshal(offsetPage["next_offset"], &nextOffset)
+	if len(rows) != 2 || totalCount != 7 || offsetVal != 2 || !hasMore || nextOffset != 4 {
+		t.Fatalf("unexpected offset page: len=%d total_count=%d offset=%d has_more=%v next_offset=%d", len(rows), totalCount, offsetVal, hasMore, nextOffset)
+	}
+
+	lastPage := read("/api/v1/tasks?limit=2&offset=6")
+	json.Unmarshal(lastPage["tasks"], &rows)
+	json.Unmarshal(lastPage["has_more"], &hasMore)
+	if len(rows) != 1 || hasMore {
+		t.Fatalf("unexpected last page: len=%d has_more=%v", len(rows), hasMore)
+	}
 }

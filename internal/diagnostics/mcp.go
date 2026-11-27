@@ -238,7 +238,7 @@ var nativeMCPTools = []mcpToolDefinition{
 	},
 	{
 		Name:        "list_tasks",
-		Description: "List tasks across all projects or filtered by project ID, with optional status filter (backlog, doing, review, done, blocked).",
+		Description: "List tasks across all projects or filtered by project ID and status. Returns compact task summaries with pagination metadata by default; set full=true for complete fields.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -252,20 +252,32 @@ var nativeMCPTools = []mcpToolDefinition{
 				},
 				"limit": map[string]any{
 					"type":        "integer",
-					"description": "Maximum number of tasks (default: 20, max: 100)",
+					"description": "Maximum number of tasks per page (default: 20, max: 100)",
+				},
+				"offset": map[string]any{
+					"type":        "integer",
+					"description": "Number of tasks to skip for pagination (default: 0)",
+				},
+				"full": map[string]any{
+					"type":        "boolean",
+					"description": "Return full task fields instead of compact summary (default: false)",
 				},
 			},
 		},
 	},
 	{
 		Name:        "get_task",
-		Description: "Get detailed task specification, status, priority, Definition of Done checklist, attempt history, and latest execution logs.",
+		Description: "Get task specification, status, latest attempt status, and bounded notes/history by default; set full=true for complete uncompacted payload.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"task_id": map[string]any{
 					"type":        "string",
 					"description": "Task ID",
+				},
+				"full": map[string]any{
+					"type":        "boolean",
+					"description": "Return full uncompacted task payload including complete instructions, notes, all attempts, and activities (default: false)",
 				},
 			},
 			"required": []string{"task_id"},
@@ -1145,10 +1157,22 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 			if rawLimit, ok := callParams.Arguments["limit"].(float64); ok {
 				limit = int(rawLimit)
 			}
-			toolResult, toolErr = ListTasks(ctx, projectID, status, limit)
+			offset := 0
+			if rawOffset, ok := callParams.Arguments["offset"].(float64); ok {
+				offset = int(rawOffset)
+			}
+			full, _ := callParams.Arguments["full"].(bool)
+			toolResult, toolErr = ListTasksWithOptions(ctx, ListTasksOptions{
+				ProjectID: projectID,
+				Status:    status,
+				Limit:     limit,
+				Offset:    offset,
+				Full:      full,
+			})
 		case "get_task":
 			taskID, _ := callParams.Arguments["task_id"].(string)
-			toolResult, toolErr = GetTask(ctx, taskID)
+			full, _ := callParams.Arguments["full"].(bool)
+			toolResult, toolErr = GetTaskWithOptions(ctx, taskID, GetTaskOptions{Full: full})
 		case "update_task_status":
 			taskID, _ := callParams.Arguments["task_id"].(string)
 			status, _ := callParams.Arguments["status"].(string)

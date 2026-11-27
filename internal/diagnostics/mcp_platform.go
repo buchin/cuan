@@ -203,57 +203,106 @@ type TaskSummary struct {
 	UpdatedAt    string   `json:"updated_at"`
 }
 
-// ListTasks lists tasks with optional project and status filters.
+// ListTasksOptions configures filtering, pagination, and verbosity for ListTasksWithOptions.
+type ListTasksOptions struct {
+	ProjectID string
+	Status    string
+	Limit     int
+	Offset    int
+	Full      bool
+}
+
+// GetTaskOptions configures verbosity for GetTaskWithOptions.
+type GetTaskOptions struct {
+	Full bool
+}
+
+// ListTasks lists tasks with optional project and status filters using compact defaults.
 func ListTasks(ctx context.Context, projectID, status string, limit int) (any, error) {
+	return ListTasksWithOptions(ctx, ListTasksOptions{
+		ProjectID: projectID,
+		Status:    status,
+		Limit:     limit,
+	})
+}
+
+// ListTasksWithOptions lists tasks with optional project, status, pagination, and full-payload options.
+func ListTasksWithOptions(ctx context.Context, opts ListTasksOptions) (any, error) {
+	limit := opts.Limit
 	if limit <= 0 {
 		limit = 20
 	} else if limit > 100 {
 		limit = 100
 	}
+	offset := opts.Offset
+	if offset < 0 {
+		offset = 0
+	}
 	// A configured Owner endpoint is authoritative. Do not replace a remote
 	// failure with local database contents or a fabricated empty task board.
 	if client := GetCuanClient(); client != nil && client.IsConfigured() {
-		tasks, err := client.ListTasks(ctx, projectID, status, limit)
+		page, err := client.ListTasksPage(ctx, opts.ProjectID, opts.Status, limit, offset)
 		if err != nil {
 			return nil, fmt.Errorf("Cuan connection unavailable; task list could not be confirmed")
 		}
-		if limit > 0 && len(tasks) > limit {
-			tasks = tasks[:limit]
-		}
-		for _, item := range tasks {
+		tasks := page.Tasks
+		for i, item := range tasks {
 			redactTaskDiagnostic(item)
+			if !opts.Full {
+				tasks[i] = compactTaskListItem(item)
+			}
 		}
-		return map[string]any{"tasks": tasks, "total": len(tasks)}, nil
+		res := map[string]any{
+			"tasks":       tasks,
+			"total":       len(tasks),
+			"total_count": page.TotalCount,
+			"limit":       limit,
+			"offset":      offset,
+			"has_more":    page.HasMore,
+			"compact":     !opts.Full,
+		}
+		if page.NextOffset != nil {
+			res["next_offset"] = *page.NextOffset
+		}
+		return res, nil
 	}
 	db := getPlatformDB()
 	if db == nil {
 		return nil, fmt.Errorf("Configure a Cuan connection before reading tasks")
 	}
 
-	query := "SELECT id, project_id, title, instructions, status, priority, summary, complete_note, dod_checklist, created_at, updated_at FROM tasks WHERE 1=1"
+	whereClause := " WHERE 1=1"
 	args := []any{}
 	argIdx := 1
 
-	if projectID != "" {
-		query += fmt.Sprintf(" AND (project_id = $%d OR project_id IN (SELECT id FROM projects WHERE LOWER(name) = LOWER($%d)))", argIdx, argIdx)
-		args = append(args, projectID)
+	if opts.ProjectID != "" {
+		whereClause += fmt.Sprintf(" AND (project_id = $%d OR project_id IN (SELECT id FROM projects WHERE LOWER(name) = LOWER($%d)))", argIdx, argIdx)
+		args = append(args, opts.ProjectID)
 		argIdx++
 	}
-	if status != "" {
-		query += fmt.Sprintf(" AND status = $%d", argIdx)
-		args = append(args, status)
+	if opts.Status != "" {
+		whereClause += fmt.Sprintf(" AND status = $%d", argIdx)
+		args = append(args, opts.Status)
 		argIdx++
 	}
-	query += fmt.Sprintf(" ORDER BY updated_at DESC LIMIT $%d", argIdx)
-	args = append(args, limit)
 
-	rows, err := db.QueryContext(ctx, query, args...)
+	var totalCount int
+	countQuery := "SELECT COUNT(*) FROM tasks" + whereClause
+	if err := db.QueryRowContext(ctx, countQuery, args...).Scan(&totalCount); err != nil {
+		return nil, fmt.Errorf("count tasks: %w", err)
+	}
+
+	query := "SELECT id, project_id, title, instructions, status, priority, summary, complete_note, dod_checklist, created_at, updated_at FROM tasks" + whereClause
+	query += fmt.Sprintf(" ORDER BY updated_at DESC LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
+	queryArgs := append(append([]any{}, args...), limit, offset)
+
+	rows, err := db.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("query tasks: %w", err)
 	}
 	defer rows.Close()
 
-	var tasks []TaskSummary
+	var fullTasks []TaskSummary
 	for rows.Next() {
 		var t TaskSummary
 		var dodRaw []byte
@@ -278,23 +327,47 @@ func ListTasks(ctx context.Context, projectID, status string, limit int) (any, e
 		t.CreatedAt = createdAt.Format(time.RFC3339)
 		redactTaskSummary(&t)
 		t.UpdatedAt = updatedAt.Format(time.RFC3339)
-		tasks = append(tasks, t)
+		fullTasks = append(fullTasks, t)
 	}
-	if tasks == nil {
-		tasks = []TaskSummary{}
+	if fullTasks == nil {
+		fullTasks = []TaskSummary{}
 	}
-	if limit > 0 && len(tasks) > limit {
-		tasks = tasks[:limit]
+	if limit > 0 && len(fullTasks) > limit {
+		fullTasks = fullTasks[:limit]
 	}
 
-	return map[string]any{
-		"tasks": tasks,
-		"total": len(tasks),
-	}, nil
+	hasMore := offset+len(fullTasks) < totalCount
+	res := map[string]any{
+		"total":       len(fullTasks),
+		"total_count": totalCount,
+		"limit":       limit,
+		"offset":      offset,
+		"has_more":    hasMore,
+		"compact":     !opts.Full,
+	}
+	if hasMore {
+		res["next_offset"] = offset + len(fullTasks)
+	}
+	if opts.Full {
+		res["tasks"] = fullTasks
+	} else {
+		compactTasks := make([]map[string]any, 0, len(fullTasks))
+		for _, t := range fullTasks {
+			compactTasks = append(compactTasks, compactTaskSummaryItem(t))
+		}
+		res["tasks"] = compactTasks
+	}
+
+	return res, nil
 }
 
-// GetTask returns details of a single task.
+// GetTask returns details of a single task using compact defaults.
 func GetTask(ctx context.Context, taskID string) (any, error) {
+	return GetTaskWithOptions(ctx, taskID, GetTaskOptions{})
+}
+
+// GetTaskWithOptions returns details of a single task, compacted by default or full when opts.Full is true.
+func GetTaskWithOptions(ctx context.Context, taskID string, opts GetTaskOptions) (any, error) {
 	taskID = strings.TrimSpace(taskID)
 	if taskID == "" {
 		return nil, fmt.Errorf("task_id is required")
@@ -305,6 +378,9 @@ func GetTask(ctx context.Context, taskID string) (any, error) {
 			return nil, fmt.Errorf("Cuan connection unavailable; task state could not be confirmed")
 		}
 		redactTaskDiagnostic(result)
+		if !opts.Full {
+			return compactTaskDetail(result), nil
+		}
 		return result, nil
 	}
 	db := getPlatformDB()
@@ -377,10 +453,280 @@ func GetTask(ctx context.Context, taskID string) (any, error) {
 		}
 	}
 
-	return map[string]any{
+	res := map[string]any{
 		"task":     t,
 		"attempts": attempts,
-	}, nil
+	}
+	if !opts.Full {
+		return compactTaskDetail(res), nil
+	}
+	return res, nil
+}
+
+const (
+	compactListSummaryMaxChars      = 240
+	compactDetailInstructionsMax    = 600
+	compactDetailSummaryMax         = 500
+	compactDetailCompleteNoteMax    = 800
+	compactDetailProgressMax        = 500
+	compactDetailDiffTestMax        = 500
+	compactDetailDoDEvidenceMax     = 200
+	compactDetailAttemptErrMax      = 300
+	compactDetailActivityMsgMax     = 200
+	compactDetailMaxAttempts        = 3
+	compactDetailMaxActivities      = 5
+)
+
+func truncateDiagnosticText(s string, maxChars int) (string, bool) {
+	if maxChars <= 0 || s == "" {
+		return s, false
+	}
+	runes := []rune(s)
+	if len(runes) <= maxChars {
+		return s, false
+	}
+	if maxChars < 80 {
+		return string(runes[:maxChars]) + "...", true
+	}
+	const marker = "\n... (truncated) ...\n"
+	headLen := (maxChars - len([]rune(marker))) / 2
+	tailLen := maxChars - len([]rune(marker)) - headLen
+	if headLen < 1 || tailLen < 1 {
+		return string(runes[:maxChars]) + "...", true
+	}
+	return string(runes[:headLen]) + marker + string(runes[len(runes)-tailLen:]), true
+}
+
+func compactTaskAttempt(raw map[string]any) (map[string]any, bool) {
+	if raw == nil {
+		return nil, false
+	}
+	out := map[string]any{}
+	for _, key := range []string{"id", "status", "attempt_number", "runner_id", "agent_name", "exit_code", "started_at", "finished_at"} {
+		if val, ok := raw[key]; ok && val != nil && val != "" {
+			out[key] = val
+		}
+	}
+	truncated := false
+	if errMsg, ok := raw["error_message"].(string); ok && errMsg != "" {
+		trimmed, didTrunc := truncateDiagnosticText(errMsg, compactDetailAttemptErrMax)
+		out["error_message"] = trimmed
+		truncated = didTrunc
+	}
+	return out, truncated
+}
+
+func compactTaskListItem(item map[string]any) map[string]any {
+	out := map[string]any{}
+	for _, key := range []string{"id", "project_id", "project_name", "title", "status", "priority", "assigned_agent", "review_state", "created_at", "updated_at"} {
+		if val, ok := item[key]; ok && val != nil && val != "" {
+			out[key] = val
+		}
+	}
+	if summary, ok := item["summary"].(string); ok && summary != "" {
+		out["summary"], _ = truncateDiagnosticText(summary, compactListSummaryMaxChars)
+	}
+	if la, ok := item["latest_attempt"].(map[string]any); ok && la != nil {
+		compactedLA, _ := compactTaskAttempt(la)
+		out["latest_attempt"] = compactedLA
+	}
+	return out
+}
+
+func compactTaskSummaryItem(t TaskSummary) map[string]any {
+	out := map[string]any{
+		"id":         t.ID,
+		"project_id": t.ProjectID,
+		"title":      t.Title,
+		"status":     t.Status,
+		"priority":   t.Priority,
+		"created_at": t.CreatedAt,
+		"updated_at": t.UpdatedAt,
+	}
+	if t.Summary != "" {
+		out["summary"], _ = truncateDiagnosticText(t.Summary, compactListSummaryMaxChars)
+	}
+	return out
+}
+
+func compactTaskDetail(result map[string]any) map[string]any {
+	if result == nil {
+		return nil
+	}
+	if _, hasErr := result["error"]; hasErr {
+		return result
+	}
+
+	// Normalize DB fallback shape {"task": TaskSummary|map, "attempts": ...}
+	src := result
+	if nestedTask, ok := result["task"]; ok && nestedTask != nil {
+		flat := map[string]any{}
+		switch t := nestedTask.(type) {
+		case TaskSummary:
+			flat["id"] = t.ID
+			flat["project_id"] = t.ProjectID
+			flat["title"] = t.Title
+			flat["instructions"] = t.Instructions
+			flat["status"] = t.Status
+			flat["priority"] = t.Priority
+			flat["summary"] = t.Summary
+			flat["complete_note"] = t.CompleteNote
+			flat["dod_checklist"] = t.DoDChecklist
+			flat["created_at"] = t.CreatedAt
+			flat["updated_at"] = t.UpdatedAt
+		case map[string]any:
+			for k, v := range t {
+				flat[k] = v
+			}
+		}
+		if attempts, ok := result["attempts"]; ok {
+			flat["attempts"] = attempts
+		}
+		src = flat
+	}
+
+	out := map[string]any{
+		"compact": true,
+	}
+	truncated := false
+
+	for _, key := range []string{
+		"id", "project_id", "project_ids", "project_name", "title",
+		"status", "priority", "execution_category", "assigned_agent",
+		"branch_name", "pr_url", "pr_number", "commit_sha",
+		"result_kind", "review_state", "review_finding", "review_action",
+		"created_at", "updated_at", "completed_at",
+	} {
+		if val, ok := src[key]; ok && val != nil && val != "" {
+			out[key] = val
+		}
+	}
+
+	textLimits := []struct {
+		key string
+		max int
+	}{
+		{"instructions", compactDetailInstructionsMax},
+		{"summary", compactDetailSummaryMax},
+		{"complete_note", compactDetailCompleteNoteMax},
+		{"latest_progress", compactDetailProgressMax},
+		{"diff_summary", compactDetailDiffTestMax},
+		{"test_summary", compactDetailDiffTestMax},
+	}
+	for _, spec := range textLimits {
+		if val, ok := src[spec.key].(string); ok && val != "" {
+			trimmed, didTrunc := truncateDiagnosticText(val, spec.max)
+			out[spec.key] = trimmed
+			if didTrunc {
+				truncated = true
+			}
+		}
+	}
+
+	if la, ok := src["latest_attempt"].(map[string]any); ok && la != nil {
+		compactedLA, didTrunc := compactTaskAttempt(la)
+		out["latest_attempt"] = compactedLA
+		if didTrunc {
+			truncated = true
+		}
+	}
+
+	if dodRaw, ok := src["dod_checklist"]; ok && dodRaw != nil {
+		switch items := dodRaw.(type) {
+		case []any:
+			compactedDoD := make([]any, 0, len(items))
+			for _, item := range items {
+				if m, ok := item.(map[string]any); ok {
+					entry := map[string]any{}
+					if id, ok := m["id"]; ok && id != "" {
+						entry["id"] = id
+					}
+					if text, ok := m["text"]; ok {
+						entry["text"] = text
+					}
+					if completed, ok := m["completed"]; ok {
+						entry["completed"] = completed
+					}
+					if ev, ok := m["evidence"].(string); ok && ev != "" {
+						trimmedEv, didTrunc := truncateDiagnosticText(ev, compactDetailDoDEvidenceMax)
+						entry["evidence"] = trimmedEv
+						if didTrunc {
+							truncated = true
+						}
+					}
+					compactedDoD = append(compactedDoD, entry)
+				} else {
+					compactedDoD = append(compactedDoD, item)
+				}
+			}
+			out["dod_checklist"] = compactedDoD
+		case []string:
+			out["dod_checklist"] = items
+		}
+	}
+
+	if rawAttempts, ok := src["attempts"]; ok && rawAttempts != nil {
+		var attemptList []map[string]any
+		switch typed := rawAttempts.(type) {
+		case []any:
+			for _, a := range typed {
+				if m, ok := a.(map[string]any); ok {
+					attemptList = append(attemptList, m)
+				}
+			}
+		case []map[string]any:
+			attemptList = typed
+		}
+		if len(attemptList) > 0 {
+			if len(attemptList) > compactDetailMaxAttempts {
+				out["attempts_total"] = len(attemptList)
+				attemptList = attemptList[:compactDetailMaxAttempts]
+				truncated = true
+			}
+			compacted := make([]map[string]any, 0, len(attemptList))
+			for _, a := range attemptList {
+				ca, didTrunc := compactTaskAttempt(a)
+				compacted = append(compacted, ca)
+				if didTrunc {
+					truncated = true
+				}
+			}
+			out["attempts"] = compacted
+		}
+	}
+
+	if rawActivities, ok := src["activities"].([]any); ok && len(rawActivities) > 0 {
+		if len(rawActivities) > compactDetailMaxActivities {
+			out["activities_total"] = len(rawActivities)
+			rawActivities = rawActivities[len(rawActivities)-compactDetailMaxActivities:]
+			truncated = true
+		}
+		compacted := make([]map[string]any, 0, len(rawActivities))
+		for _, rawAct := range rawActivities {
+			if m, ok := rawAct.(map[string]any); ok {
+				entry := map[string]any{}
+				for _, k := range []string{"id", "activity_type", "author", "old_status", "new_status", "created_at"} {
+					if val, exists := m[k]; exists && val != nil && val != "" {
+						entry[k] = val
+					}
+				}
+				if msg, ok := m["message"].(string); ok && msg != "" {
+					trimmedMsg, didTrunc := truncateDiagnosticText(msg, compactDetailActivityMsgMax)
+					entry["message"] = trimmedMsg
+					if didTrunc {
+						truncated = true
+					}
+				}
+				compacted = append(compacted, entry)
+			}
+		}
+		out["activities"] = compacted
+	}
+
+	if truncated {
+		out["truncated"] = true
+	}
+	return out
 }
 
 // Diagnostic consumers need approved scope, not the frozen execution environment.

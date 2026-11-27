@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -368,4 +369,262 @@ func TestListTasksMCPHandlerLimits(t *testing.T) {
 			t.Fatalf("MCP tool list_tasks limit 2 expected 2 tasks and total 2, got %d and %d", len(toolData2.Tasks), toolData2.Total)
 		}
 	})
+}
+
+func TestListTasksCompactAndPagination(t *testing.T) {
+	longText := strings.Repeat("A", 3000)
+	longErr := strings.Repeat("ERR_LOG_", 300)
+	fixture := []map[string]any{
+		{
+			"id":             "task-big-1",
+			"project_id":     "proj-alpha",
+			"title":          "Task Big One",
+			"instructions":   longText,
+			"summary":        longText,
+			"complete_note":  longText,
+			"diff_summary":   longText,
+			"test_summary":   longText,
+			"dod_checklist":  []map[string]any{{"text": "Check 1", "completed": true, "evidence": longText}},
+			"status":         "doing",
+			"priority":       "high",
+			"assigned_agent": "agent_cuan",
+			"latest_attempt": map[string]any{
+				"id":             "att-1",
+				"status":         "failed",
+				"attempt_number": 2,
+				"error_message":  longErr,
+			},
+			"created_at": "2026-11-09T08:00:00Z",
+			"updated_at": "2026-11-09T08:05:00Z",
+		},
+		{
+			"id":         "task-big-2",
+			"project_id": "proj-alpha",
+			"title":      "Task Big Two",
+			"status":     "done",
+			"priority":   "normal",
+			"updated_at": "2026-11-09T07:00:00Z",
+		},
+		{
+			"id":         "task-big-3",
+			"project_id": "proj-alpha",
+			"title":      "Task Big Three",
+			"status":     "review",
+			"priority":   "normal",
+			"updated_at": "2026-11-09T06:00:00Z",
+		},
+	}
+	_, cleanup := setupMockTaskServer(t, fixture)
+	defer cleanup()
+
+	t.Run("MCP list_tasks default compact omits large fields and supports pagination", func(t *testing.T) {
+		reqs := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}` + "\n" +
+			`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_tasks","arguments":{"limit":2,"offset":0}}}` + "\n" +
+			`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_tasks","arguments":{"limit":2,"offset":2}}}` + "\n" +
+			`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"list_tasks","arguments":{"limit":1,"offset":0,"full":true}}}` + "\n"
+
+		var out, errOut bytes.Buffer
+		if code := RunMCP(bytes.NewBufferString(reqs), &out, &errOut); code != 0 {
+			t.Fatalf("RunMCP exited with code %d: %s", code, errOut.String())
+		}
+		lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+		if len(lines) < 4 {
+			t.Fatalf("expected 4 response lines, got %d", len(lines))
+		}
+
+		parsePayload := func(line string) map[string]any {
+			t.Helper()
+			var resp jsonRPCResponse
+			if err := json.Unmarshal([]byte(line), &resp); err != nil {
+				t.Fatalf("unmarshal rpc: %v", err)
+			}
+			resMap := resp.Result.(map[string]any)
+			content := resMap["content"].([]any)[0].(map[string]any)
+			var payload map[string]any
+			if err := json.Unmarshal([]byte(content["text"].(string)), &payload); err != nil {
+				t.Fatalf("unmarshal payload: %v", err)
+			}
+			return payload
+		}
+
+		page1 := parsePayload(lines[1])
+		if page1["compact"] != true || page1["has_more"] != true {
+			t.Fatalf("expected compact=true and has_more=true, got %+v", page1)
+		}
+		if int(page1["total_count"].(float64)) != 3 || int(page1["next_offset"].(float64)) != 2 {
+			t.Fatalf("expected total_count=3 and next_offset=2, got total_count=%v next_offset=%v", page1["total_count"], page1["next_offset"])
+		}
+		tasks1 := page1["tasks"].([]any)
+		if len(tasks1) != 2 {
+			t.Fatalf("expected 2 tasks on page 1, got %d", len(tasks1))
+		}
+		first := tasks1[0].(map[string]any)
+		if first["status"] != "doing" {
+			t.Fatalf("expected status=doing, got %v", first["status"])
+		}
+		if _, hasInst := first["instructions"]; hasInst {
+			t.Fatalf("compact list_tasks must omit instructions")
+		}
+		if _, hasNote := first["complete_note"]; hasNote {
+			t.Fatalf("compact list_tasks must omit complete_note")
+		}
+		if summary, _ := first["summary"].(string); len(summary) >= len(longText) {
+			t.Fatalf("expected truncated summary, got len %d", len(summary))
+		}
+		la := first["latest_attempt"].(map[string]any)
+		if la["status"] != "failed" {
+			t.Fatalf("expected latest_attempt.status=failed, got %v", la["status"])
+		}
+		if errMsg, _ := la["error_message"].(string); len(errMsg) >= len(longErr) {
+			t.Fatalf("expected truncated error_message, got len %d", len(errMsg))
+		}
+
+		page2 := parsePayload(lines[2])
+		if page2["has_more"] != false || int(page2["offset"].(float64)) != 2 {
+			t.Fatalf("expected has_more=false and offset=2 on page 2, got %+v", page2)
+		}
+		tasks2 := page2["tasks"].([]any)
+		if len(tasks2) != 1 || tasks2[0].(map[string]any)["id"] != "task-big-3" {
+			t.Fatalf("expected task-big-3 on page 2, got %+v", tasks2)
+		}
+
+		fullPage := parsePayload(lines[3])
+		if fullPage["compact"] != false {
+			t.Fatalf("expected compact=false when full=true, got %v", fullPage["compact"])
+		}
+		fullFirst := fullPage["tasks"].([]any)[0].(map[string]any)
+		if fullFirst["instructions"] != longText || fullFirst["complete_note"] != longText {
+			t.Fatalf("expected full instructions and complete_note when full=true")
+		}
+	})
+
+	t.Run("CLI task list --offset and --full", func(t *testing.T) {
+		var out, errOut bytes.Buffer
+		code := RunTaskCLI([]string{"list", "--limit", "1", "--offset", "1", "--json"}, &out, &errOut)
+		if code != 0 {
+			t.Fatalf("RunTaskCLI failed: %d %s", code, errOut.String())
+		}
+		var res map[string]any
+		if err := json.Unmarshal(out.Bytes(), &res); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		tasks := res["tasks"].([]any)
+		if len(tasks) != 1 || tasks[0].(map[string]any)["id"] != "task-big-2" {
+			t.Fatalf("expected task-big-2 at offset 1, got %+v", tasks)
+		}
+		if int(res["total_count"].(float64)) != 3 || res["has_more"] != true {
+			t.Fatalf("expected total_count=3 and has_more=true, got %+v", res)
+		}
+	})
+}
+
+func TestGetTaskCompactAndFull(t *testing.T) {
+	longText := strings.Repeat("Z", 4000)
+	attempts := make([]map[string]any, 0, 6)
+	for i := 1; i <= 6; i++ {
+		attempts = append(attempts, map[string]any{
+			"id":             fmt.Sprintf("att-%d", i),
+			"status":         "failed",
+			"attempt_number": i,
+			"error_message":  longText,
+		})
+	}
+	activities := make([]map[string]any, 0, 12)
+	for i := 1; i <= 12; i++ {
+		activities = append(activities, map[string]any{
+			"id":            fmt.Sprintf("act-%d", i),
+			"activity_type": "comment",
+			"author":        "agent_cuan",
+			"message":       longText,
+		})
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/tasks/task-huge-1" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":              "task-huge-1",
+			"project_id":      "proj-alpha",
+			"title":           "Huge Task",
+			"status":          "blocked",
+			"priority":        "high",
+			"instructions":    longText,
+			"summary":         longText,
+			"complete_note":   longText,
+			"diff_summary":    longText,
+			"test_summary":    longText,
+			"latest_progress": longText,
+			"dod_checklist":   []map[string]any{{"id": "d1", "text": "DoD 1", "completed": false, "evidence": longText}},
+			"latest_attempt":  attempts[0],
+			"attempts":        attempts,
+			"activities":      activities,
+		})
+	}))
+	defer server.Close()
+
+	prev := globalCuanClient
+	globalCuanClient = &CuanClient{BaseURL: server.URL, AuthToken: "test-token", HTTPClient: server.Client()}
+	defer func() { globalCuanClient = prev }()
+
+	reqs := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}` + "\n" +
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_task","arguments":{"task_id":"task-huge-1"}}}` + "\n" +
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_task","arguments":{"task_id":"task-huge-1","full":true}}}` + "\n"
+
+	var out, errOut bytes.Buffer
+	if code := RunMCP(bytes.NewBufferString(reqs), &out, &errOut); code != 0 {
+		t.Fatalf("RunMCP failed: %d %s", code, errOut.String())
+	}
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	if len(lines) < 3 {
+		t.Fatalf("expected 3 lines, got %d", len(lines))
+	}
+
+	parseText := func(line string) (string, map[string]any) {
+		t.Helper()
+		var resp jsonRPCResponse
+		if err := json.Unmarshal([]byte(line), &resp); err != nil {
+			t.Fatalf("unmarshal rpc: %v", err)
+		}
+		rawText := resp.Result.(map[string]any)["content"].([]any)[0].(map[string]any)["text"].(string)
+		var payload map[string]any
+		if err := json.Unmarshal([]byte(rawText), &payload); err != nil {
+			t.Fatalf("unmarshal payload: %v", err)
+		}
+		return rawText, payload
+	}
+
+	compactRaw, compactRes := parseText(lines[1])
+	fullRaw, fullRes := parseText(lines[2])
+
+	if compactRes["compact"] != true || compactRes["truncated"] != true {
+		t.Fatalf("expected compact=true and truncated=true, got compact=%v truncated=%v", compactRes["compact"], compactRes["truncated"])
+	}
+	if compactRes["status"] != "blocked" {
+		t.Fatalf("expected status=blocked, got %v", compactRes["status"])
+	}
+	if la := compactRes["latest_attempt"].(map[string]any); la["status"] != "failed" {
+		t.Fatalf("expected latest_attempt.status=failed, got %v", la["status"])
+	}
+	if len(compactRes["attempts"].([]any)) != 3 || int(compactRes["attempts_total"].(float64)) != 6 {
+		t.Fatalf("expected 3 attempts with attempts_total=6, got %d (%v)", len(compactRes["attempts"].([]any)), compactRes["attempts_total"])
+	}
+	if len(compactRes["activities"].([]any)) != 5 || int(compactRes["activities_total"].(float64)) != 12 {
+		t.Fatalf("expected 5 activities with activities_total=12, got %d (%v)", len(compactRes["activities"].([]any)), compactRes["activities_total"])
+	}
+	if len(compactRaw) >= len(fullRaw)/4 {
+		t.Fatalf("expected compact payload (%d bytes) to be much smaller than full payload (%d bytes)", len(compactRaw), len(fullRaw))
+	}
+
+	if _, hasCompact := fullRes["compact"]; hasCompact {
+		t.Fatalf("full get_task should not set compact=true")
+	}
+	if len(fullRes["attempts"].([]any)) != 6 || len(fullRes["activities"].([]any)) != 12 {
+		t.Fatalf("expected all 6 attempts and 12 activities in full mode")
+	}
+	if fullRes["instructions"] != longText {
+		t.Fatalf("expected full instructions in full mode")
+	}
 }

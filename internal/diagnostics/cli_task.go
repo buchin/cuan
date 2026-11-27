@@ -118,8 +118,8 @@ func printTaskHelp(out io.Writer) {
 	fmt.Fprintln(out, `Cuan Task CLI — Inspect and manage tasks on the Cuan platform board
 
 Usage:
-  cuan task list [--project default] [--status doing] [--limit 20] [--json]
-  cuan task get <task-id> [--json]
+  cuan task list [--project default] [--status doing] [--limit 20] [--offset 0] [--full] [--json]
+  cuan task get <task-id> [--full] [--json]
   cuan task execution <task-id>
   cuan task logs <task-id> <attempt-id> [--after-id 0 | --tail] [--limit 100] [--json]
   cuan task verify-publication <task-id>
@@ -149,6 +149,8 @@ func runTaskList(ctx context.Context, args []string, out, errOut io.Writer) int 
 	projFlag := fs.String("project", "", "Filter by project ID or name")
 	statusFlag := fs.String("status", "", "Filter by status (todo, in_progress, doing, review, done, blocked)")
 	limitFlag := fs.Int("limit", 20, "Maximum tasks to retrieve")
+	offsetFlag := fs.Int("offset", 0, "Number of tasks to skip for pagination")
+	fullFlag := fs.Bool("full", false, "Return full uncompacted task fields in JSON output")
 	jsonFlag := fs.Bool("json", false, "Output in JSON format")
 
 	if err := fs.Parse(args); err != nil {
@@ -158,7 +160,13 @@ func runTaskList(ctx context.Context, args []string, out, errOut io.Writer) int 
 		return 2
 	}
 
-	res, err := ListTasks(ctx, *projFlag, *statusFlag, *limitFlag)
+	res, err := ListTasksWithOptions(ctx, ListTasksOptions{
+		ProjectID: *projFlag,
+		Status:    *statusFlag,
+		Limit:     *limitFlag,
+		Offset:    *offsetFlag,
+		Full:      *fullFlag,
+	})
 	if err != nil {
 		fmt.Fprintf(errOut, "Error listing tasks: %v\n", err)
 		return 1
@@ -233,18 +241,24 @@ func runTaskList(ctx context.Context, args []string, out, errOut io.Writer) int 
 		}
 		fmt.Fprintf(out, "%2d. (%s|%s)%s %s\n    ID: %s\n", i+1, status, priority, agentStr, title, id)
 	}
+	if hasMore, _ := resMap["has_more"].(bool); hasMore {
+		nextOffset, _ := resMap["next_offset"].(int)
+		totalCount, _ := resMap["total_count"].(int)
+		fmt.Fprintf(out, "\nShowing %d of %d task(s). Next page: --offset %d\n", len(tasks), totalCount, nextOffset)
+	}
 	return 0
 }
 
 func runTaskGet(ctx context.Context, args []string, out, errOut io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(errOut, "Usage: cuan task get <task-id> [--json]")
+		fmt.Fprintln(errOut, "Usage: cuan task get <task-id> [--full] [--json]")
 		return 2
 	}
 
 	taskID := args[0]
 	fs := flag.NewFlagSet("task get", flag.ContinueOnError)
 	fs.SetOutput(errOut)
+	fullFlag := fs.Bool("full", false, "Return full uncompacted task payload")
 	jsonFlag := fs.Bool("json", false, "Output in JSON format")
 
 	if err := fs.Parse(args[1:]); err != nil {
@@ -254,7 +268,7 @@ func runTaskGet(ctx context.Context, args []string, out, errOut io.Writer) int {
 		return 2
 	}
 
-	res, err := GetTask(ctx, taskID)
+	res, err := GetTaskWithOptions(ctx, taskID, GetTaskOptions{Full: *fullFlag})
 	if err != nil {
 		fmt.Fprintf(errOut, "Error retrieving task: %v\n", err)
 		return 1
