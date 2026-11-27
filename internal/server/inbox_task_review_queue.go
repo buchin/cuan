@@ -38,8 +38,10 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 		return
 	}
 	targetRoomID := detail.SourceRoomID
-	if launch, err := s.taskSvc.LatestLaunch(ctx, detail.ID); err == nil && launch != nil && launch.RoomID != "" {
-		targetRoomID = launch.RoomID
+	if targetRoomID == "" {
+		if launch, err := s.taskSvc.LatestLaunch(ctx, detail.ID); err == nil && launch != nil && launch.RoomID != "" {
+			targetRoomID = launch.RoomID
+		}
 	}
 	if targetRoomID == "" && detail.ProjectID != "" {
 		if rooms, err := s.projectStudioRepo.ListAllRooms(ctx); err == nil {

@@ -272,3 +272,87 @@ func verificationReviewReceiptContract(t *testing.T, s *Server, d *task.TaskDeta
 		t.Fatal("agent-authored receipt bypassed independent gate", decision)
 	}
 }
+
+func TestQueueInboxTaskReviewPreservesSourceRoomOverCrossRoomLaunch(t *testing.T) {
+	s, d, q := stalledReviewFixture(t, "completed")
+	ctx := context.Background()
+	crossRoomID := db.GenerateUUID()
+	now := time.Now().UTC()
+	if err := s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{ID: crossRoomID, ProjectID: d.ProjectID, Title: "Follow-up chat", Topic: "general", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	savedLaunch, err := s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{
+		TaskID:           d.ID,
+		ProjectID:        d.ProjectID,
+		RequestID:        "cross-room-launch",
+		OwnerID:          q.OwnerID,
+		RoomID:           crossRoomID,
+		SourceRequestID:  q.RequestID,
+		AgentID:          q.AgentID,
+		InstructionsHash: task.LaunchInstructionsHash(d.Instructions),
+		CreatedAt:        now,
+		AvailableAt:      now,
+		ExpiresAt:        now.Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claimedLaunch, err := s.taskSvc.ClaimLaunch(ctx, now, "lease-tok", savedLaunch.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.taskSvc.FinishLaunch(ctx, claimedLaunch.ID, claimedLaunch.LeaseToken, "stopped", now, ""); err != nil {
+		t.Fatal(err)
+	}
+	row, err := s.taskSvc.Store().GetTask(ctx, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	row.Status = task.TaskStatusReview
+	if err := s.taskSvc.Store().UpdateTask(ctx, row); err != nil {
+		t.Fatal(err)
+	}
+	exitZero := 0
+	if err := s.taskSvc.Store().CreateAttempt(ctx, &task.TaskAttempt{
+		ID:            "attempt-cross-room-2",
+		TaskID:        d.ID,
+		AttemptNumber: 2,
+		RunnerID:      "fixture",
+		AgentName:     q.AgentID,
+		Status:        task.AttemptStatusSucceeded,
+		ExitCode:      &exitZero,
+		CreatedAt:     now.Add(time.Second),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := s.taskSvc.GetTaskDetail(ctx, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.queueInboxTaskReview(context.WithValue(ctx, inboxDeliveryDiagnosticKey{}, true), fresh)
+
+	repo := s.projectStudioRepo.(db.InboxRequestRepository)
+	crossReqs, err := repo.ListInboxRequests(ctx, crossRoomID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(crossReqs) != 0 {
+		t.Fatalf("expected no review queued in cross room %s, got %+v", crossRoomID, crossReqs)
+	}
+	sourceReqs, err := repo.ListInboxRequests(ctx, d.SourceRoomID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundReview := false
+	for _, req := range sourceReqs {
+		if strings.HasPrefix(req.RequestID, "") && req.RequestID != q.RequestID {
+			if msg, err := s.projectStudioRepo.GetMessageByID(ctx, req.MessageID); err == nil && msg != nil && msg.AuthorID == "cuan_work_review" {
+				foundReview = true
+				break
+			}
+		}
+	}
+	if !foundReview {
+		t.Fatalf("expected cuan_work_review queued in source room %s, got %+v", d.SourceRoomID, sourceReqs)
+	}
+}
