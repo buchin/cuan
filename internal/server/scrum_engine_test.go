@@ -110,7 +110,7 @@ func TestAutonomousScrumEngine_AttemptSucceeded_PassAndDone(t *testing.T) {
 	foundReview := false
 	foundSummary := false
 	for _, m := range messages {
-		if strings.Contains(m.Content, "Hasil pekerjaan memenuhi kriteria yang disepakati.") && !strings.Contains(m.Content, "### Evaluasi") {
+		if strings.Contains(m.Content, "sudah selesai dan diverifikasi.") && !strings.Contains(m.Content, "### Evaluasi") {
 			foundReview = true
 			if strings.Contains(m.Content, tItem.Summary) {
 				foundSummary = true
@@ -123,6 +123,22 @@ func TestAutonomousScrumEngine_AttemptSucceeded_PassAndDone(t *testing.T) {
 	}
 	if !foundSummary {
 		t.Errorf("expected completed summary report in room messages")
+	}
+}
+
+func TestInternalInboxReviewInputHidesIntermediateChatter(t *testing.T) {
+	for _, content := range []string{
+		"Hasil perubahan sudah diperiksa secara independen. Cuan sedang menerapkannya melalui jalur rilis proyek.\n\n[View work](/tasks/msg_123)",
+		"Rilis hasil yang diperiksa belum tuntas.\n\n[View work](/tasks/msg_123)",
+		"Keputusan review belum tersimpan. Status dan hasil pekerjaan belum diubah.\n\n[View work](/tasks/msg_123)",
+		"CUAN_MESSAGE_V1\n{\"text\":\"Files from this work session\",\"attachments\":[\"a\"]}",
+	} {
+		if !internalInboxReviewInput(cuanDB.ProjectMessage{AuthorType: "agent", Content: content}) {
+			t.Errorf("expected intermediate chatter to be hidden: %q", content)
+		}
+	}
+	if internalInboxReviewInput(cuanDB.ProjectMessage{AuthorType: "agent", Content: "**Perbaikan badge** sudah selesai dan diverifikasi."}) {
+		t.Errorf("final completion message must stay visible")
 	}
 }
 

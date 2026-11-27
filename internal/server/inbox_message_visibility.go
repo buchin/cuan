@@ -19,6 +19,15 @@ func internalInboxReviewInput(m db.ProjectMessage) bool {
 		strings.HasPrefix(content, "This update is no longer current") {
 		return true
 	}
+	if m.AuthorType == "agent" && !strings.Contains(content, "```cuan-approval") {
+		if strings.HasPrefix(content, "Hasil perubahan sudah diperiksa secara independen. Cuan sedang menerapkannya melalui jalur rilis proyek.") ||
+			strings.HasPrefix(content, "Rilis hasil yang diperiksa belum tuntas.") ||
+			strings.HasPrefix(content, "Keputusan review belum tersimpan. Status dan hasil pekerjaan belum diubah.") ||
+			strings.HasPrefix(content, "Files from this work session") ||
+			strings.Contains(content, "\n{\"text\":\"Files from this work session\"") {
+			return true
+		}
+	}
 	return false
 }
 

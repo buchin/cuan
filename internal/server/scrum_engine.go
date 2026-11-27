@@ -329,6 +329,7 @@ func (s *Server) ensureTaskCompletionDelivered(ctx context.Context, detail *task
 					strings.Contains(m.Content, "Pekerjaan ditandai selesai") ||
 					strings.Contains(m.Content, "Pekerjaan telah diselesaikan") ||
 					strings.Contains(m.Content, "Pekerjaan telah selesai") ||
+					strings.Contains(m.Content, "sudah selesai dan diverifikasi") ||
 					strings.Contains(m.Content, "telah selesai dan diverifikasi") ||
 					strings.Contains(m.Content, "Draf balasan untuk pengunjung") ||
 					strings.Contains(m.Content, "Customer reply draft")) {
@@ -356,7 +357,11 @@ func (s *Server) ensureTaskCompletionDelivered(ctx context.Context, detail *task
 		}
 		content = fmt.Sprintf("Investigasi dan penanganan tugas selesai diverifikasi.\n\n**Draf balasan untuk pengunjung:**\n> %s\n\n[View work](/tasks/%s)", strings.ReplaceAll(draft, "\n", "\n> "), detail.ID)
 	} else {
-		content = fmt.Sprintf("Hasil pekerjaan memenuhi kriteria yang disepakati.\n\n%s\n\n[View work](/tasks/%s)", summary, detail.ID)
+		title := humanizeTaskTitle(detail.Title)
+		if title == "" {
+			title = "Pekerjaan"
+		}
+		content = fmt.Sprintf("**%s** sudah selesai dan diverifikasi.\n\n%s\n\n[View work](/tasks/%s)", title, summary, detail.ID)
 	}
 	authorID := "agent_cuan"
 	authorName := "@cuan"
@@ -439,7 +444,7 @@ func evaluateTaskDoDDeterministic(d *task.TaskDetailResponse) inboxReviewEvaluat
 		Decision:         "pass",
 		RequestedOutcome: "completed",
 		RemainingWork:    "none",
-		Explanation:      "Hasil pekerjaan memenuhi kriteria yang disepakati.",
+		Explanation:      "Pekerjaan sudah selesai dan diverifikasi.",
 	}
 
 }
