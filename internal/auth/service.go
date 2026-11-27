@@ -283,6 +283,39 @@ func (s *Service) ValidateToken(ctx context.Context, rawToken string) (*Owner, e
 	return owner, nil
 }
 
+// IssueEphemeralSession creates a short-lived session token scoped to an existing active user.
+func (s *Service) IssueEphemeralSession(ctx context.Context, ownerID string, ttl time.Duration) (string, error) {
+	ownerID = strings.TrimSpace(ownerID)
+	if ownerID == "" {
+		return "", ErrInvalidInput
+	}
+	if ttl <= 0 {
+		ttl = 20 * time.Minute
+	}
+	owner, err := s.store.GetOwnerByID(ctx, ownerID)
+	if err != nil {
+		return "", err
+	}
+	if !owner.IsActive {
+		return "", ErrAccountDeactivated
+	}
+	rawToken, tokenHash, err := generateTokenPair()
+	if err != nil {
+		return "", fmt.Errorf("generate session token: %w", err)
+	}
+	now := time.Now().UTC()
+	session := &Session{
+		TokenHash: tokenHash,
+		OwnerID:   owner.ID,
+		ExpiresAt: now.Add(ttl),
+		CreatedAt: now,
+	}
+	if err := s.store.CreateSession(ctx, session); err != nil {
+		return "", fmt.Errorf("persist session: %w", err)
+	}
+	return rawToken, nil
+}
+
 func (s *Service) Logout(ctx context.Context, rawToken string) error {
 	rawToken = strings.TrimSpace(rawToken)
 	if rawToken == "" {

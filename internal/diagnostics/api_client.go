@@ -119,6 +119,24 @@ func GetCuanClient() *CuanClient {
 	return globalCuanClient
 }
 
+// SetCuanClientConfig pins the in-process Cuan API client configuration to an
+// explicit endpoint and token without reading ambient environment or config files.
+func SetCuanClientConfig(baseURL, authToken string) {
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	authToken = strings.TrimSpace(authToken)
+	cachedCuanConfig = &CuanAPIConfig{
+		BaseURL:   baseURL,
+		AuthToken: authToken,
+	}
+	globalCuanClient = &CuanClient{
+		BaseURL:   baseURL,
+		AuthToken: authToken,
+		HTTPClient: &http.Client{
+			Timeout: 120 * time.Second,
+		},
+	}
+}
+
 // NormalizeAgentAlias maps agent shortcuts (@cuan, @sm, @dev, @support) to agent IDs.
 func NormalizeAgentAlias(agent string) string {
 	a := strings.TrimSpace(strings.ToLower(agent))
