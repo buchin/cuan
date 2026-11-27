@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
+import { ChevronDown, Eye, EyeOff } from 'lucide-react'
 import { GitHubRepositoryPicker } from './GitHubRepositoryPicker'
 import { Link, useLocation } from 'react-router-dom'
 import type { Project } from '../../api/types'
@@ -7,6 +7,15 @@ import { ApiError } from '../../api/client'
 import { projectsApi } from '../../api/projects'
 import { useLanguage } from '../../context/LanguageContext'
 import { FormField, Input, Textarea } from '../../components/ui/forms'
+
+function CollapsibleSummary({ label }: { label: string }) {
+  return (
+    <summary className="flex min-h-11 cursor-pointer select-none list-none items-center justify-between gap-2 rounded-lg px-1 -mx-1 text-sm font-medium text-foreground transition-colors hover:bg-muted/40 [&::-webkit-details-marker]:hidden">
+      <span>{label}</span>
+      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180" aria-hidden="true" />
+    </summary>
+  )
+}
 
 export function ProjectSettings({ project, onUpdated, onArchive, embedded = false }: {
   embedded?: boolean
@@ -149,8 +158,8 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
             <p className="mt-1 break-all text-sm font-medium">{form.repo_url.replace(/^https?:\/\/(?:www\.)?github\.com\//i, '').replace(/\.git$/, '')}</p>
           </div> : <p className="text-sm text-muted-foreground">{t('No repository connected. This project can still work without one.')}</p>}
           <GitHubRepositoryPicker disabled={busy} onSelect={url => { setForm(old => ({ ...old, repo_url: url, default_branch: url === baseline.repo_url ? baseline.default_branch : '' })); setNotice(''); setError('') }} />
-          <details className="border-t border-border/40 pt-2">
-            <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">{t('Advanced')}</summary>
+          <details className="group border-t border-border/40 pt-2">
+            <CollapsibleSummary label={t('Advanced')} />
             <div className="space-y-4 pb-3 pt-2">
               <FormField label={t('Repository URL')} htmlFor="project-repository">
                 <Input
@@ -230,8 +239,8 @@ export function ProjectSettings({ project, onUpdated, onArchive, embedded = fals
             />
           </FormField>
         )}
-        <details className="border-t border-border/40 pt-2" open={legacySection === 'environment' ? true : undefined}>
-          <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">{t('.env Configuration')}</summary>
+        <details className="group border-t border-border/40 pt-2" open={legacySection === 'environment' ? true : undefined}>
+          <CollapsibleSummary label={t('.env Configuration')} />
           <div className="space-y-3 pb-2 pt-2">
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs leading-relaxed text-muted-foreground">
