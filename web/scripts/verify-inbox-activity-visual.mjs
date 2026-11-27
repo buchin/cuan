@@ -102,6 +102,36 @@ try {
     await page.screenshot({ path: path.join(output, `inbox-activity-analyzing-${width}-dark.png`) })
     console.log(`Saved: ${rotatedCaptureName}`)
 
+    // Verify queued status row above composer (mobile 390px and desktop 1440px)
+    const queuedWrapper = page.locator('[data-testid="inbox-activity-queued-wrapper"]')
+    await queuedWrapper.waitFor({ state: 'visible', timeout: 5000 })
+    const queuedStatusEl = queuedWrapper.locator('[role="status"]')
+    const queuedStatusText = (await queuedStatusEl.innerText()).trim()
+    assert.equal(queuedStatusText, 'Menunggu respon pesan sebelumnya…')
+    const queuedStatusBox = await queuedStatusEl.boundingBox()
+    assert.ok(queuedStatusBox && queuedStatusBox.height <= 36, `Queued status text must not wrap into 3 cramped lines at ${width}px, got height=${queuedStatusBox?.height}`)
+
+    const durationEl = queuedWrapper.locator('span.tabular-nums').first()
+    const durationText = (await durationEl.innerText()).trim()
+    assert.match(durationText, /^\d+s$/, `Duration must be a single unbroken unit like "5s", got "${durationText}"`)
+    const durationBox = await durationEl.boundingBox()
+    assert.ok(durationBox && durationBox.height <= 22, `Duration "${durationText}" must stay on a single line at ${width}px, got height=${durationBox?.height}`)
+
+    const detailBtn = queuedWrapper.locator('button', { hasText: 'Detail' })
+    const cancelBtn = queuedWrapper.locator('button', { hasText: 'Batalkan antrean' })
+    assert.ok(await detailBtn.isVisible(), 'Detail button must be visible')
+    assert.ok(await cancelBtn.isVisible(), 'Batalkan antrean button must be visible')
+    const detailBox = await detailBtn.boundingBox()
+    const cancelBox = await cancelBtn.boundingBox()
+    assert.ok(detailBox && cancelBox, 'Both Detail and Batalkan antrean buttons must have bounding boxes')
+    const overlaps = !(
+      detailBox.x + detailBox.width <= cancelBox.x ||
+      cancelBox.x + cancelBox.width <= detailBox.x ||
+      detailBox.y + detailBox.height <= cancelBox.y ||
+      cancelBox.y + cancelBox.height <= detailBox.y
+    )
+    assert.ok(!overlaps, `Detail and Batalkan antrean buttons must not overlap at ${width}px`)
+
     // 2. Light Mode screenshot for contrast and low visual noise
     await page.evaluate(() => document.documentElement.classList.remove('dark'))
     await page.waitForTimeout(100)
