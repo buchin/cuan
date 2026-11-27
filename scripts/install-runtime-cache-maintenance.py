@@ -25,23 +25,52 @@ def install(base, service_home, unit_dir, source, backup_keep=None):
             raise ValueError('Maintenance source must be a regular file')
         payload[name] = path.read_bytes()
     digest = hashlib.sha256(b''.join(name.encode() + b'\0' + payload[name] for name in TOOLS)).hexdigest()
-    parent = base / 'maintenance/runtime-cache-tools'
+    maintenance_root = base / 'maintenance'
+    parent = maintenance_root / 'runtime-cache-tools'
+    if maintenance_root.is_symlink() or parent.is_symlink():
+        raise ValueError('Maintenance paths must not be symlinks')
     parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     target = parent / digest
-    if target.exists():
-        if target.is_symlink() or any((target / name).is_symlink() or (target / name).read_bytes() != data for name, data in payload.items()):
+    needs_install = True
+    if os.path.lexists(target):
+        if target.is_symlink() or not target.is_dir():
             raise ValueError('Pinned maintenance tools do not match')
-    else:
+        entries = list(target.iterdir())
+        if any(entry.is_symlink() for entry in entries):
+            raise ValueError('Pinned maintenance tools do not match')
+        matches = (
+            {entry.name for entry in entries} == set(TOOLS)
+            and all(
+                (target / name).is_file() and (target / name).read_bytes() == data
+                for name, data in payload.items()
+            )
+        )
+        needs_install = not matches
+    if needs_install:
         temporary = Path(tempfile.mkdtemp(prefix='.install-', dir=parent))
+        stale_dir = None
         try:
             for name, data in payload.items():
                 path = temporary / name
                 path.write_bytes(data)
                 path.chmod(0o500)
-            os.rename(temporary, target)
+            if os.path.lexists(target):
+                stale_dir = Path(tempfile.mkdtemp(prefix='.stale-', dir=parent))
+                stale_target = stale_dir / digest
+                os.rename(target, stale_target)
+                try:
+                    os.rename(temporary, target)
+                except Exception:
+                    if not os.path.lexists(target) and os.path.lexists(stale_target):
+                        os.rename(stale_target, target)
+                    raise
+            else:
+                os.rename(temporary, target)
         finally:
             if temporary.exists():
                 shutil.rmtree(temporary)
+            if stale_dir is not None and stale_dir.exists():
+                shutil.rmtree(stale_dir)
     unit_dir.mkdir(parents=True, exist_ok=True)
     retention = base / 'maintenance/native-backup-keep'
     if backup_keep is not None:

@@ -70,7 +70,7 @@ class MaintenanceInstall(unittest.TestCase):
             self.assertTrue(pinned.is_dir())
             self.assertIn(str(newer), (units / 'cuan-runtime-cache-maintenance.service').read_text())
 
-    def test_linked_sources_and_corrupt_pinned_tools_are_rejected(self):
+    def test_linked_sources_and_symlinked_targets_are_rejected_while_mismatched_dir_heals(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = root / 'source'
@@ -78,10 +78,37 @@ class MaintenanceInstall(unittest.TestCase):
             for name in module.TOOLS:
                 (source / name).write_text('# original')
             pinned = module.install(root / 'app', root / 'home', root / 'units', source)
+
+            # Corrupting a regular file inside the pinned directory should heal atomically on reinstall.
             (pinned / module.TOOLS[0]).chmod(0o600)
             (pinned / module.TOOLS[0]).write_text('# corrupt')
+            (pinned / 'unexpected-extra.py').write_text('# extra')
+            healed = module.install(root / 'app', root / 'home', root / 'units', source)
+            self.assertEqual(healed, pinned)
+            self.assertEqual((pinned / module.TOOLS[0]).read_text(), '# original')
+            self.assertEqual((pinned / module.TOOLS[0]).stat().st_mode & 0o777, 0o500)
+            self.assertFalse((pinned / 'unexpected-extra.py').exists())
+
+            # Missing file inside the pinned directory should also heal atomically.
+            (pinned / module.TOOLS[1]).unlink()
+            self.assertEqual(module.install(root / 'app', root / 'home', root / 'units', source), pinned)
+            self.assertEqual((pinned / module.TOOLS[1]).read_text(), '# original')
+
+            # Symlink inside the pinned directory must still be rejected.
+            (pinned / module.TOOLS[0]).unlink()
+            (pinned / module.TOOLS[0]).symlink_to(source / module.TOOLS[1])
             with self.assertRaises(ValueError):
                 module.install(root / 'app', root / 'home', root / 'units', source)
+
+            # Symlinked (including dangling) target directory must still be rejected.
+            import shutil
+            shutil.rmtree(pinned)
+            pinned.symlink_to(root / 'nonexistent-target')
+            with self.assertRaises(ValueError):
+                module.install(root / 'app', root / 'home', root / 'units', source)
+            pinned.unlink()
+
+            # Symlinked source file must still be rejected.
             (source / module.TOOLS[0]).unlink()
             (source / module.TOOLS[0]).symlink_to(source / module.TOOLS[1])
             with self.assertRaises(ValueError):
