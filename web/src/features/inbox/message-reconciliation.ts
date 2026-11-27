@@ -11,6 +11,8 @@ export function areMessagesEqual(a: ChatMessage, b: ChatMessage): boolean {
   if (a.content !== b.content) return false
   if (a.message !== b.message) return false
   if (a.created_at !== b.created_at) return false
+  if (a.updated_at !== b.updated_at) return false
+  if (Boolean(a.edited) !== Boolean(b.edited)) return false
   if (a.delivered_at !== b.delivered_at) return false
   if (a.read_confirmed_at !== b.read_confirmed_at) return false
   if (a.sender_type !== b.sender_type) return false
@@ -83,20 +85,46 @@ export function mergeConversationMessages(
   prev: ChatMessage[],
   incoming: ChatMessage[],
 ): ChatMessage[] {
-  if (!incoming || incoming.length === 0) return prev
+  if (!incoming || incoming.length === 0) return prev.length === 0 ? prev : []
   if (!prev || prev.length === 0) return incoming
+
+  const incomingUuids = new Set<string>()
+  const incomingIds = new Set<number>()
+  for (const inc of incoming) {
+    if (inc.uuid) incomingUuids.add(inc.uuid)
+    if (inc.id != null && inc.id !== 0) incomingIds.add(inc.id)
+  }
+
+  const windowStart = incoming[0]?.created_at ? Date.parse(incoming[0].created_at) : Number.NaN
+  const hasOlderWindow = incoming.length >= 50 && !Number.isNaN(windowStart)
+
+  let hasChanges = false
+  const updated: ChatMessage[] = []
+  for (const m of prev) {
+    const inIncoming =
+      (m.uuid ? incomingUuids.has(m.uuid) : false) ||
+      (m.id != null && m.id !== 0 ? incomingIds.has(m.id) : false)
+    if (inIncoming) {
+      updated.push(m)
+      continue
+    }
+    const mTime = m.created_at ? Date.parse(m.created_at) : Number.NaN
+    if (hasOlderWindow && !Number.isNaN(mTime) && mTime < windowStart) {
+      updated.push(m)
+    } else {
+      hasChanges = true
+    }
+  }
 
   const byUuid = new Map<string, number>()
   const byId = new Map<number, number>()
 
-  for (let i = 0; i < prev.length; i++) {
-    const m = prev[i]
+  for (let i = 0; i < updated.length; i++) {
+    const m = updated[i]
     if (m.uuid) byUuid.set(m.uuid, i)
     if (m.id != null && m.id !== 0) byId.set(m.id, i)
   }
 
-  let hasChanges = false
-  const updated = [...prev]
   const toAppend: ChatMessage[] = []
 
   for (const inc of incoming) {

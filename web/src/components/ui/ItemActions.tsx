@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { MoreHorizontal } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 
-export type ItemAction = { label: string; run: () => void | Promise<void>; disabled?: boolean; previewLabel?: string }
+export type ItemAction = { label: string; run: () => void | Promise<void>; disabled?: boolean; previewLabel?: string; destructive?: boolean }
 export function ItemActions({ label, actions, swipeAction, children, subtle = false, persistent = false, quiet = false, className }: {
   label: string; actions: ItemAction[]; swipeAction?: ItemAction; children: ReactNode; subtle?: boolean; persistent?: boolean; quiet?: boolean; className?: string
 }) {
@@ -52,7 +52,7 @@ export function ItemActions({ label, actions, swipeAction, children, subtle = fa
   function open(x: number, y: number) {
     if (!actions.length || busy || window.getSelection()?.toString()) return
     clear()
-    setMenu({ x: Math.max(8, Math.min(x, innerWidth - 240)), y: Math.max(8, Math.min(y, innerHeight - Math.min(actions.length * 44 + 12, innerHeight - 16))) })
+    setMenu({ x: Math.max(8, Math.min(x, innerWidth - 224)), y: Math.max(8, Math.min(y, innerHeight - Math.min(actions.length * 38 + 16, innerHeight - 16))) })
   }
   async function perform(action: ItemAction) {
     if (busy || action.disabled) return
@@ -113,7 +113,7 @@ export function ItemActions({ label, actions, swipeAction, children, subtle = fa
       {feedback && <p role="status" className="px-3 pb-2 text-xs text-muted-foreground">{feedback}</p>}
       {error && <p role="alert" className="px-3 pb-2 text-xs text-destructive">{error}</p>}
       {menu && createPortal(
-        <div ref={panel} role="menu" aria-label={t('Actions for') + ' ' + label} className="fixed z-[100] max-h-[calc(100dvh-16px)] w-56 overflow-y-auto rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg"
+        <div ref={panel} data-item-menu-panel role="menu" aria-label={t('Actions for') + ' ' + label} className="fixed z-[100] max-h-[calc(100dvh-16px)] w-52 overflow-y-auto rounded-xl border border-border/80 bg-popover p-1.5 text-popover-foreground shadow-xl backdrop-blur-md"
           style={{ left: menu.x, top: menu.y }}
           onKeyDown={event => {
             const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'))
@@ -125,7 +125,7 @@ export function ItemActions({ label, actions, swipeAction, children, subtle = fa
               buttons[next]?.focus()
             }
           }}>
-          {actions.map(action => <ActionMenuItem key={action.label} disabled={action.disabled} onClick={() => void perform(action)}>{t(action.label)}</ActionMenuItem>)}
+          {actions.map(action => <ActionMenuItem key={action.label} destructive={action.destructive} disabled={action.disabled} onClick={() => void perform(action)}>{t(action.label)}</ActionMenuItem>)}
         </div>, document.body)}
     </div>
   )

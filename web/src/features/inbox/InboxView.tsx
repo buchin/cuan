@@ -14,6 +14,7 @@ import { pickPriorityTask } from './conversation-status'
 import { startsMessageGroup } from './message-group'
 import { PageHeader, PageTitle } from '../../components/layout/PageHeader'
 import { IconButton } from '../../components/ui/IconButton'
+import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import { updateItemPreference } from '../../hooks/useArchivedItems'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useConnectionClock } from '../agents/useConnectionClock'
@@ -557,6 +558,97 @@ export function InboxView({
   )
   const [showCannedManageModal, setShowCannedManageModal] = useState(false)
   const [isMultiline, setIsMultiline] = useState(false)
+  const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null)
+  const [editingDraft, setEditingDraft] = useState('')
+  const [editingBusy, setEditingBusy] = useState(false)
+  const [editError, setEditError] = useState('')
+  const [deletingMessage, setDeletingMessage] = useState<ChatMessage | null>(null)
+  const [deletingBusy, setDeletingBusy] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+
+  useEffect(() => {
+    setEditingMessage(null)
+    setEditingDraft('')
+    setEditError('')
+    setDeletingMessage(null)
+    setDeleteError('')
+  }, [activeContact?.id])
+
+  const startEditingMessage = useCallback((target: ChatMessage) => {
+    setEditingMessage(target)
+    setEditingDraft(target.content || target.message || '')
+    setEditError('')
+  }, [])
+
+  const cancelEditingMessage = useCallback(() => {
+    if (editingBusy) return
+    setEditingMessage(null)
+    setEditingDraft('')
+    setEditError('')
+  }, [editingBusy])
+
+  const saveEditedMessage = useCallback(async () => {
+    if (!editingMessage?.uuid || !activeContact || editingBusy) return
+    const trimmed = editingDraft.trim()
+    if (!trimmed) {
+      setEditError(t('Message content cannot be empty.'))
+      return
+    }
+    const convId = activeContact.conversation_id || activeContact.id
+    setEditingBusy(true)
+    setEditError('')
+    try {
+      const updated = await chatApi.updateMessage(convId, editingMessage.uuid, trimmed)
+      setMessages((prev) => {
+        const next = prev.map((m) =>
+          m.uuid === editingMessage.uuid
+            ? { ...m, ...updated, content: updated.content || trimmed, message: updated.message || trimmed, edited: true }
+            : m,
+        )
+        const existing = getCachedConversation(convId)
+        if (existing) {
+          setCachedConversation(convId, { ...existing, messages: next, cachedAt: Date.now() })
+        }
+        return next
+      })
+      setEditingMessage(null)
+      setEditingDraft('')
+      onContactUpdated?.()
+    } catch {
+      setEditError(t('Could not update message. Try again.'))
+    } finally {
+      setEditingBusy(false)
+    }
+  }, [editingMessage, editingDraft, editingBusy, activeContact, t, onContactUpdated])
+
+  const confirmDeleteMessage = useCallback(async () => {
+    if (!deletingMessage?.uuid || !activeContact || deletingBusy) return
+    const convId = activeContact.conversation_id || activeContact.id
+    const targetId = deletingMessage.uuid
+    setDeletingBusy(true)
+    setDeleteError('')
+    try {
+      await chatApi.deleteMessage(convId, targetId)
+      setMessages((prev) => {
+        const next = prev.filter((m) => m.uuid !== targetId)
+        const existing = getCachedConversation(convId)
+        if (existing) {
+          setCachedConversation(convId, { ...existing, messages: next, cachedAt: Date.now() })
+        }
+        return next
+      })
+      if (editingMessage?.uuid === targetId) {
+        setEditingMessage(null)
+        setEditingDraft('')
+      }
+      setDeletingMessage(null)
+      onContactUpdated?.()
+    } catch {
+      setDeleteError(t('Could not delete message. Try again.'))
+    } finally {
+      setDeletingBusy(false)
+    }
+  }, [deletingMessage, deletingBusy, activeContact, editingMessage, t, onContactUpdated])
 
   // Real-time auto-whisper when mentioning an agent in customer conversations
   const isWhisper = isComposerWhisper(activeContact?.type, inputMessage)
@@ -1785,6 +1877,22 @@ export function InboxView({
                 const imageOnly = imageBubble && !hasSpeech && !msg.email_delivery
                 const emailStatusLabel = msg.email_delivery ? t(({ sent: 'Email sent', delivered: 'Email delivered', delivery_delayed: 'Email delayed', bounced: 'Email bounced', failed: 'Email failed', complained: 'Email reported', suppressed: 'Email suppressed' } as Record<string, string>)[msg.email_delivery.status] || 'Email status unavailable') : ''
                 const emailDescription = msg.email_delivery ? `${emailStatusLabel} · ${t(msg.email_delivery.recipient_type === 'operator' ? 'Email notification to your team; independent of chat read status' : 'Email delivery to customer; independent of chat read status')}` : ''
+                const isUserOwnedMessage =
+                  isOutgoing &&
+                  msg.author_type !== 'agent' &&
+                  msg.author_type !== 'system' &&
+                  Boolean(msg.uuid)
+                const isEditedMessage =
+                  msg.author_type !== 'agent' &&
+                  msg.author_type !== 'system' &&
+                  Boolean(
+                    msg.edited ||
+                      (msg.updated_at &&
+                        msg.created_at &&
+                        Date.parse(msg.updated_at) - Date.parse(msg.created_at) > 1000),
+                  )
+                const isEditingThisMessage =
+                  Boolean(editingMessage?.uuid && editingMessage.uuid === msg.uuid)
                 const metadata = (
                   <span className="wa-message-meta">
                     {msg.email_delivery && !msg.is_internal && <span className="inline-flex items-center" title={emailDescription} role={msg.email_delivery.status === 'delivered' ? 'img' : undefined} aria-label={msg.email_delivery.status === 'delivered' ? emailDescription : undefined}>
@@ -1792,6 +1900,9 @@ export function InboxView({
                         ? <MailCheck className="h-3.5 w-3.5" aria-hidden="true" />
                         : <>{msg.email_delivery.recipient_type === 'operator' ? t('Team') + ' · ' : ''}{emailStatusLabel}</>}
                     </span>}
+                    {isEditedMessage && (
+                      <span className="italic opacity-75">({t('edited')})</span>
+                    )}
                     <time dateTime={msg.created_at}>
                       {formatMessageTime(msg.created_at)}
                     </time>
@@ -1845,6 +1956,18 @@ export function InboxView({
                       ...(msg.uuid ? [{
                         label: t('Escalate to task'),
                         run: () => setEscalatingMessage(msg),
+                      }] : []),
+                      ...(isUserOwnedMessage && msgContent.trim() ? [{
+                        label: 'Edit message',
+                        run: () => startEditingMessage(msg),
+                      }] : []),
+                      ...(isUserOwnedMessage ? [{
+                        label: 'Delete message',
+                        destructive: true,
+                        run: () => {
+                          setDeleteError('')
+                          setDeletingMessage(msg)
+                        },
                       }] : []),
                     ]}>
                     {hasBubbleContent && (
@@ -1903,7 +2026,52 @@ export function InboxView({
                       )}
 
                       {/* Message Body */}
-                      {isFormattedMessage ? (
+                      {isEditingThisMessage ? (
+                        <div className="space-y-2 py-0.5 min-w-[220px] sm:min-w-[280px]" data-message-edit-form>
+                          <textarea
+                            autoFocus
+                            rows={Math.min(8, Math.max(2, editingDraft.split('\n').length))}
+                            value={editingDraft}
+                            disabled={editingBusy}
+                            aria-label={t('Edit message')}
+                            onChange={(e) => {
+                              setEditingDraft(e.target.value)
+                              if (editError) setEditError('')
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Escape') {
+                                e.preventDefault()
+                                cancelEditingMessage()
+                              } else if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                                e.preventDefault()
+                                void saveEditedMessage()
+                              }
+                            }}
+                            className="w-full resize-none rounded-lg border border-border/80 bg-background/90 px-2.5 py-1.5 text-sm text-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20 disabled:opacity-50"
+                          />
+                          {editError && (
+                            <p role="alert" className="text-xs text-destructive">{editError}</p>
+                          )}
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              disabled={editingBusy}
+                              onClick={cancelEditingMessage}
+                              className="rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
+                            >
+                              {t('Cancel')}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={editingBusy || !editingDraft.trim()}
+                              onClick={() => void saveEditedMessage()}
+                              className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                            >
+                              {t('Save')}
+                            </button>
+                          </div>
+                        </div>
+                      ) : isFormattedMessage ? (
                         <MessageContent
                           content={msgContent}
                           hideTaskActions={Boolean(linkedTaskForMsg || isSupersededTaskMessage)}
@@ -2179,6 +2347,13 @@ export function InboxView({
                 handleTaskRetry,
                 handleTaskDiscussion,
                 handleOpenTaskDrawer,
+                editingMessage,
+                editingDraft,
+                editingBusy,
+                editError,
+                startEditingMessage,
+                cancelEditingMessage,
+                saveEditedMessage,
   ])
   useLayoutEffect(() => {
     const list = messageListRef.current
@@ -2876,6 +3051,54 @@ export function InboxView({
           />
         </Suspense>
       )}
+
+      <ActionDialog
+        open={!!deletingMessage}
+        title={t('Delete message')}
+        busy={deletingBusy}
+        onClose={() => {
+          if (!deletingBusy) {
+            setDeletingMessage(null)
+            setDeleteError('')
+          }
+        }}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            {t('This message will be permanently deleted from the conversation.')}
+          </p>
+          {deletingMessage && (
+            <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-foreground/80 line-clamp-3">
+              {deletingMessage.content || deletingMessage.message}
+            </p>
+          )}
+          {deleteError && (
+            <p role="alert" className="text-xs text-destructive">{deleteError}</p>
+          )}
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <button
+              type="button"
+              disabled={deletingBusy}
+              onClick={() => {
+                setDeletingMessage(null)
+                setDeleteError('')
+              }}
+              className="btn-secondary min-h-9 px-3 py-1.5 text-sm"
+            >
+              {t('Cancel')}
+            </button>
+            <button
+              type="button"
+              disabled={deletingBusy}
+              onClick={() => void confirmDeleteMessage()}
+              data-confirm-delete-message
+              className="inline-flex min-h-9 items-center justify-center rounded-md bg-destructive px-3.5 py-1.5 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+            >
+              {t('Delete message')}
+            </button>
+          </div>
+        </div>
+      </ActionDialog>
     </div>
   )
 }

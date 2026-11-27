@@ -1241,3 +1241,137 @@ func TestCuanAgent_LoadBalancerRouting(t *testing.T) {
 		release()
 	}
 }
+
+func TestHandleUpdateAndDeleteInboxMessage(t *testing.T) {
+	srv, token := setupTestChatServer(t)
+	ctx := context.Background()
+
+	roomID := cuanDB.GenerateUUID()
+	if err := srv.projectStudioRepo.CreateRoom(ctx, &cuanDB.ProjectRoom{
+		ID:        roomID,
+		ProjectID: "default",
+		Title:     "Test Edit Delete Room",
+		Topic:     "agent:agent_cuan",
+	}); err != nil {
+		t.Fatalf("create room: %v", err)
+	}
+
+	userMsgID := cuanDB.GenerateUUID()
+	agentMsgID := cuanDB.GenerateUUID()
+	sysMsgID := cuanDB.GenerateUUID()
+	oldTime := time.Now().UTC().Add(-2 * time.Minute)
+
+	for _, m := range []*cuanDB.ProjectMessage{
+		{
+			ID:         userMsgID,
+			RoomID:     roomID,
+			AuthorType: "user",
+			AuthorID:   "operator_user",
+			AuthorName: "Owner",
+			Content:    "Original user message",
+			CreatedAt:  oldTime,
+			UpdatedAt:  oldTime,
+		},
+		{
+			ID:         agentMsgID,
+			RoomID:     roomID,
+			AuthorType: "agent",
+			AuthorID:   "agent_cuan",
+			AuthorName: "Cuan",
+			Content:    "Agent reply",
+			CreatedAt:  oldTime,
+			UpdatedAt:  oldTime,
+		},
+		{
+			ID:         sysMsgID,
+			RoomID:     roomID,
+			AuthorType: "system",
+			AuthorID:   "cuan_system_lifecycle",
+			AuthorName: "System",
+			Content:    "System notice",
+			CreatedAt:  oldTime,
+			UpdatedAt:  oldTime,
+		},
+	} {
+		if err := srv.projectStudioRepo.CreateMessage(ctx, m); err != nil {
+			t.Fatalf("create message %s: %v", m.ID, err)
+		}
+	}
+	// Reset user message CreatedAt back to 2 minutes ago so UpdatedAt - CreatedAt > 1s after PATCH
+	if fetched, err := srv.projectStudioRepo.GetMessageByID(ctx, userMsgID); err == nil {
+		if memRepo, ok := srv.projectStudioRepo.(*cuanDB.MemoryProjectStudioRepository); ok {
+			_ = memRepo
+			fetched.CreatedAt = oldTime
+		}
+	}
+
+	// 1. Forbidden on agent and system messages
+	for _, forbiddenID := range []string{agentMsgID, sysMsgID} {
+		req := httptest.NewRequest(http.MethodPatch, "/api/v1/chat/conversations/"+roomID+"/messages/"+forbiddenID, strings.NewReader(`{"content":"hijack"}`))
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		srv.Router().ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("expected 403 for PATCH on %s, got %d: %s", forbiddenID, rec.Code, rec.Body.String())
+		}
+
+		reqDel := httptest.NewRequest(http.MethodDelete, "/api/v1/chat/conversations/"+roomID+"/messages/"+forbiddenID, nil)
+		reqDel.Header.Set("Authorization", "Bearer "+token)
+		recDel := httptest.NewRecorder()
+		srv.Router().ServeHTTP(recDel, reqDel)
+		if recDel.Code != http.StatusForbidden {
+			t.Fatalf("expected 403 for DELETE on %s, got %d: %s", forbiddenID, recDel.Code, recDel.Body.String())
+		}
+	}
+
+	// 2. Empty content rejected on PATCH
+	reqEmpty := httptest.NewRequest(http.MethodPatch, "/api/v1/chat/conversations/"+roomID+"/messages/"+userMsgID, strings.NewReader(`{"content":"   "}`))
+	reqEmpty.Header.Set("Authorization", "Bearer "+token)
+	recEmpty := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recEmpty, reqEmpty)
+	if recEmpty.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for empty PATCH, got %d", recEmpty.Code)
+	}
+
+	// 3. Valid PATCH on user message updates content and sets edited=true
+	reqPatch := httptest.NewRequest(http.MethodPatch, "/api/v1/chat/conversations/"+roomID+"/messages/"+userMsgID, strings.NewReader(`{"content":"Updated user message"}`))
+	reqPatch.Header.Set("Authorization", "Bearer "+token)
+	recPatch := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recPatch, reqPatch)
+	if recPatch.Code != http.StatusOK {
+		t.Fatalf("expected 200 for PATCH, got %d: %s", recPatch.Code, recPatch.Body.String())
+	}
+	var updatedDTO ChatMessageDTO
+	if err := json.Unmarshal(recPatch.Body.Bytes(), &updatedDTO); err != nil {
+		t.Fatalf("unmarshal PATCH response: %v", err)
+	}
+	if updatedDTO.Content != "Updated user message" {
+		t.Fatalf("expected updated content, got %q", updatedDTO.Content)
+	}
+
+	// Verify persisted in GET messages
+	reqGet := httptest.NewRequest(http.MethodGet, "/api/v1/chat/conversations/"+roomID+"/messages", nil)
+	reqGet.Header.Set("Authorization", "Bearer "+token)
+	recGet := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recGet, reqGet)
+	if recGet.Code != http.StatusOK || !strings.Contains(recGet.Body.String(), "Updated user message") {
+		t.Fatalf("expected updated message in GET response, got %d: %s", recGet.Code, recGet.Body.String())
+	}
+
+	// 4. Valid DELETE on user message removes it permanently
+	reqDel := httptest.NewRequest(http.MethodDelete, "/api/v1/chat/conversations/"+roomID+"/messages/"+userMsgID, nil)
+	reqDel.Header.Set("Authorization", "Bearer "+token)
+	recDel := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recDel, reqDel)
+	if recDel.Code != http.StatusOK {
+		t.Fatalf("expected 200 for DELETE, got %d: %s", recDel.Code, recDel.Body.String())
+	}
+
+	reqGetAfter := httptest.NewRequest(http.MethodGet, "/api/v1/chat/conversations/"+roomID+"/messages", nil)
+	reqGetAfter.Header.Set("Authorization", "Bearer "+token)
+	recGetAfter := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recGetAfter, reqGetAfter)
+	if strings.Contains(recGetAfter.Body.String(), userMsgID) || strings.Contains(recGetAfter.Body.String(), "Updated user message") {
+		t.Fatalf("expected deleted message to be absent after DELETE, got: %s", recGetAfter.Body.String())
+	}
+}
