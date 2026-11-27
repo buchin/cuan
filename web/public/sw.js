@@ -69,14 +69,38 @@ self.addEventListener('push', event => {
   const body = (typeof data.body === 'string' && data.body.trim()) ? data.body.trim() : ''
 
   const badge = (typeof data.badge === 'string' && data.badge.trim()) ? data.badge.trim() : '/icons/cuan-badge-96.png'
+  const renotify = data.renotify === true || data.renotify === 'true'
+  const targetPath = new URL(href, self.location.origin).pathname
 
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body,
-      badge,
-      tag,
-      renotify: true,
-      data: { href }
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windows => {
+      const activeClient = windows.find(client => {
+        try {
+          const clientUrl = new URL(client.url)
+          if (clientUrl.origin !== self.location.origin) return false
+          const isActive = client.visibilityState === 'visible' || client.focused === true
+          return isActive && clientUrl.pathname === targetPath
+        } catch {
+          return false
+        }
+      })
+      if (activeClient) {
+        if ('postMessage' in activeClient) {
+          activeClient.postMessage({
+            type: 'cuan:push-suppressed',
+            href,
+            tag,
+          })
+        }
+        return
+      }
+      return self.registration.showNotification(title, {
+        body,
+        badge,
+        tag,
+        renotify,
+        data: { href }
+      })
     })
   )
 })

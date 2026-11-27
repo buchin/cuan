@@ -221,10 +221,13 @@ func (s *Server) handleDeployCoordinatorFailure(ctx context.Context, job DeployJ
 		note += fmt.Sprintf("%s: %v", failMarker, deployErr)
 	}
 	blockedStatus := task.TaskStatusBlocked
-	_, _ = s.taskSvc.UpdateTask(ctx, detail.ID, "system", task.UpdateTaskRequest{
+	updated, updateErr := s.taskSvc.UpdateTask(ctx, detail.ID, "system", task.UpdateTaskRequest{
 		Status:       &blockedStatus,
 		CompleteNote: &note,
 	})
+	if updateErr == nil && updated != nil {
+		s.DispatchTaskBlockedPush(ctx, updated)
+	}
 	if detail.SourceRoomID != "" {
 		s.publishInbox(detail.SourceRoomID)
 	}

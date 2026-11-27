@@ -108,8 +108,12 @@ test('1. Service Worker: sw.js dynamic push payload parsing, elimination of stat
     'sw.js must pass dynamic body to showNotification options',
   )
   assert.ok(
-    swSrc.includes('renotify: true') || swSrc.includes('renotify:true'),
-    'sw.js must enable renotify: true on showNotification options to replace notifications in-place with alert',
+    swSrc.includes('renotify'),
+    'sw.js must configure renotify on showNotification options (false by default to avoid consecutive alert spam)',
+  )
+  assert.ok(
+    !swSrc.includes('renotify: true') && !swSrc.includes('renotify:true'),
+    'sw.js must not hardcode renotify: true for consecutive updates',
   )
 
   // Notificationclick event listener exists and handles deep-linking
@@ -145,11 +149,12 @@ test('1. Service Worker: sw.js dynamic push payload parsing, elimination of stat
   )
 })
 
-test('2. Functional Verification: real sw.js push payload parsing & deep link resolution', () => {
-  function executePushHandler(mockEventData, origin) {
+test('2. Functional Verification: real sw.js push payload parsing & deep link resolution', async () => {
+  async function executePushHandler(mockEventData, origin, mockClients = []) {
     const swSrc = fs.readFileSync(swPath, 'utf8')
     let pushHandler = null
     let result = null
+    const postedMessages = []
     const fakeSelf = {
       addEventListener(event, fn) {
         if (event === 'push') pushHandler = fn
@@ -169,7 +174,10 @@ test('2. Functional Verification: real sw.js push payload parsing & deep link re
       },
       clients: {
         claim: () => Promise.resolve(),
-        matchAll: async () => [],
+        matchAll: async () => mockClients.map((c) => ({
+          ...c,
+          postMessage: (msg) => postedMessages.push(msg),
+        })),
         openWindow: async () => ({}),
       },
       location: {
@@ -188,12 +196,15 @@ test('2. Functional Verification: real sw.js push payload parsing & deep link re
 
     assert.ok(typeof pushHandler === 'function', 'push handler must be registered in sw.js')
 
+    let waitPromise = null
     const mockEvent = {
       data: mockEventData,
-      waitUntil: (p) => p,
+      waitUntil: (p) => { waitPromise = p; return p },
     }
     pushHandler(mockEvent)
-    return result
+    if (waitPromise) await waitPromise
+    if (result) result.postedMessages = postedMessages
+    return { result, postedMessages }
   }
 
   const origin = 'https://toko-cuan.com'
@@ -205,12 +216,21 @@ test('2. Functional Verification: real sw.js push payload parsing & deep link re
     href: '/inbox/rm_01h9xyz123',
     tag: 'room:rm_01h9xyz123',
   }
-  const parsed1 = executePushHandler({ json: () => customerPayload }, origin)
+  const { result: parsed1 } = await executePushHandler({ json: () => customerPayload }, origin)
   assert.equal(parsed1.title, 'Budi (Pengunjung)')
   assert.equal(parsed1.body, 'Halo kak, apakah produk hijab plisket masih ready stock?')
   assert.equal(parsed1.href, '/inbox/rm_01h9xyz123')
   assert.equal(parsed1.tag, 'room:rm_01h9xyz123')
-  assert.equal(parsed1.renotify, true)
+  assert.equal(parsed1.renotify, false)
+
+  // Case 1a: Active visible tab on the exact room suppresses showNotification and posts cuan:push-suppressed
+  const activeTabClients = [
+    { url: `${origin}/inbox/rm_01h9xyz123`, visibilityState: 'visible', focused: true },
+  ]
+  const suppressed = await executePushHandler({ json: () => customerPayload }, origin, activeTabClients)
+  assert.equal(suppressed.result, null, 'must suppress push notification when user is actively viewing the room')
+  assert.equal(suppressed.postedMessages.length, 1)
+  assert.equal(suppressed.postedMessages[0].type, 'cuan:push-suppressed')
 
   // Case 1b: Legacy customer tag format automatically aligns to room:<conversation_id>
   const legacyCustomerPayload = {
@@ -219,13 +239,13 @@ test('2. Functional Verification: real sw.js push payload parsing & deep link re
     href: '/inbox/rm_01h9xyz123',
     tag: 'customer:rm_01h9xyz123:msg_001',
   }
-  const parsedLegacyCustomer = executePushHandler({ json: () => legacyCustomerPayload }, origin)
+  const { result: parsedLegacyCustomer } = await executePushHandler({ json: () => legacyCustomerPayload }, origin)
   assert.equal(parsedLegacyCustomer.tag, 'room:rm_01h9xyz123')
-  assert.equal(parsedLegacyCustomer.renotify, true)
+  assert.equal(parsedLegacyCustomer.renotify, false)
 
   // Case 1c: Multiple sequential messages in the same room overwrite in-place (no stacking)
   const notificationTray = new Map()
-  function simulatePushToTray(payload) {
+  async function simulatePushToTray(payload) {
     const swCode = fs.readFileSync(swPath, 'utf8')
     let pushFn = null
     const fakeSelf = {
@@ -242,29 +262,31 @@ test('2. Functional Verification: real sw.js push payload parsing & deep link re
     const sb = { self: fakeSelf, URL, Response: class {}, fetch: () => Promise.resolve() }
     vm.createContext(sb)
     vm.runInContext(swCode, sb, { filename: 'web/public/sw.js' })
-    pushFn({ data: { json: () => payload }, waitUntil: (p) => p })
+    let waitPromise = null
+    pushFn({ data: { json: () => payload }, waitUntil: (p) => { waitPromise = p; return p } })
+    if (waitPromise) await waitPromise
   }
 
   // First message from room A
-  simulatePushToTray({ title: 'Budi', body: 'Pesan 1', href: '/inbox/room_A', tag: 'room:room_A' })
+  await simulatePushToTray({ title: 'Budi', body: 'Pesan 1', href: '/inbox/room_A', tag: 'room:room_A' })
   assert.equal(notificationTray.size, 1)
   assert.equal(notificationTray.get('room:room_A').body, 'Pesan 1')
-  assert.equal(notificationTray.get('room:room_A').renotify, true)
+  assert.equal(notificationTray.get('room:room_A').renotify, false)
 
   // Second message from same room A replaces in-place
-  simulatePushToTray({ title: 'Budi', body: 'Pesan 2', href: '/inbox/room_A', tag: 'room:room_A' })
+  await simulatePushToTray({ title: 'Budi', body: 'Pesan 2', href: '/inbox/room_A', tag: 'room:room_A' })
   assert.equal(notificationTray.size, 1) // Still exactly 1 card in tray
   assert.equal(notificationTray.get('room:room_A').body, 'Pesan 2')
-  assert.equal(notificationTray.get('room:room_A').renotify, true)
+  assert.equal(notificationTray.get('room:room_A').renotify, false)
 
   // Third message (agent reply) in room A replaces in-place
-  simulatePushToTray({ title: 'Asisten AI', body: 'Pesan 3', href: '/inbox/room_A', tag: 'room:room_A' })
+  await simulatePushToTray({ title: 'Asisten AI', body: 'Pesan 3', href: '/inbox/room_A', tag: 'room:room_A' })
   assert.equal(notificationTray.size, 1) // Still exactly 1 card in tray
   assert.equal(notificationTray.get('room:room_A').body, 'Pesan 3')
-  assert.equal(notificationTray.get('room:room_A').renotify, true)
+  assert.equal(notificationTray.get('room:room_A').renotify, false)
 
   // Message from a different room B creates a separate card
-  simulatePushToTray({ title: 'Siti', body: 'Pesan dari room B', href: '/inbox/room_B', tag: 'room:room_B' })
+  await simulatePushToTray({ title: 'Siti', body: 'Pesan dari room B', href: '/inbox/room_B', tag: 'room:room_B' })
   assert.equal(notificationTray.size, 2)
   assert.equal(notificationTray.get('room:room_B').body, 'Pesan dari room B')
 
@@ -276,13 +298,13 @@ test('2. Functional Verification: real sw.js push payload parsing & deep link re
     tag: 'approval:rm_01h9xyz456:msg_002',
     kind: 'approval',
   }
-  const parsed2 = executePushHandler({ json: () => agentPayload }, origin)
+  const { result: parsed2 } = await executePushHandler({ json: () => agentPayload }, origin)
   assert.equal(parsed2.title, 'Butuh Persetujuan')
   assert.equal(parsed2.body, 'Proposal balasan customer membutuhkan persetujuan Anda.')
   assert.equal(parsed2.href, '/inbox/rm_01h9xyz456')
 
   // Case 3: Empty / malformed fallback
-  const parsed3 = executePushHandler({ json: () => ({}) }, origin)
+  const { result: parsed3 } = await executePushHandler({ json: () => ({}) }, origin)
   assert.equal(parsed3.title, 'Pesan Baru')
   assert.equal(parsed3.body, '')
   assert.equal(parsed3.badge, '/icons/cuan-badge-96.png')
@@ -298,7 +320,7 @@ test('2. Functional Verification: real sw.js push payload parsing & deep link re
     kind: 'approval',
     icon: '/icons/task-review.png',
   }
-  const parsedLegacy = executePushHandler({ json: () => legacyApproval }, origin)
+  const { result: parsedLegacy } = await executePushHandler({ json: () => legacyApproval }, origin)
   assert.equal(parsedLegacy.title, 'Butuh Persetujuan')
   assert.equal(parsedLegacy.icon, undefined)
   assert.equal(parsedLegacy.badge, '/icons/cuan-badge-96.png')
@@ -311,7 +333,7 @@ test('2. Functional Verification: real sw.js push payload parsing & deep link re
     tag: 'task:task_done_123:done',
     kind: 'completed',
   }
-  const parsedDone = executePushHandler({ json: () => taskDonePayload }, origin)
+  const { result: parsedDone } = await executePushHandler({ json: () => taskDonePayload }, origin)
   assert.equal(parsedDone.icon, undefined)
   assert.equal(parsedDone.badge, '/icons/cuan-badge-96.png')
   assert.equal(parsedDone.title, '✓ Selesai: Fitur Pembayaran')
@@ -324,7 +346,7 @@ test('2. Functional Verification: real sw.js push payload parsing & deep link re
     tag: 'task:task_rev_456:review',
     kind: 'approval',
   }
-  const parsedReview = executePushHandler({ json: () => taskReviewPayload }, origin)
+  const { result: parsedReview } = await executePushHandler({ json: () => taskReviewPayload }, origin)
   assert.equal(parsedReview.icon, undefined)
   assert.equal(parsedReview.badge, '/icons/cuan-badge-96.png')
 
@@ -336,7 +358,7 @@ test('2. Functional Verification: real sw.js push payload parsing & deep link re
     tag: 'task:task_blk_789:blocked',
     kind: 'blocker',
   }
-  const parsedBlocker = executePushHandler({ json: () => taskBlockerPayload }, origin)
+  const { result: parsedBlocker } = await executePushHandler({ json: () => taskBlockerPayload }, origin)
   assert.equal(parsedBlocker.icon, undefined)
   assert.equal(parsedBlocker.badge, '/icons/cuan-badge-96.png')
 })

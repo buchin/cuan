@@ -189,19 +189,54 @@ func extractRoomID(item ownerNotification) string {
 	return ""
 }
 
-func buildPushPayload(item ownerNotification) map[string]string {
+func pushNotificationTag(item ownerNotification) string {
 	tag := item.ID
 	isTask := strings.HasPrefix(tag, "task:") || strings.HasPrefix(item.ID, "task:") || strings.Contains(item.Href, "/tasks/")
-
-	if !isTask {
-		if roomID := extractRoomID(item); roomID != "" {
-			tag = "room:" + roomID
-		} else if strings.HasPrefix(item.ID, "approval:") {
-			tag = "agent:" + strings.TrimPrefix(item.ID, "approval:")
-		} else if strings.HasPrefix(item.ID, "request:") {
-			tag = "agent:" + strings.TrimPrefix(item.ID, "request:")
+	if isTask {
+		if strings.HasPrefix(item.ID, "task:") {
+			parts := strings.SplitN(item.ID, ":", 4)
+			if len(parts) >= 3 && parts[1] != "" && parts[2] == "done" {
+				return "task:" + parts[1] + ":done"
+			}
 		}
+		return tag
 	}
+	if roomID := extractRoomID(item); roomID != "" {
+		return "room:" + roomID
+	}
+	if strings.HasPrefix(item.ID, "approval:") {
+		return "agent:" + strings.TrimPrefix(item.ID, "approval:")
+	}
+	if strings.HasPrefix(item.ID, "request:") {
+		return "agent:" + strings.TrimPrefix(item.ID, "request:")
+	}
+	return tag
+}
+
+// shouldSuppressInboxTaskPush filters out intermediate/internal runner task progress
+// on inbox-linked tasks, while preserving terminal deploy/release failure blockers.
+func shouldSuppressInboxTaskPush(item ownerNotification) bool {
+	if !strings.HasPrefix(item.ID, "task:") || !strings.Contains(item.Href, "/inbox/") {
+		return false
+	}
+	if strings.Contains(item.ID, ":review:") || strings.HasSuffix(item.ID, ":review") {
+		return true
+	}
+	if strings.Contains(item.ID, ":blocked:") || strings.HasSuffix(item.ID, ":blocked") {
+		lower := strings.ToLower(item.Summary)
+		if strings.Contains(item.Summary, "⚠️ Deploy production gagal") ||
+			strings.Contains(lower, "deploy") ||
+			strings.Contains(lower, "rilis") {
+			return false
+		}
+		return true
+	}
+	return false
+}
+
+func buildPushPayload(item ownerNotification) map[string]string {
+	tag := pushNotificationTag(item)
+	isTask := strings.HasPrefix(tag, "task:") || strings.HasPrefix(item.ID, "task:") || strings.Contains(item.Href, "/tasks/")
 
 	title := strings.TrimSpace(item.Title)
 	if item.Kind == "customer" {
@@ -282,13 +317,14 @@ func buildPushPayload(item ownerNotification) map[string]string {
 	}
 
 	return map[string]string{
-		"title":  title,
-		"body":   body,
-		"href":   href,
-		"tag":    tag,
-		"badge":  "/icons/cuan-badge-96.png",
-		"kind":   item.Kind,
-		"status": item.Status,
+		"title":    title,
+		"body":     body,
+		"href":     href,
+		"tag":      tag,
+		"badge":    "/icons/cuan-badge-96.png",
+		"kind":     item.Kind,
+		"status":   item.Status,
+		"renotify": "false",
 	}
 }
 

@@ -127,3 +127,20 @@ test('6. InboxView.tsx: ApprovalCard renders reliably for agent messages without
     'InboxView must render ApprovalCard for agent proposals regardless of contact resolution state',
   )
 })
+
+test('7. InboxView.tsx: Marks room notifications as read when the room is opened and visible', () => {
+  const inboxViewSrc = fs.readFileSync(inboxViewPath, 'utf8')
+
+  assert.ok(
+    inboxViewSrc.includes('useNotifications()'),
+    'InboxView must connect to NotificationsContext via useNotifications()',
+  )
+  assert.ok(
+    inboxViewSrc.includes('markNotificationsRead(unreadIds)'),
+    'InboxView must mark unread notifications for the active room as read when opened/visible',
+  )
+  assert.ok(
+    inboxViewSrc.includes("document.visibilityState !== 'visible'"),
+    'InboxView must only mark room notifications as read when the tab is visible',
+  )
+})
