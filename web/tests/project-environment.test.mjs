@@ -58,3 +58,14 @@ test('3. ProjectSettings: renders Environment Variables view with secret masking
     'ProjectSettings must mask secrets with WebkitTextSecurity disc when not revealed'
   )
 })
+
+test('4. ProjectSettings: renders rotating chevron indicators on Advanced and .env Configuration summaries', () => {
+  assert.ok(
+    settingsSource.includes('ChevronDown') && settingsSource.includes('group-open:rotate-180'),
+    'ProjectSettings must render ChevronDown with group-open:rotate-180 on collapsible details'
+  )
+  assert.ok(
+    settingsSource.includes("label={t('Advanced')}") && settingsSource.includes("label={t('.env Configuration')}"),
+    'ProjectSettings must use CollapsibleSummary for both Advanced and .env Configuration'
+  )
+})
