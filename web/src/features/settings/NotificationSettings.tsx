@@ -5,6 +5,7 @@ import { usePWA } from '../../context/PWAContext'
 import { Bell, AlertCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { FormField, Input, Select, FormGrid } from '../../components/ui/forms'
+import { Badge } from '../../components/ui/badge'
 
 interface Preferences {
   approval: boolean
@@ -193,20 +194,14 @@ export function NotificationSettings() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium border ${
-                connected
-                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                  : 'border-border bg-muted/50 text-muted-foreground'
-              }`}
-            >
+            <Badge variant={connected ? 'success' : 'neutral'} className="gap-1.5">
               <span
                 className={`h-1.5 w-1.5 rounded-full ${
                   connected ? 'bg-emerald-500' : 'bg-muted-foreground'
                 }`}
               />
               {t(connected ? 'Active on this device' : 'Inactive on this device')}
-            </span>
+            </Badge>
 
           </div>
         </div>

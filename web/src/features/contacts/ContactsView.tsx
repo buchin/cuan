@@ -1,6 +1,8 @@
 import { BackAction } from '../../components/layout/DetailLayout'
 import { ListSearch, ListRowContent } from '../../components/layout/ListControls'
 import { IconButton } from '../../components/ui/IconButton'
+import { Badge } from '../../components/ui/badge'
+import { Button } from '../../components/ui/button'
 import { Avatar } from '../../components/ui/Avatar'
 import { ListCreateAction } from '../../components/layout/ListCreateAction'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
@@ -548,12 +550,13 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
                         </p>
                       )}
                       <div className="flex flex-wrap items-center gap-2 pt-1">
-                        <span
-                          className="inline-flex items-center rounded-full bg-muted/60 px-2.5 py-0.5 text-xs text-muted-foreground border border-border/40"
+                        <Badge
+                          variant="neutral"
+                          className="font-normal text-muted-foreground"
                           title={t('Source')}
                         >
                           {t(source(selected))}
-                        </span>
+                        </Badge>
                         <span className="text-xs text-muted-foreground/60">·</span>
                         <span className="text-xs text-muted-foreground">
                           {t('Updated')} {dateLabel(selected.updated_at, language)}
@@ -642,12 +645,14 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
 
                     <div className="flex flex-wrap items-center gap-1.5">
                       {draft.map((tItem) => (
-                        <button
+                        <Button
                           key={tItem}
                           type="button"
+                          variant="outline"
+                          size="sm"
                           disabled={saving}
                           aria-label={t('Remove tag') + ' ' + tItem}
-                          className="inline-flex min-h-[32px] max-w-full items-center gap-1.5 rounded-full bg-muted/40 border border-border/40 px-2.5 py-1 text-xs text-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-colors"
+                          className="h-auto min-h-[32px] max-w-full gap-1.5 bg-muted/40 border-border/40 px-2.5 py-1 text-xs font-normal text-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
                           onClick={() => {
                             const next = draft.filter((value) => value !== tItem)
                             setDrafts((old) => ({ ...old, [selected.id]: next }))
@@ -657,7 +662,7 @@ export function ContactsView({ refreshKey = 0, onNewContact }: { refreshKey?: nu
                           <span className="font-mono text-muted-foreground">#</span>
                           <span className="break-all">{tItem}</span>
                           <X className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
-                        </button>
+                        </Button>
                       ))}
                     </div>
 

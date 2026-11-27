@@ -1,4 +1,5 @@
 import { useLanguage } from '../../context/LanguageContext'
+import { Badge } from '../../components/ui/badge'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
@@ -1028,16 +1029,13 @@ export function TeamView({
                               <span className="font-mono text-xs text-muted-foreground">
                                 {getAgentHandle(a)}
                               </span>
-                              <span
-                                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold border ${
-                                  state?.verified
-                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                                    : 'bg-muted text-muted-foreground border-border'
-                                }`}
+                              <Badge
+                                variant={state?.verified ? 'success' : 'neutral'}
+                                className="gap-1.5 font-semibold"
                               >
                                 {state?.verified && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
                                 <span>{state?.verified ? t('Aktif & Siap') : t('Menunggu Verifikasi')}</span>
-                              </span>
+                              </Badge>
                             </div>
                             <p className="text-xs sm:text-sm text-muted-foreground truncate">
                               {a.role || t('Cuan Universal Assistant')}
@@ -1296,16 +1294,17 @@ export function TeamView({
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <span
-                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold border ${
+                <Badge
+                  variant={
                     state.verified
-                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                      ? 'success'
                       : state.state === 'quota_limited'
-                        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                        ? 'warning'
                         : state.state === 'login_required' || state.state === 'unavailable'
-                          ? 'bg-destructive/10 text-destructive border-destructive/20'
-                          : 'bg-muted text-muted-foreground border-border'
-                  }`}
+                          ? 'destructive'
+                          : 'neutral'
+                  }
+                  className="gap-1.5 py-1 font-semibold"
                 >
                   {state.verified && (
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -1315,7 +1314,7 @@ export function TeamView({
                       ? t('Check needed')
                       : t('Not checked')
                     : t(state.label)}
-                </span>
+                </Badge>
                 {canManageAgents && (
                   <AgentActions
                     name={a.name}
@@ -1889,24 +1888,21 @@ export function TeamView({
                                 {displayName}
                               </span>
                               {isSelf && (
-                                <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-mono">
+                                <Badge variant="neutral" size="sm" className="font-mono">
                                   {t('Anda')}
-                                </span>
+                                </Badge>
                               )}
-                              <span
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold rounded-full border ${
-                                  isMemberOwner
-                                    ? 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30'
-                                    : 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
-                                }`}
+                              <Badge
+                                variant={isMemberOwner ? 'success' : 'info'}
+                                className="px-2 py-0.5 text-[11px] font-semibold"
                               >
                                 {isMemberOwner ? <Shield className="h-3 w-3" /> : <User className="h-3 w-3" />}
                                 <span className="capitalize">{isMemberOwner ? t('Owner') : t('Member')}</span>
-                              </span>
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400 bg-green-500/10 rounded">
-                                <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                              </Badge>
+                              <Badge variant="success" size="sm">
+                                <span className="h-1.5 w-1.5 rounded-full status-dot bg-green-500" />
                                 <span>{t('Aktif')}</span>
-                              </span>
+                              </Badge>
                             </div>
 
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -1971,20 +1967,17 @@ export function TeamView({
                                 <span className="font-semibold text-sm text-foreground truncate">
                                   {invite.email}
                                 </span>
-                                <span
-                                  className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold rounded-full border ${
-                                    isInviteOwner
-                                      ? 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30'
-                                      : 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
-                                  }`}
+                                <Badge
+                                  variant={isInviteOwner ? 'success' : 'info'}
+                                  className="text-[11px] font-semibold"
                                 >
                                   {isInviteOwner ? <Shield className="h-3 w-3" /> : <User className="h-3 w-3" />}
                                   <span className="capitalize">{isInviteOwner ? t('Owner') : t('Member')}</span>
-                                </span>
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 rounded-full border border-amber-500/20">
+                                </Badge>
+                                <Badge variant="warning" size="sm" className="px-2 py-0.5">
                                   <Clock className="h-2.5 w-2.5" />
                                   <span>{t('Menunggu Aktivasi')}</span>
-                                </span>
+                                </Badge>
                               </div>
 
                               <div className="text-xs text-muted-foreground">

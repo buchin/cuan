@@ -1,6 +1,7 @@
 import { TaskDuration } from '../tasks/TaskDuration'
 import { InternalVisibility } from '../../components/ui/InternalVisibility'
 import { StatusDot } from '../../components/ui/StatusDot'
+import { Badge } from '../../components/ui/badge'
 import { useState, useEffect, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -431,9 +432,9 @@ export const TaskCard = memo(function TaskCard({
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2.5">
         <div className="flex flex-wrap items-center gap-2 min-w-0">
           {isCustomerRoom && <InternalVisibility className="-ml-3 -my-2" />}
-          <span
+          <Badge
             className={cn(
-              'inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-0.5 text-[11px] font-semibold transition-colors',
+              'shrink-0 gap-1.5 px-2.5 py-0.5 text-[11px] font-semibold',
               statusBadge
             )}
           >
@@ -453,7 +454,7 @@ export const TaskCard = memo(function TaskCard({
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-muted-foreground/60 shrink-0" />
             )}
             <span>{t(workDisplayStatus(currentTask))}</span>
-          </span>
+          </Badge>
 
           <TaskDuration task={currentTask} />
 

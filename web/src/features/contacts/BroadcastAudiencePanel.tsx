@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
+import { Badge } from '../../components/ui/badge'
+import { Button } from '../../components/ui/button'
 import {
   Radio,
   Users,
@@ -450,33 +452,37 @@ export function BroadcastAudiencePanel({ onClose, initialTags = [], initialTab =
                 {availableTags.map(({ tag, count }) => {
                   const isSelected = selectedTags.includes(tag)
                   return (
-                    <button
+                    <Button
                       key={tag}
                       type="button"
+                      variant={isSelected ? 'default' : 'outline'}
+                      size="sm"
                       role="checkbox"
                       aria-checked={isSelected}
                       onClick={() => toggleTag(tag)}
-                      className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors border ${
+                      className={
                         isSelected
-                          ? 'bg-primary text-primary-foreground border-primary font-medium'
-                          : 'bg-muted/40 text-foreground border-border/40 hover:bg-muted/70'
-                      }`}
+                          ? 'h-auto min-h-[36px] px-3 py-1 text-xs font-medium shadow-none'
+                          : 'h-auto min-h-[36px] px-3 py-1 text-xs font-normal bg-muted/40 border-border/40 hover:bg-muted/70'
+                      }
                     >
                       <span className={isSelected ? 'text-primary-foreground/80' : 'text-muted-foreground'}>
                         #
                       </span>
                       <span>{tag}</span>
-                      <span
-                        className={`ml-0.5 rounded-full px-1.5 py-0.2 text-[10px] tabular-nums ${
+                      <Badge
+                        variant="neutral"
+                        size="sm"
+                        className={`ml-0.5 tabular-nums ${
                           isSelected
                             ? 'bg-primary-foreground/20 text-primary-foreground'
-                            : 'bg-muted text-muted-foreground'
+                            : ''
                         }`}
                       >
                         {count}
-                      </span>
+                      </Badge>
                       {isSelected && <Check className="h-3 w-3 ml-0.5" />}
-                    </button>
+                    </Button>
                   )
                 })}
               </div>
@@ -542,12 +548,12 @@ export function BroadcastAudiencePanel({ onClose, initialTags = [], initialTab =
 
               {audience && (
                 <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="inline-flex items-center rounded-full bg-muted/60 px-2.5 py-0.5 font-medium text-foreground border border-border/40">
+                  <Badge variant="neutral" className="text-foreground">
                     <span className="font-semibold text-primary mr-1 tabular-nums">
                       {audience.total_unique}
                     </span>
                     {t('penerima unik')}
-                  </span>
+                  </Badge>
                   <span className="text-[11px] text-muted-foreground">
                     ({audience.crm_count} CRM · {audience.custom_count} kustom)
                   </span>
@@ -616,24 +622,26 @@ export function BroadcastAudiencePanel({ onClose, initialTags = [], initialTab =
                           {rec.tags && rec.tags.length > 0 && (
                             <div className="flex flex-wrap gap-1">
                               {rec.tags.map((tg) => (
-                                <span
+                                <Badge
                                   key={tg}
-                                  className="inline-flex items-center rounded-full bg-muted/60 px-2 py-0.5 text-[10px] text-muted-foreground border border-border/40 font-mono"
+                                  variant="neutral"
+                                  size="sm"
+                                  className="px-2 py-0.5 font-mono"
                                 >
                                   #{tg.replace(/^#/, '')}
-                                </span>
+                                </Badge>
                               ))}
                             </div>
                           )}
                           {rec.source === 'custom' && (
-                            <span className="inline-flex items-center rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2 py-0.5 text-[10px] border border-blue-500/20 font-medium">
+                            <Badge variant="info" size="sm" className="px-2 py-0.5">
                               {t('Kustom')}
-                            </span>
+                            </Badge>
                           )}
                           {rec.source === 'both' && (
-                            <span className="inline-flex items-center rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 px-2 py-0.5 text-[10px] border border-purple-500/20 font-medium">
+                            <Badge variant="default" size="sm" className="px-2 py-0.5 bg-purple-500/10 text-purple-600 dark:text-purple-400">
                               {t('CRM + Kustom')}
-                            </span>
+                            </Badge>
                           )}
                         </div>
                       </div>
@@ -899,21 +907,23 @@ export function BroadcastAudiencePanel({ onClose, initialTags = [], initialTab =
                     </div>
 
                     <div className="shrink-0 flex items-center gap-2">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium border ${
+                      <Badge
+                        variant={
                           item.status === 'success'
-                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                            ? 'success'
                             : item.status === 'partial'
-                            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-                            : 'bg-destructive/10 text-destructive border-destructive/20'
-                        }`}
+                            ? 'warning'
+                            : 'destructive'
+                        }
+                        size="sm"
+                        className="px-2 py-0.5"
                       >
                         {item.status === 'success'
                           ? t('Terkirim')
                           : item.status === 'partial'
                           ? t('Sebagian')
                           : t('Gagal')}
-                      </span>
+                      </Badge>
                       <ChevronRight className="h-4 w-4 text-muted-foreground/60 group-hover:text-foreground transition-colors" />
                     </div>
                   </div>
@@ -921,12 +931,14 @@ export function BroadcastAudiencePanel({ onClose, initialTags = [], initialTab =
                   {item.tags && item.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 pt-0.5">
                       {item.tags.map((tg) => (
-                        <span
+                        <Badge
                           key={tg}
-                          className="inline-flex items-center rounded-full bg-muted/60 px-2 py-0.5 text-[10px] font-mono border border-border/40 text-muted-foreground"
+                          variant="neutral"
+                          size="sm"
+                          className="px-2 py-0.5 font-mono"
                         >
                           #{tg.replace(/^#/, '')}
-                        </span>
+                        </Badge>
                       ))}
                     </div>
                   )}
@@ -1016,12 +1028,13 @@ export function BroadcastAudiencePanel({ onClose, initialTags = [], initialTab =
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   {sessionDetail.tags && sessionDetail.tags.length > 0 ? (
                     sessionDetail.tags.map((tg) => (
-                      <span
+                      <Badge
                         key={tg}
-                        className="inline-flex items-center rounded-full bg-muted/60 px-2.5 py-0.5 text-[11px] font-mono border border-border/40 text-muted-foreground"
+                        variant="neutral"
+                        className="text-[11px] font-mono text-muted-foreground"
                       >
                         #{tg.replace(/^#/, '')}
-                      </span>
+                      </Badge>
                     ))
                   ) : (
                     <span className="text-xs text-muted-foreground italic">
@@ -1058,40 +1071,46 @@ export function BroadcastAudiencePanel({ onClose, initialTags = [], initialTab =
                     {t('Status Tiap Penerima')}
                   </h4>
                   <div className="flex items-center gap-1 text-[11px]">
-                    <button
+                    <Button
                       type="button"
+                      size="sm"
+                      variant={recipientFilter === 'all' ? 'default' : 'outline'}
                       onClick={() => setRecipientFilter('all')}
-                      className={`px-2.5 py-0.5 rounded-full border transition-colors ${
+                      className={`h-7 px-2.5 py-0.5 text-[11px] shadow-none ${
                         recipientFilter === 'all'
-                          ? 'bg-primary text-primary-foreground border-primary font-medium'
-                          : 'bg-muted/40 text-muted-foreground border-border/40 hover:bg-muted/70'
+                          ? 'font-medium'
+                          : 'bg-muted/40 text-muted-foreground border-border/40 hover:bg-muted/70 font-normal'
                       }`}
                     >
                       {t('Semua')} ({sessionLogs.length})
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
+                      size="sm"
+                      variant={recipientFilter === 'sent' ? 'default' : 'outline'}
                       onClick={() => setRecipientFilter('sent')}
-                      className={`px-2.5 py-0.5 rounded-full border transition-colors ${
+                      className={`h-7 px-2.5 py-0.5 text-[11px] shadow-none ${
                         recipientFilter === 'sent'
-                          ? 'bg-emerald-600 text-white border-emerald-600 font-medium'
-                          : 'bg-muted/40 text-muted-foreground border-border/40 hover:bg-muted/70'
+                          ? 'bg-emerald-600 hover:bg-emerald-600/90 text-white border-emerald-600 font-medium'
+                          : 'bg-muted/40 text-muted-foreground border-border/40 hover:bg-muted/70 font-normal'
                       }`}
                     >
                       {t('Sukses')} ({sessionLogs.filter((l) => l.status === 'sent').length})
-                    </button>
+                    </Button>
                     {sessionLogs.some((l) => l.status === 'failed') && (
-                      <button
+                      <Button
                         type="button"
+                        size="sm"
+                        variant={recipientFilter === 'failed' ? 'destructive' : 'outline'}
                         onClick={() => setRecipientFilter('failed')}
-                        className={`px-2.5 py-0.5 rounded-full border transition-colors ${
+                        className={`h-7 px-2.5 py-0.5 text-[11px] shadow-none ${
                           recipientFilter === 'failed'
                             ? 'bg-destructive text-destructive-foreground border-destructive font-medium'
-                            : 'bg-muted/40 text-destructive border-border/40 hover:bg-muted/70'
+                            : 'bg-muted/40 text-destructive border-border/40 hover:bg-muted/70 font-normal'
                         }`}
                       >
                         {t('Gagal')} ({sessionLogs.filter((l) => l.status === 'failed').length})
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>

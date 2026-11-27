@@ -16,43 +16,43 @@ export const TASK_STATUS_THEMES: Record<TaskStateKey, TaskStatusTheme> = {
     key: 'review',
     dotVariant: 'review',
     textColor: 'text-purple-600 dark:text-purple-400',
-    badgeClass: 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/35',
-    counterBadgeClass: 'bg-muted/80 text-muted-foreground border border-border/30',
+    badgeClass: 'bg-purple-500/15 text-purple-700 dark:text-purple-300',
+    counterBadgeClass: 'bg-muted/80 text-muted-foreground',
   },
   working: {
     key: 'working',
     dotVariant: 'working',
     textColor: 'text-[color:var(--status-working)]',
-    badgeClass: 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30',
-    counterBadgeClass: 'bg-muted/80 text-muted-foreground border border-border/30',
+    badgeClass: 'bg-blue-500/15 text-blue-700 dark:text-blue-300',
+    counterBadgeClass: 'bg-muted/80 text-muted-foreground',
   },
   done: {
     key: 'done',
     dotVariant: 'success',
     textColor: 'text-[color:var(--status-success)]',
-    badgeClass: 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30',
-    counterBadgeClass: 'bg-muted/80 text-muted-foreground border border-border/30',
+    badgeClass: 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300',
+    counterBadgeClass: 'bg-muted/80 text-muted-foreground',
   },
   queued: {
     key: 'queued',
     dotVariant: 'queued',
     textColor: 'text-muted-foreground',
-    badgeClass: 'bg-muted/80 text-muted-foreground border-border/40',
-    counterBadgeClass: 'bg-muted/80 text-muted-foreground border border-border/30',
+    badgeClass: 'bg-muted/80 text-muted-foreground',
+    counterBadgeClass: 'bg-muted/80 text-muted-foreground',
   },
   attention: {
     key: 'attention',
     dotVariant: 'warning',
     textColor: 'text-destructive',
-    badgeClass: 'bg-destructive/15 text-destructive dark:text-red-400 border-destructive/35',
-    counterBadgeClass: 'bg-muted/80 text-muted-foreground border border-border/30',
+    badgeClass: 'bg-destructive/15 text-destructive dark:text-red-400',
+    counterBadgeClass: 'bg-muted/80 text-muted-foreground',
   },
   neutral: {
     key: 'neutral',
     dotVariant: 'neutral',
     textColor: 'text-muted-foreground',
-    badgeClass: 'bg-muted/80 text-muted-foreground border-border/40',
-    counterBadgeClass: 'bg-muted/80 text-muted-foreground border border-border/30',
+    badgeClass: 'bg-muted/80 text-muted-foreground',
+    counterBadgeClass: 'bg-muted/80 text-muted-foreground',
   },
 }
 
@@ -278,7 +278,7 @@ export function workStatusBadgeClass(status: string) {
     case 'Needs attention':
       return TASK_STATUS_THEMES.attention.badgeClass
     case 'Cancelled':
-      return 'bg-zinc-500/15 text-zinc-700 dark:text-zinc-300 border-zinc-500/30'
+      return 'bg-zinc-500/15 text-zinc-700 dark:text-zinc-300'
     case 'Not running':
     case 'Not started':
     default:

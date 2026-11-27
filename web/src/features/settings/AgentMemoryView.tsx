@@ -630,12 +630,14 @@ export function AgentMemoryView({
                   {t('Preferensi baru otomatis disetujui')}
                 </span>
                 {autoApproveToast.confidence !== undefined && (
-                  <span
+                  <Badge
                     data-testid="toast-confidence-badge"
-                    className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 border border-emerald-500/40 px-2 py-0.5 text-[10px] font-mono font-semibold"
+                    variant="success"
+                    size="sm"
+                    className="px-2 py-0.5 font-mono font-semibold"
                   >
                     {Math.round(autoApproveToast.confidence * 100)}% {t('Keyakinan')}
-                  </span>
+                  </Badge>
                 )}
               </div>
               <p className="text-xs text-foreground/85 mt-0.5 truncate max-w-xl">
@@ -797,9 +799,9 @@ export function AgentMemoryView({
                 <h3 className="text-sm font-bold text-foreground">
                   {t('Hermes Memory Quota Meter')}
                 </h3>
-                <span className="rounded-full bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 text-[10px] font-mono font-semibold">
+                <Badge variant="default" size="sm" className="px-2 py-0.5 font-mono font-semibold">
                   15 {t('items / category')}
-                </span>
+                </Badge>
               </div>
               <p className="text-xs text-muted-foreground">
                 {t('Hermes Memory Quota prevents token bloat by limiting memory to 15 items per category.')}
@@ -831,26 +833,32 @@ export function AgentMemoryView({
                 </span>
               </div>
               {brandFull ? (
-                <span
+                <Badge
                   data-testid="quota-badge-brand"
-                  className="rounded-full bg-rose-500/20 text-rose-800 dark:text-rose-200 border border-rose-500/40 px-2 py-0.5 text-[10px] font-semibold"
+                  variant="destructive"
+                  size="sm"
+                  className="px-2 py-0.5 font-semibold"
                 >
                   {t('Quota Full')} (15/15)
-                </span>
+                </Badge>
               ) : brandWarning ? (
-                <span
+                <Badge
                   data-testid="quota-badge-brand"
-                  className="rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/40 px-2 py-0.5 text-[10px] font-semibold"
+                  variant="warning"
+                  size="sm"
+                  className="px-2 py-0.5 font-semibold"
                 >
                   {t('Approaching Limit')}
-                </span>
+                </Badge>
               ) : (
-                <span
+                <Badge
                   data-testid="quota-badge-brand"
-                  className="rounded-full bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30 px-2 py-0.5 text-[10px] font-semibold"
+                  variant="default"
+                  size="sm"
+                  className="px-2 py-0.5 font-semibold bg-purple-500/15 text-purple-700 dark:text-purple-300"
                 >
                   {t('Optimal Capacity')}
-                </span>
+                </Badge>
               )}
             </div>
 
@@ -916,26 +924,32 @@ export function AgentMemoryView({
                 </span>
               </div>
               {techFull ? (
-                <span
+                <Badge
                   data-testid="quota-badge-technical"
-                  className="rounded-full bg-rose-500/20 text-rose-800 dark:text-rose-200 border border-rose-500/40 px-2 py-0.5 text-[10px] font-semibold"
+                  variant="destructive"
+                  size="sm"
+                  className="px-2 py-0.5 font-semibold"
                 >
                   {t('Quota Full')} (15/15)
-                </span>
+                </Badge>
               ) : techWarning ? (
-                <span
+                <Badge
                   data-testid="quota-badge-technical"
-                  className="rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/40 px-2 py-0.5 text-[10px] font-semibold"
+                  variant="warning"
+                  size="sm"
+                  className="px-2 py-0.5 font-semibold"
                 >
                   {t('Approaching Limit')}
-                </span>
+                </Badge>
               ) : (
-                <span
+                <Badge
                   data-testid="quota-badge-technical"
-                  className="rounded-full bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30 px-2 py-0.5 text-[10px] font-semibold"
+                  variant="info"
+                  size="sm"
+                  className="px-2 py-0.5 font-semibold"
                 >
                   {t('Optimal Capacity')}
-                </span>
+                </Badge>
               )}
             </div>
 
@@ -1000,16 +1014,14 @@ export function AgentMemoryView({
                 <h3 className="text-sm font-bold text-foreground">
                   {t('Smart Auto-Approval')}
                 </h3>
-                <span
+                <Badge
                   data-testid="auto-approve-status-pill"
-                  className={`rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
-                    autoApproveEnabled
-                      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
-                      : 'bg-muted text-muted-foreground border-border'
-                  }`}
+                  variant={autoApproveEnabled ? 'success' : 'neutral'}
+                  size="sm"
+                  className="px-2 py-0.5 font-semibold"
                 >
                   {autoApproveEnabled ? t('Auto-Approve Enabled') : t('Auto-Approve Disabled')}
-                </span>
+                </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
                 {t('Preferences with confidence >= threshold are automatically approved when quota allows (< 15 items).')}
@@ -1318,12 +1330,10 @@ export function AgentMemoryView({
                       {/* Category Header & Topic */}
                       <div className="flex items-start justify-between gap-2 mb-2.5">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span
-                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
-                              isBrand
-                                ? 'bg-transparent text-muted-foreground dark:text-muted-foreground border border-transparent'
-                                : 'bg-transparent text-muted-foreground dark:text-muted-foreground border border-transparent'
-                            }`}
+                          <Badge
+                            variant="outline"
+                            size="sm"
+                            className="bg-transparent text-muted-foreground px-2.5 py-0.5 text-[11px] font-semibold"
                           >
                             {isBrand ? (
                               <Sparkles className="h-3 w-3 shrink-0" />
@@ -1335,18 +1345,20 @@ export function AgentMemoryView({
                                 ? t('Brand & Voice')
                                 : t('Technical & Workflow')}
                             </span>
-                          </span>
+                          </Badge>
 
                           {/* Auto-Approved Badge */}
                           {item.auto_approved && (
-                            <span
+                            <Badge
                               data-testid={`auto-approved-badge-${item.id}`}
-                              className="inline-flex items-center gap-1 rounded-full bg-transparent text-muted-foreground dark:text-muted-foreground border border-transparent px-2 py-0.5 text-[10px] font-semibold"
+                              variant="outline"
+                              size="sm"
+                              className="bg-transparent text-muted-foreground px-2 py-0.5 font-semibold"
                               title={t('Preferensi ini otomatis disetujui oleh Smart Auto-Approval')}
                             >
                               <Sparkles className="h-2.5 w-2.5 text-muted-foreground dark:text-muted-foreground shrink-0" />
                               <span>{t('Otomatis Disetujui')}</span>
-                            </span>
+                            </Badge>
                           )}
 
                           {item.topic && (
@@ -1479,12 +1491,9 @@ export function AgentMemoryView({
                       {/* Header Badges & Topic */}
                       <div className="flex items-start justify-between gap-2 mb-2.5">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span
-                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
-                              isBrand
-                                ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30'
-                                : 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30'
-                            }`}
+                          <Badge
+                            variant={isBrand ? 'default' : 'info'}
+                            className={isBrand ? 'text-[11px] font-semibold bg-purple-500/15 text-purple-700 dark:text-purple-300' : 'text-[11px] font-semibold'}
                           >
                             {isBrand ? (
                               <Sparkles className="h-3 w-3 shrink-0" />
@@ -1496,26 +1505,24 @@ export function AgentMemoryView({
                                 ? t('Brand & Voice')
                                 : t('Technical & Workflow')}
                             </span>
-                          </span>
+                          </Badge>
 
-                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 px-2 py-0.5 text-[10px] font-semibold">
+                          <Badge variant="warning" size="sm" className="px-2 py-0.5 font-semibold">
                             <Clock className="h-2.5 w-2.5" />
                             {t('Pending Review')}
-                          </span>
+                          </Badge>
 
                           {/* Confidence Badge (Sprint 45 S45-T3) */}
-                          <span
+                          <Badge
                             data-testid={`confidence-badge-${candidate.id}`}
-                            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
-                              isHighConfidence
-                                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
-                                : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'
-                            }`}
+                            variant={isHighConfidence ? 'success' : 'warning'}
+                            size="sm"
+                            className="px-2 py-0.5 font-semibold"
                             title={isHighConfidence ? t('Keyakinan Tinggi (>= 80%)') : t('Keyakinan Sedang (< 80%)')}
                           >
                             <ShieldCheck className="h-2.5 w-2.5 shrink-0" />
                             <span>{t('Keyakinan')} {confPercent}%</span>
-                          </span>
+                          </Badge>
 
                           {candidate.topic && (
                             <span className="font-semibold text-xs text-foreground bg-muted/60 px-2 py-0.5 rounded-md line-clamp-1">

@@ -20,6 +20,7 @@ import {
   Copy,
 } from "lucide-react"
 import { cn } from "../../lib/utils"
+import { Badge } from "./badge"
 
 export type ReportStatus = 'success' | 'failed' | 'blocked' | 'review' | 'running' | 'info'
 
@@ -41,7 +42,7 @@ export function getReportStatusTheme(status: ReportStatus): StatusConfig {
         accentBorder: 'border-l-2 border-l-emerald-500/70',
         containerBg: 'bg-card/40 dark:bg-card/20 bg-emerald-500/5',
         containerBorder: 'border-border/40',
-        badgeClasses: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-400',
+        badgeClasses: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
         iconColor: 'text-emerald-600 dark:text-emerald-400',
         defaultBadge: 'Success',
         defaultTitle: 'Verification Report',
@@ -53,7 +54,7 @@ export function getReportStatusTheme(status: ReportStatus): StatusConfig {
         accentBorder: 'border-l-2 border-l-rose-500/70',
         containerBg: 'bg-card/40 dark:bg-card/20 bg-rose-500/5',
         containerBorder: 'border-border/40',
-        badgeClasses: 'bg-rose-500/10 border-rose-500/20 text-rose-700 dark:text-rose-400',
+        badgeClasses: 'bg-rose-500/10 text-rose-700 dark:text-rose-400',
         iconColor: 'text-rose-600 dark:text-rose-400',
         defaultBadge: status === 'blocked' ? 'Blocked' : 'Failed',
         defaultTitle: 'Needs Attention',
@@ -64,7 +65,7 @@ export function getReportStatusTheme(status: ReportStatus): StatusConfig {
         accentBorder: 'border-l-2 border-l-amber-500/70',
         containerBg: 'bg-card/40 dark:bg-card/20 bg-amber-500/5',
         containerBorder: 'border-border/40',
-        badgeClasses: 'bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400',
+        badgeClasses: 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
         iconColor: 'text-amber-600 dark:text-amber-400',
         defaultBadge: 'Review',
         defaultTitle: 'Review Required',
@@ -75,7 +76,7 @@ export function getReportStatusTheme(status: ReportStatus): StatusConfig {
         accentBorder: 'border-l-2 border-l-sky-500/70',
         containerBg: 'bg-card/40 dark:bg-card/20 bg-sky-500/5',
         containerBorder: 'border-border/40',
-        badgeClasses: 'bg-sky-500/10 border-sky-500/20 text-sky-700 dark:text-sky-400',
+        badgeClasses: 'bg-sky-500/10 text-sky-700 dark:text-sky-400',
         iconColor: 'text-sky-600 dark:text-sky-400',
         defaultBadge: 'In Progress',
         defaultTitle: 'Work Update',
@@ -87,7 +88,7 @@ export function getReportStatusTheme(status: ReportStatus): StatusConfig {
         accentBorder: 'border-l-2 border-l-border',
         containerBg: 'bg-card/40 dark:bg-card/20',
         containerBorder: 'border-border/40',
-        badgeClasses: 'bg-muted border-border/40 text-foreground',
+        badgeClasses: 'bg-muted text-foreground',
         iconColor: 'text-muted-foreground',
         defaultBadge: 'Info',
         defaultTitle: 'Task Info',
@@ -503,9 +504,9 @@ export const StatusReportCard = React.forwardRef<HTMLDivElement, StatusReportCar
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
-            <span
+            <Badge
               className={cn(
-                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] sm:text-[11px] font-semibold tracking-wide uppercase",
+                "px-2 py-0.5 text-[10px] sm:text-[11px] font-semibold tracking-wide uppercase",
                 theme.badgeClasses
               )}
             >
@@ -513,7 +514,7 @@ export const StatusReportCard = React.forwardRef<HTMLDivElement, StatusReportCar
               {activeStatus === 'review' && <Clock3 className="h-3 w-3" />}
               {(activeStatus === 'failed' || activeStatus === 'blocked') && <AlertCircle className="h-3 w-3" />}
               {activeBadgeText || theme.defaultBadge}
-            </span>
+            </Badge>
             {timestamp && (
               <span className="text-[11px] text-muted-foreground tabular-nums">
                 {timestamp}

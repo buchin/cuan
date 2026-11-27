@@ -4,6 +4,7 @@ import { CheckCircle2, Clock3, Eye, AlertCircle, ChevronDown, Terminal } from 'l
 import type { Task } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
 import { StatusDot } from '../../components/ui/StatusDot'
+import { Badge } from '../../components/ui/badge'
 import { SlideDrawer } from '../../components/ui/SlideDrawer'
 import { CollapsibleChatText } from './CollapsibleChatText'
 import { workStatus, workDisplayStatus, taskExecutionActive, taskConversationSummary, TASK_STATUS_THEMES, type TaskStateKey } from '../tasks/task-ui'
@@ -109,10 +110,16 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
           </div>
         )}
         <div className="ml-auto inline-flex shrink-0 items-center gap-1.5">
-          <span className={cn(
-            "composer-tasks-count tabular-nums px-1.5 py-0.5 text-[11px] font-medium rounded-full",
-            TASK_STATUS_THEMES[badgeStatus]?.counterBadgeClass || "bg-muted/80 text-muted-foreground border border-border/30"
-          )}>{ordered.length}</span>
+          <Badge
+            variant="neutral"
+            size="sm"
+            className={cn(
+              "composer-tasks-count tabular-nums px-1.5 py-0.5 text-[11px]",
+              TASK_STATUS_THEMES[badgeStatus]?.counterBadgeClass,
+            )}
+          >
+            {ordered.length}
+          </Badge>
           <span className="inline-flex min-h-11 min-w-11 sm:min-h-8 sm:min-w-8 items-center justify-center -mr-2 text-muted-foreground">
             <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200 ease-in-out", open && "rotate-180")} />
           </span>
@@ -128,10 +135,18 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
         }}
         bodyRef={panelRef}
         title={t('Conversation tasks')}
-        badge={<span className={cn(
-          "composer-tasks-count tabular-nums px-1.5 py-0.5 text-[11px] font-medium rounded-full",
-          TASK_STATUS_THEMES[badgeStatus]?.counterBadgeClass || "bg-muted/80 text-muted-foreground border border-border/30"
-        )}>{ordered.length}</span>}
+        badge={
+          <Badge
+            variant="neutral"
+            size="sm"
+            className={cn(
+              "composer-tasks-count tabular-nums px-1.5 py-0.5 text-[11px]",
+              TASK_STATUS_THEMES[badgeStatus]?.counterBadgeClass,
+            )}
+          >
+            {ordered.length}
+          </Badge>
+        }
         data-testid="composer-tasks-drawer"
         size="md"
       >

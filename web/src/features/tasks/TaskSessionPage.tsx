@@ -39,6 +39,7 @@ import { ChatMarkdown } from '../inbox/ChatMarkdown'
 import { AttachmentFile } from '../inbox/Attachments'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import { StatusDot, type StatusDotVariant } from '../../components/ui/StatusDot'
+import { Badge } from '../../components/ui/badge'
 import { attemptLabel, taskRef, workStatus, relativeTime, workStatusBadgeClass } from './task-ui'
 import { cn } from '../../lib/utils'
 import { useLanguage } from '../../context/LanguageContext'
@@ -434,9 +435,9 @@ export function TaskSessionPage({
             </h2>
           </div>
           {error && (
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-destructive/20 bg-destructive/10 text-destructive">
+            <Badge variant="destructive" className="font-semibold">
               {t('Error')}
-            </span>
+            </Badge>
           )}
         </header>
 
@@ -499,9 +500,9 @@ export function TaskSessionPage({
               {detail.title}
             </h2>
           </div>
-          <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${isCompleted ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-muted text-muted-foreground border-border'}`}>
+          <Badge variant={isCompleted ? 'success' : 'neutral'} className="font-semibold">
             {t(isCompleted ? 'Completed' : 'Session ended')}
-          </span>
+          </Badge>
         </header>
 
         <div className="flex flex-1 items-center justify-center p-4">
@@ -621,22 +622,22 @@ export function TaskSessionPage({
               : 'neutral'
 
   const statusBadge = (
-    <span
+    <Badge
       className={cn(
-        'inline-flex shrink-0 items-center gap-1 sm:gap-1.5 rounded-full border px-2 sm:px-2.5 py-0.5 text-[11px] sm:text-xs font-semibold shadow-xs transition-colors',
+        'shrink-0 gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 text-[11px] sm:text-xs font-semibold',
         isDedicatedTerminal
           ? isConnected && !isStoppedOrCancelled
-            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25'
+            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
             : isConnecting
-              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-              : 'bg-muted/80 text-muted-foreground border-border/40'
+              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+              : 'bg-muted/80 text-muted-foreground'
           : workStatusBadgeClass(status)
       )}
       title={terminalConnection ? `${statusLabel} (${terminalConnection})` : statusLabel}
     >
       <StatusDot status={dotVariant} size="sm" aria-hidden />
       <span className="truncate max-w-[70px] min-[380px]:max-w-[100px] min-[440px]:max-w-none">{statusLabel}</span>
-    </span>
+    </Badge>
   )
 
   return (
@@ -1173,15 +1174,15 @@ export function TaskSessionPage({
                   {detail.title}
                 </h3>
               </div>
-              <span
+              <Badge
                 className={cn(
-                  'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium',
+                  'shrink-0 gap-1.5 px-2.5 py-0.5 text-xs font-medium',
                   workStatusBadgeClass(status)
                 )}
               >
-                <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                <span className="h-1.5 w-1.5 rounded-full status-dot bg-current" />
                 {statusLabel}
-              </span>
+              </Badge>
             </div>
 
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground pt-2 border-t border-border/40">

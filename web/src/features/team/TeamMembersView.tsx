@@ -13,6 +13,7 @@ import {
 import { useLanguage } from '../../context/LanguageContext'
 import { useAuth } from '../../context/AuthContext'
 import { teamApi, type TeamMember, type UserInvitation } from '../../api/team'
+import { Badge } from '../../components/ui/badge'
 import { InviteMemberModal } from './InviteMemberModal'
 import { HairlineList } from '../../components/layout/HairlineList'
 
@@ -267,24 +268,21 @@ export function TeamMembersView({ showHeading = true }: { showHeading?: boolean 
                               {displayName}
                             </span>
                             {isSelf && (
-                              <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded-full font-mono">
+                              <Badge variant="neutral" size="sm" className="px-2 py-0.5 font-mono">
                                 {t('Anda')}
-                              </span>
+                              </Badge>
                             )}
-                            <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-[11px] font-semibold rounded-full border ${
-                                isMemberOwner
-                                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                                  : 'bg-primary/10 text-primary border-primary/25'
-                              }`}
+                            <Badge
+                              variant={isMemberOwner ? 'success' : 'default'}
+                              className="text-[11px] font-semibold"
                             >
                               {isMemberOwner ? <Shield className="h-3 w-3" /> : <User className="h-3 w-3" />}
                               <span className="capitalize">{isMemberOwner ? t('Owner') : t('Member')}</span>
-                            </span>
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 rounded-full">
+                            </Badge>
+                            <Badge variant="success" size="sm" className="px-2 py-0.5">
                               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                               <span>{t('Aktif')}</span>
-                            </span>
+                            </Badge>
                           </div>
 
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -342,12 +340,12 @@ export function TeamMembersView({ showHeading = true }: { showHeading?: boolean 
                         <div className="min-w-0 space-y-1">
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-sm text-foreground truncate">{invite.email}</span>
-                            <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                            <Badge variant="warning" size="sm" className="px-2 py-0.5 font-semibold">
                               {t('Menunggu Konfirmasi')}
-                            </span>
-                            <span className="text-[10px] bg-muted px-2 py-0.5 rounded-full capitalize text-muted-foreground">
+                            </Badge>
+                            <Badge variant="neutral" size="sm" className="px-2 py-0.5 capitalize">
                               {invite.role}
-                            </span>
+                            </Badge>
                           </div>
                           <p className="text-xs text-muted-foreground">
                             {t('Dikirim')} {formatJoinedDate(invite.created_at, language)}

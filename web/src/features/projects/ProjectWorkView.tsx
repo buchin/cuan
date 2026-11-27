@@ -2,6 +2,7 @@ import { useTaskPage } from '../tasks/useTaskPage'
 import { TaskPagePager } from '../tasks/TaskPagePager'
 import { ListSearch, ListTabs, ListTab } from '../../components/layout/ListControls'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
+import { Badge } from '../../components/ui/badge'
 import {
   ExtensionBoundary,
   projectViews,
@@ -151,9 +152,9 @@ export function ProjectWorkView({
               >
                 <ArrowLeft className="h-4 w-4" />
               </Link>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-destructive/20 bg-destructive/10 text-destructive">
+              <Badge variant="destructive" className="font-semibold">
                 {t('Not Found')}
-              </span>
+              </Badge>
             </header>
 
             <div className="flex flex-1 items-center justify-center p-4">
