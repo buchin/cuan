@@ -65,6 +65,8 @@ test('4. Shared task/room/report status badges reuse Badge without borders', asy
   }
 
   for (const rel of [
+    'src/features/inbox/ApprovalCard.tsx',
+    'src/features/inbox/ComposerTasks.tsx',
     'src/features/inbox/RoomCard.tsx',
     'src/features/inbox/TaskCard.tsx',
     'src/features/tasks/TaskItemCard.tsx',

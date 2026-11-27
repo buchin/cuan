@@ -1,6 +1,7 @@
 import { useState, memo } from 'react'
 import { useLanguage } from '../../context/LanguageContext'
 import { Button } from '../../components/ui/button'
+import { Badge } from '../../components/ui/badge'
 import { ChatMarkdown } from './ChatMarkdown'
 import { cn } from '../../lib/utils'
 import {
@@ -133,13 +134,15 @@ const MemoizedApprovalCard = memo(function MemoizedApprovalCard({
         </div>
 
         {plan.project_name && (
-          <span
-            className="inline-flex items-center gap-1 text-[10px] font-mono font-medium px-2 py-0.5 rounded-md bg-secondary text-secondary-foreground shrink-0 max-w-[160px] truncate"
+          <Badge
+            variant="secondary"
+            size="sm"
+            className="font-mono px-2 py-0.5 shrink-0 max-w-[160px] truncate"
             title={plan.project_name}
           >
             <Folder className="h-2.5 w-2.5 opacity-70 shrink-0" />
             <span className="truncate">{plan.project_name}</span>
-          </span>
+          </Badge>
         )}
       </div>
 

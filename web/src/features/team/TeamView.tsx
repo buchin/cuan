@@ -1888,9 +1888,9 @@ export function TeamView({
                                 {displayName}
                               </span>
                               {isSelf && (
-                                <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-mono">
+                                <Badge variant="neutral" size="sm" className="font-mono">
                                   {t('Anda')}
-                                </span>
+                                </Badge>
                               )}
                               <Badge
                                 variant={isMemberOwner ? 'success' : 'info'}
@@ -1899,10 +1899,10 @@ export function TeamView({
                                 {isMemberOwner ? <Shield className="h-3 w-3" /> : <User className="h-3 w-3" />}
                                 <span className="capitalize">{isMemberOwner ? t('Owner') : t('Member')}</span>
                               </Badge>
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400 bg-green-500/10 rounded">
-                                <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                              <Badge variant="success" size="sm">
+                                <span className="h-1.5 w-1.5 rounded-full status-dot bg-green-500" />
                                 <span>{t('Aktif')}</span>
-                              </span>
+                              </Badge>
                             </div>
 
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
