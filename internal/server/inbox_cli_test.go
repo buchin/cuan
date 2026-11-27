@@ -220,6 +220,37 @@ fi
 	}
 }
 
+func TestInboxCLIOversizedPromptUsesStreamJSONStdin(t *testing.T) {
+	home, workspace, bin := t.TempDir(), t.TempDir(), t.TempDir()
+	script := `#!/bin/sh
+case "$*" in
+  *"-p= --input-format stream-json"*) ;;
+  *) echo "missing stream-json stdin flags: $*" >&2; exit 8 ;;
+esac
+stdin_data=$(cat)
+case "$stdin_data" in
+  *'"event":"user"'*oversized-marker*) ;;
+  *) echo "missing user event on stdin" >&2; exit 9 ;;
+esac
+printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"{\"reply\":\"Prompt besar berhasil diproses via stdin.\",\"topic_title\":\"\",\"action\":null}"}}'
+`
+	if err := os.WriteFile(filepath.Join(bin, "agy"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	installInboxSandboxStub(t, bin)
+	t.Setenv("PATH", bin+":/usr/bin:/bin")
+	s := &Server{cfg: &config.Config{Environment: "staging"}}
+	oversized := strings.Repeat("a", 150*1024) + "\noversized-marker"
+	safe := false
+	out, failure := s.executeInboxCLIWithSafety(context.Background(), "Coordinator", "agy", oversized, home, workspace, nil, &safe)
+	if failure != "" {
+		t.Fatalf("expected oversized prompt to succeed via stdin without E2BIG, got failure: %q", failure)
+	}
+	if !strings.Contains(out, "Prompt besar berhasil diproses via stdin.") {
+		t.Fatalf("unexpected output: %q", out)
+	}
+}
+
 func TestInboxCLIToolBudgetExceededDoesNotInventSuccessWhenRecoveryFails(t *testing.T) {
 	home, workspace, bin := t.TempDir(), t.TempDir(), t.TempDir()
 	// Both attempts fail. Keep the failure visible; no fabricated findings.
