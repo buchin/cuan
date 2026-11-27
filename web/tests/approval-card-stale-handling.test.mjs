@@ -131,3 +131,17 @@ test('4. Localization files contain user-friendly stale approval strings', () =>
     'This approval recommendation is no longer current because the task status has been updated.'
   )
 })
+
+test('5. InboxView sends empty attachmentIds and bypasses stale pendingRef on explicit approveMessageId', () => {
+  const src = fs.readFileSync(inboxViewPath, 'utf8')
+  assert.ok(
+    src.includes('const isExplicitAction =') &&
+      src.includes('Boolean(approveMessageId)'),
+    'InboxView must treat explicit approveMessageId as an explicit action that supersedes stale pendingRef'
+  )
+  assert.ok(
+    src.includes('approveMessageId || overrideText !== undefined') &&
+      src.includes('? []'),
+    'InboxView must clear attachmentIds when sending an explicit plan approval'
+  )
+})

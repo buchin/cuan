@@ -1436,14 +1436,14 @@ export function InboxView({
   const handleSendMessage = async (approveMessageId?: string, approvalRequestId?: string, planAction?: 'approve' | 'defer', overrideText?: string, regenerateReplyId?: string) => {
     if (!activeContact || sending || uploads.busy) return
     const convId = activeContact.conversation_id || activeContact.id
-    const isExplicitUserSubmit =
-      !approveMessageId &&
-      overrideText === undefined &&
-      !regenerateReplyId &&
+    const isExplicitAction =
+      Boolean(approveMessageId) ||
+      overrideText !== undefined ||
+      Boolean(regenerateReplyId) ||
       Boolean(inputMessage.trim() || uploads.items.length)
 
-    // A fresh composer submission by the user supersedes any stale pending state
-    const pending = !isExplicitUserSubmit && pendingRef.current?.convId === convId ? pendingRef.current : null
+    // A fresh composer submission or explicit card action supersedes any stale pending state
+    const pending = !isExplicitAction && pendingRef.current?.convId === convId ? pendingRef.current : null
     let text = pending?.convId === convId ? pending.text : overrideText ? overrideText : approveMessageId ? t(planAction === 'defer' ? 'Not now' : 'Approve this plan') : inputMessage.trim()
     if (!pending && !regenerateReplyId && !approveMessageId && activeContact.type === 'customer' && isWhisper && text && !extractMentionHandle(text) && !text.startsWith('@')) {
       text = `${whisperHandle} ${text}`
