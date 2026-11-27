@@ -49,9 +49,10 @@ type HeartbeatRequest struct {
 	RunnerID              string                             `json:"runner_id"`
 	Hostname              string                             `json:"hostname,omitempty"`
 	SupportedAgents       []string                           `json:"supported_agents,omitempty"`
-	CurrentAttemptID      string                             `json:"current_attempt_id,omitempty"`
-	ActiveAttemptIDs      []string                           `json:"active_attempt_ids,omitempty"`
-	CPUPercent            float64                            `json:"cpu_percent"`
+	CurrentAttemptID         string                             `json:"current_attempt_id,omitempty"`
+	ActiveAttemptIDs         []string                           `json:"active_attempt_ids,omitempty"`
+	ActiveProgressAttemptIDs []string                           `json:"active_progress_attempt_ids,omitempty"`
+	CPUPercent               float64                            `json:"cpu_percent"`
 	MemoryUsedBytes       int64                              `json:"memory_used_bytes"`
 	MemoryTotalBytes      int64                              `json:"memory_total_bytes"`
 	DiskUsedBytes         int64                              `json:"disk_used_bytes"`
@@ -60,11 +61,12 @@ type HeartbeatRequest struct {
 
 // HeartbeatResponse instructs the runner on lease renewal and whether cancellation is requested.
 type HeartbeatResponse struct {
-	Status             string              `json:"status"`
-	LeaseDurationSec   int                 `json:"lease_duration_sec"`
-	ShouldCancel       bool                `json:"should_cancel"`
-	CanceledAttemptIDs []string            `json:"canceled_attempt_ids,omitempty"`
-	SteeringDirectives []SteeringDirective `json:"steering_directives,omitempty"`
+	Status             string               `json:"status"`
+	LeaseDurationSec   int                  `json:"lease_duration_sec"`
+	ShouldCancel       bool                 `json:"should_cancel"`
+	CanceledAttemptIDs []string             `json:"canceled_attempt_ids,omitempty"`
+	SteeringDirectives []SteeringDirective  `json:"steering_directives,omitempty"`
+	ExtendedDeadlines  map[string]time.Time `json:"extended_deadlines,omitempty"`
 }
 
 // SteeringDirective is sent from server to runner to steer an in-flight attempt.

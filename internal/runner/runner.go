@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/buchin/cuan/internal/agent"
@@ -27,13 +28,15 @@ import (
 const DefaultExecutionOutputFormat = "stream-json"
 
 type activeAttempt struct {
-	attempt   *task.TaskAttempt
-	lane      string
-	cancel    context.CancelFunc
-	steerFunc func(prompt string) error
-	steerChan chan string
-	detached  bool
-	pid       int
+	attempt        *task.TaskAttempt
+	lane           string
+	cancel         context.CancelFunc
+	extendDeadline func(time.Time)
+	steerFunc      func(prompt string) error
+	steerChan      chan string
+	detached       bool
+	pid            int
+	lastActivity   atomic.Int64
 }
 
 type Runner struct {
@@ -325,11 +328,18 @@ func (r *Runner) sendHeartbeat(ctx context.Context, hostname string) {
 
 	r.mu.Lock()
 	var attemptIDs []string
+	var activeProgressIDs []string
 	primaryAttemptID := ""
-	for attID := range r.activeAttempts {
+	idleWindow := task.ProgressIdleTimeout()
+	for attID, act := range r.activeAttempts {
 		attemptIDs = append(attemptIDs, attID)
 		if primaryAttemptID == "" {
 			primaryAttemptID = attID
+		}
+		if act != nil {
+			if last := act.lastActivity.Load(); last > 0 && time.Since(time.Unix(0, last)) < idleWindow {
+				activeProgressIDs = append(activeProgressIDs, attID)
+			}
 		}
 	}
 	if primaryAttemptID == "" && r.currentAttempt != nil {
@@ -354,14 +364,15 @@ func (r *Runner) sendHeartbeat(ctx context.Context, hostname string) {
 		}
 	}
 	reqPayload := HeartbeatRequest{
-		BrowserRuntime:        r.browserRuntimeEvidence(ctx),
-		DependencyPreparation: r.phpPreparationEvidence(),
-		RunnerID:              r.cfg.RunnerID,
-		Hostname:              hostname,
-		SupportedAgents:       []string{r.adapter.Name()},
-		CurrentAttemptID:      primaryAttemptID,
-		ActiveAttemptIDs:      attemptIDs,
-		CPUPercent:            metrics.CPUPercent,
+		BrowserRuntime:           r.browserRuntimeEvidence(ctx),
+		DependencyPreparation:    r.phpPreparationEvidence(),
+		RunnerID:                 r.cfg.RunnerID,
+		Hostname:                 hostname,
+		SupportedAgents:          []string{r.adapter.Name()},
+		CurrentAttemptID:         primaryAttemptID,
+		ActiveAttemptIDs:         attemptIDs,
+		ActiveProgressAttemptIDs: activeProgressIDs,
+		CPUPercent:               metrics.CPUPercent,
 		MemoryUsedBytes:       metrics.MemoryUsedBytes,
 		MemoryTotalBytes:      metrics.MemoryTotalBytes,
 		DiskUsedBytes:         metrics.DiskUsedBytes,
@@ -399,8 +410,42 @@ func (r *Runner) sendHeartbeat(ctx context.Context, hostname string) {
 					}
 				}
 			}
+
+			// Apply activity-extended execution deadlines from server
+			if len(hbResp.ExtendedDeadlines) > 0 {
+				r.mu.Lock()
+				for attID, newDeadline := range hbResp.ExtendedDeadlines {
+					if act, ok := r.activeAttempts[attID]; ok && act != nil && act.extendDeadline != nil {
+						act.extendDeadline(newDeadline)
+					}
+				}
+				r.mu.Unlock()
+			}
 		}
 	}
+}
+
+func (r *Runner) recordAttemptActivity(attemptID string) {
+	if attemptID == "" {
+		return
+	}
+	r.mu.Lock()
+	act := r.activeAttempts[attemptID]
+	r.mu.Unlock()
+	if act != nil {
+		act.lastActivity.Store(time.Now().UnixNano())
+	}
+}
+
+func (r *Runner) setAttemptDeadlineExtender(attemptID string, fn func(time.Time)) {
+	if attemptID == "" {
+		return
+	}
+	r.mu.Lock()
+	if act := r.activeAttempts[attemptID]; act != nil {
+		act.extendDeadline = fn
+	}
+	r.mu.Unlock()
 }
 
 // SteerAttempt delivers an interactive steering prompt into the stdin of an active agent execution.
@@ -571,12 +616,14 @@ func (r *Runner) pollAndExecute(ctx context.Context) {
 	if r.activeAttempts == nil {
 		r.activeAttempts = make(map[string]*activeAttempt)
 	}
-	r.activeAttempts[claimResp.Attempt.ID] = &activeAttempt{
+	act := &activeAttempt{
 		attempt:   claimResp.Attempt,
 		lane:      lane,
 		cancel:    cancelFunc,
 		steerChan: steerChan,
 	}
+	act.lastActivity.Store(time.Now().UnixNano())
+	r.activeAttempts[claimResp.Attempt.ID] = act
 	r.currentAttempt = claimResp.Attempt
 	r.cancelAttempt = cancelFunc
 	r.mu.Unlock()
