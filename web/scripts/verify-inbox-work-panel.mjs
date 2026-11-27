@@ -53,6 +53,7 @@ const earlierTasks=[
   },
 ]
 const allTasks=[...earlierTasks,baseTask]
+let workTaskOverride=null
 const activities=Array.from({length:30},(_,index)=>({id:'progress-'+index,task_id:'work',attempt_id:'attempt',activity_type:'agent_report',new_status:'progress',author:'agent_cuan',message:['Memeriksa sumber masalah.','Meninjau perubahan yang tersimpan.','Menguji tampilan pada browser.','Membandingkan hasil dengan permintaan awal.'][index%4],created_at:new Date(Date.parse(now)+index*1000).toISOString()}))
 activities.push({id:'long-review',task_id:'work',attempt_id:'attempt',activity_type:'coordinator_review_assessment',author:'coordinator',message:JSON.stringify({assessment:{decision:'revise',finding:('Pemeriksaan hasil perlu membandingkan perilaku aplikasi dengan permintaan awal dan bukti yang tersimpan. ').repeat(12)+'Akhir laporan asli.'}}),created_at:new Date(Date.parse(now)+31000).toISOString()})
 activities.push({id:'provider-note',task_id:'work',activity_type:'comment',author:'runner',message:'Provider preflight selected allowed backup account',created_at:now})
@@ -227,7 +228,7 @@ try{
      const reqId=match?match[1]:null
      const matchedContact=reqId?(contactsList.find(c=>c.id===reqId||c.conversation_id===reqId)||contact):contact
      const activeRequests=reqId==='c-agent'?[{request_id:'req-typing-dots',message_id:'source',agent_id:'agent_cuan',state:'running',created_at:now,started_at:now,steps:[]}]:[]
-     data={messages:fixtureMessages,tasks:allTasks,contact:matchedContact,requests:activeRequests}
+     data={messages:fixtureMessages,tasks:workTaskOverride?[...earlierTasks,workTaskOverride]:allTasks,contact:matchedContact,requests:activeRequests}
    }
    else if(pathname==='/api/v1/tasks/work'){
     if(page.url().includes('/sessions/')&&sessionLoading){sessionLoading=false;await new Promise(resolve=>{releaseSession=resolve})}
@@ -418,6 +419,12 @@ try{
   assert.equal(await tasks.getAttribute('data-status'),'working','Header bar badge must reflect latest running task even when an older task needs attention')
   assert.equal(await tasks.locator('[data-status-dot="working"]').count(),1,'Header bar must show working dot next to running latest task title')
   assert.equal(await tasks.locator('svg.lucide-circle-alert, svg.lucide-alert-circle').count(),0,'Header bar must not show red alert icon when latest task is working')
+  const assignedBtn=page.locator('[data-testid="assigned-task-btn"]').first()
+  await assignedBtn.waitFor({state:'visible'})
+  assert.equal(await assignedBtn.locator('[data-status-dot="working"]').count(),1,'Assigned task button must show pulsing working dot while task is running')
+  assert.ok((await assignedBtn.innerText()).includes('Sedang dikerjakan tim'),'Assigned task button must show Sedang dikerjakan tim while running')
+  await assignedBtn.scrollIntoViewIfNeeded()
+  await page.screenshot({path:path.join(output,`assigned-task-running-${width}.png`)})
   assert.equal(await page.locator('.inbox-message-list [data-card="task-card"]').count(),0)
   assert.ok(await page.locator('.inbox-message-list').getByText('Sistem baru saja diperbarui').count() >= 1, 'System update notice message must remain visible in conversation timeline')
   await page.screenshot({path:path.join(output,`inbox-timeline-notice-${width}.png`)})
@@ -804,6 +811,23 @@ try{
     await panel.locator('[data-work-back]').click()
     await panel.waitFor({state:'detached'})
   }
+  // Verify real-time status transition on assigned-task-btn from running (pulsing) to done (calm)
+  workTaskOverride={...baseTask,status:'done',latest_attempt:{...attempt,status:'succeeded',finished_at:now}}
+  await page.evaluate(()=>window.dispatchEvent(new Event('focus')))
+  await page.waitForFunction(()=>{
+    const btn=document.querySelector('[data-testid="assigned-task-btn"]')
+    return btn && !btn.querySelector('[data-status-dot="working"]') && btn.textContent?.includes('Selesai')
+  },null,{timeout:7000})
+  assert.equal(await assignedBtn.locator('[data-status-dot="working"]').count(),0,'Pulsing dot must stop when task finishes')
+  assert.equal(await assignedBtn.locator('svg.lucide-circle-check, svg.lucide-check-circle-2').count(),1,'Completed assigned task button must show calm check icon')
+  await assignedBtn.scrollIntoViewIfNeeded()
+  await page.screenshot({path:path.join(output,`assigned-task-done-${width}.png`)})
+  workTaskOverride=null
+  await page.evaluate(()=>window.dispatchEvent(new Event('focus')))
+  await page.waitForFunction(()=>{
+    const btn=document.querySelector('[data-testid="assigned-task-btn"]')
+    return btn && Boolean(btn.querySelector('[data-status-dot="working"]'))
+  },null,{timeout:7000})
   if (!(await card.isVisible())) {
     await tasks.click()
     await card.waitFor({state:'visible'})
