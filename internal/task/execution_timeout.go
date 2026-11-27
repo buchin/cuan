@@ -18,6 +18,9 @@ const (
 	DefaultVisualInvestigationTimeout = 45 * time.Minute // Visual/multimodal inspection & browser diagnostics
 	DefaultGracePeriod                = 30 * time.Second // Termination tolerance grace period before SIGKILL
 	MaxAttempts                       = 3                // Maximum attempts allowed per task before review/blocked
+	// DefaultMaxAdaptiveExecutionTimeout bounds how long an active attempt's
+	// execution deadline may be extended via activity-based lease renewals.
+	DefaultMaxAdaptiveExecutionTimeout = 180 * time.Minute
 )
 
 // DefaultProgressIdleTimeout is how long a task may run without producing new
@@ -35,6 +38,35 @@ func ProgressIdleTimeout() time.Duration {
 		}
 	}
 	return DefaultProgressIdleTimeout
+}
+
+// MaxAdaptiveExecutionTimeout returns the hard safety ceiling for how long an
+// active attempt may extend its execution deadline via activity-based leases.
+func MaxAdaptiveExecutionTimeout() time.Duration {
+	if v := os.Getenv("CUAN_TASK_MAX_EXECUTION_CAP"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			return d
+		}
+	}
+	return DefaultMaxAdaptiveExecutionTimeout
+}
+
+// MaxAttemptCeiling returns the hard safety upper bound for an attempt's
+// adaptive execution deadline.
+func MaxAttemptCeiling(t *Task, a *TaskAttempt) time.Time {
+	base := AttemptDeadline(t, a)
+	start := a.CreatedAt
+	if a.StartedAt != nil && !a.StartedAt.IsZero() {
+		start = *a.StartedAt
+	}
+	if start.IsZero() {
+		start = time.Now().UTC()
+	}
+	ceiling := start.Add(MaxAdaptiveExecutionTimeout())
+	if base.After(ceiling) {
+		return base
+	}
+	return ceiling
 }
 
 func isVisualInvestigation(titleAndPrompt ...string) bool {

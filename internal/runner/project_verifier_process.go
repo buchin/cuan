@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -17,8 +18,22 @@ import (
 
 const projectVerifierOutputLimit = 12000
 const projectVerifierTimeout = 5 * time.Minute
+const projectVerifierMaxTimeout = 30 * time.Minute
 
 type projectVerifierBuildEnvironmentKey struct{}
+type projectVerifierActivityKey struct{}
+
+func withProjectVerifierActivity(ctx context.Context, fn func()) context.Context {
+	if fn == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, projectVerifierActivityKey{}, fn)
+}
+
+func projectVerifierActivityCallback(ctx context.Context) func() {
+	fn, _ := ctx.Value(projectVerifierActivityKey{}).(func())
+	return fn
+}
 
 // Native checks must reuse the build caches already leased for this execution,
 // rather than falling back to the supervisor's unrelated HOME. Carry only build
@@ -54,11 +69,17 @@ func projectVerifierBuildEnvironment(ctx context.Context) []string {
 // Keep the diagnostic tail bounded while a verifier is running, including
 // simultaneous stdout/stderr. A noisy child cannot grow the runner's heap.
 type verifierOutputTail struct {
-	mu   sync.Mutex
-	data []byte
+	mu           sync.Mutex
+	data         []byte
+	lastActivity atomic.Int64
+	onActivity   func()
 }
 
 func (b *verifierOutputTail) Write(p []byte) (int, error) {
+	b.lastActivity.Store(time.Now().UnixNano())
+	if b.onActivity != nil {
+		b.onActivity()
+	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	n := len(p)
@@ -83,7 +104,14 @@ func runProjectVerifierCommand(parent context.Context, root, command string, arg
 }
 
 func runProjectVerifierCommandEnvironment(parent context.Context, root string, environment []string, command string, args ...string) verificationResult {
-	ctx, cancel := context.WithTimeout(parent, projectVerifierTimeout)
+	return runProjectVerifierCommandWithWatchdog(parent, root, environment, projectVerifierTimeout, projectVerifierMaxTimeout, command, args...)
+}
+
+func runProjectVerifierCommandWithWatchdog(parent context.Context, root string, environment []string, idleTimeout, maxTimeout time.Duration, command string, args ...string) verificationResult {
+	if maxTimeout <= 0 {
+		maxTimeout = projectVerifierMaxTimeout
+	}
+	ctx, cancel := context.WithTimeout(parent, maxTimeout)
 	defer cancel()
 	// Go leaves its work directory behind when the compiler tree is killed.
 	// Own that scratch space per command; keep shared build/module caches intact.
@@ -109,10 +137,40 @@ func runProjectVerifierCommandEnvironment(parent context.Context, root string, e
 		return agentrunner.KillProcessTree(cmd.Process.Pid)
 	}
 	cmd.WaitDelay = 500 * time.Millisecond
-	var output verifierOutputTail
+	output := verifierOutputTail{onActivity: projectVerifierActivityCallback(parent)}
+	output.lastActivity.Store(time.Now().UnixNano())
 	cmd.Stdout = &output
 	cmd.Stderr = &output
+
+	var stalled atomic.Bool
+	done := make(chan struct{})
+	if idleTimeout > 0 {
+		poll := min(idleTimeout/4, 5*time.Second)
+		if poll <= 0 {
+			poll = 20 * time.Millisecond
+		}
+		go func() {
+			ticker := time.NewTicker(poll)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-done:
+					return
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					if time.Since(time.Unix(0, output.lastActivity.Load())) >= idleTimeout {
+						stalled.Store(true)
+						cancel()
+						return
+					}
+				}
+			}
+		}()
+	}
+
 	err = cmd.Run()
+	close(done)
 	// Also clean up descendants left behind by an exited verifier script.
 	if cmd.Process != nil {
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
@@ -132,8 +190,10 @@ func runProjectVerifierCommandEnvironment(parent context.Context, root string, e
 			reason = "Project verification stopped at the task deadline"
 		case errors.Is(parent.Err(), context.Canceled):
 			reason = "Project verification canceled"
+		case stalled.Load():
+			reason = fmt.Sprintf("Project verification stalled after %s without output", idleTimeout.Round(time.Second))
 		case errors.Is(ctx.Err(), context.DeadlineExceeded):
-			reason = "Project verification timed out after 5 minutes"
+			reason = fmt.Sprintf("Project verification timed out after %s safety ceiling", maxTimeout.Round(time.Second))
 		case errors.Is(err, exec.ErrWaitDelay):
 			reason = "Project verifier exited without closing child output"
 		case cmd.ProcessState == nil:

@@ -569,6 +569,78 @@ func (s *DBStore) RenewLease(ctx context.Context, attemptID, runnerID string, le
 	return cancel, nil
 }
 
+func (s *DBStore) RenewLeaseWithActivity(ctx context.Context, attemptID, runnerID string, leaseDuration time.Duration, activeProgress bool, deadlineExtension, maxCeiling time.Duration) (bool, *time.Time, error) {
+	if !activeProgress || deadlineExtension <= 0 {
+		cancel, err := s.RenewLease(ctx, attemptID, runnerID, leaseDuration)
+		return cancel, nil, err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, nil, err
+	}
+	defer tx.Rollback()
+
+	var (
+		cancel            bool
+		executionDeadline *time.Time
+		startedAt         *time.Time
+		createdAt         time.Time
+	)
+	err = tx.QueryRowContext(ctx,
+		`SELECT COALESCE(cancel_requested,false), execution_deadline, started_at, created_at
+		 FROM task_attempts
+		 WHERE id=$1 AND runner_id=$2 AND status='running' AND lease_expires_at>NOW()
+		 FOR UPDATE`,
+		attemptID, runnerID).Scan(&cancel, &executionDeadline, &startedAt, &createdAt)
+	if err == sql.ErrNoRows {
+		return false, nil, task.ErrAttemptFinal
+	}
+	if err != nil {
+		return false, nil, err
+	}
+	if cancel {
+		return true, nil, nil
+	}
+
+	now := time.Now().UTC()
+	leaseExpires := now.Add(leaseDuration)
+	anchor := createdAt
+	if startedAt != nil && !startedAt.IsZero() {
+		anchor = *startedAt
+	}
+	if anchor.IsZero() {
+		anchor = now
+	}
+	candidate := now.Add(deadlineExtension)
+	if maxCeiling > 0 {
+		hardCap := anchor.Add(maxCeiling)
+		if executionDeadline != nil && executionDeadline.After(hardCap) {
+			hardCap = *executionDeadline
+		}
+		if candidate.After(hardCap) {
+			candidate = hardCap
+		}
+	}
+
+	var extended *time.Time
+	newDeadline := executionDeadline
+	if executionDeadline == nil || candidate.After(*executionDeadline) {
+		newDeadline = &candidate
+		cp := candidate
+		extended = &cp
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE task_attempts SET lease_expires_at=$2, execution_deadline=$3 WHERE id=$1`,
+		attemptID, leaseExpires, newDeadline); err != nil {
+		return false, nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, nil, err
+	}
+	return false, extended, nil
+}
+
 func (s *DBStore) MarkInterruptedLeases(ctx context.Context) ([]*task.TaskAttempt, error) {
 	now := time.Now().UTC()
 	query := `

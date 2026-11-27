@@ -436,26 +436,58 @@ func (m *MemoryStore) ClaimNextQueuedAttempt(ctx context.Context, runnerID strin
 }
 
 func (m *MemoryStore) RenewLease(ctx context.Context, attemptID, runnerID string, leaseDuration time.Duration) (bool, error) {
+	canceled, _, err := m.RenewLeaseWithActivity(ctx, attemptID, runnerID, leaseDuration, false, 0, 0)
+	return canceled, err
+}
+
+func (m *MemoryStore) RenewLeaseWithActivity(ctx context.Context, attemptID, runnerID string, leaseDuration time.Duration, activeProgress bool, deadlineExtension, maxCeiling time.Duration) (bool, *time.Time, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	att, err := m.taskStore.GetAttempt(ctx, attemptID)
 	if err != nil {
-		return false, err
-	}
-
-	if att.RunnerID != runnerID || att.Status != task.AttemptStatusRunning || (att.LeaseExpiresAt != nil && !att.LeaseExpiresAt.After(time.Now())) {
-		return false, task.ErrAttemptFinal
-	}
-	if att.CancelRequested || att.Status == task.AttemptStatusCanceled {
-		return true, nil
+		return false, nil, err
 	}
 
 	now := time.Now().UTC()
+	if att.RunnerID != runnerID || att.Status != task.AttemptStatusRunning || (att.LeaseExpiresAt != nil && !att.LeaseExpiresAt.After(now)) {
+		return false, nil, task.ErrAttemptFinal
+	}
+	if att.CancelRequested || att.Status == task.AttemptStatusCanceled {
+		return true, nil, nil
+	}
+
 	leaseExpires := now.Add(leaseDuration)
 	att.LeaseExpiresAt = &leaseExpires
+
+	var extended *time.Time
+	if activeProgress && deadlineExtension > 0 {
+		anchor := att.CreatedAt
+		if att.StartedAt != nil && !att.StartedAt.IsZero() {
+			anchor = *att.StartedAt
+		}
+		if anchor.IsZero() {
+			anchor = now
+		}
+		candidate := now.Add(deadlineExtension)
+		if maxCeiling > 0 {
+			hardCap := anchor.Add(maxCeiling)
+			if att.ExecutionDeadline != nil && att.ExecutionDeadline.After(hardCap) {
+				hardCap = *att.ExecutionDeadline
+			}
+			if candidate.After(hardCap) {
+				candidate = hardCap
+			}
+		}
+		if att.ExecutionDeadline == nil || candidate.After(*att.ExecutionDeadline) {
+			att.ExecutionDeadline = &candidate
+			cp := candidate
+			extended = &cp
+		}
+	}
+
 	if err := m.taskStore.UpdateAttempt(ctx, att); err != nil {
-		return false, err
+		return false, nil, err
 	}
 
 	if r, exists := m.runners[runnerID]; exists {
@@ -463,7 +495,7 @@ func (m *MemoryStore) RenewLease(ctx context.Context, attemptID, runnerID string
 		r.UpdatedAt = now
 	}
 
-	return false, nil
+	return false, extended, nil
 }
 
 func (m *MemoryStore) MarkInterruptedLeases(ctx context.Context) ([]*task.TaskAttempt, error) {
