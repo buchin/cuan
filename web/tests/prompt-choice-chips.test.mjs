@@ -28,8 +28,8 @@ test('2. PromptChoiceChips conforms to Zero Cognitive Fatigue and Mobile Touch T
 
   // WCAG touch target: min-h-11 (44px)
   assert.ok(chipsSrc.includes('min-h-11'), 'PromptChoiceChips must have min-h-11 for 44px mobile touch targets')
-  // Things 3 / Bear Notes calm design: rounded-xl
-  assert.ok(chipsSrc.includes('rounded-xl'), 'Buttons must use rounded-xl for clean, calm visual hierarchy')
+  // Shared Button component enforces the square bordered button design system
+  assert.ok(chipsSrc.includes("from '../../components/ui/button'") && chipsSrc.includes('<Button'), 'Buttons must reuse shared Button component')
   // Interactive role group & accessibility
   assert.ok(chipsSrc.includes('role="group"'), 'Chips container must declare role="group"')
   assert.ok(chipsSrc.includes('data-testid="prompt-choice-chips"'), 'Container must have data-testid="prompt-choice-chips"')

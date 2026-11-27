@@ -64,8 +64,8 @@ test('2. S64-T2: Calm Status Badge ("• Berjalan" / "• Live") Things 3 Standa
     'TaskTerminal status badge must include subtle emerald pulse dot',
   )
   assert.ok(
-    content.includes('bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'),
-    'TaskTerminal status badge must follow Things 3 calm zero-noise styling',
+    content.includes('<Badge') && content.includes('variant="success"'),
+    'TaskTerminal status badge must use shared borderless pill Badge with success variant',
   )
 
   // Status badge in TaskSessionPage header synchronization
