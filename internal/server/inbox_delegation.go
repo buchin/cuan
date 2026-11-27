@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/executionpolicy"
 	"github.com/buchin/cuan/internal/task"
 	"github.com/buchin/dodeval"
 )
@@ -53,7 +54,10 @@ type inboxDelegation struct {
 	AgentID           string `json:"agent_id,omitempty"`
 	// RequiredStages carries the approved acceptance stages from the plan.
 	// Nil means the approval did not declare them.
-	RequiredStages []string `json:"required_stages,omitempty"`
+	RequiredStages     []string `json:"required_stages,omitempty"`
+	AllowPush          *bool    `json:"allow_push,omitempty"`
+	AllowDeploy        *bool    `json:"allow_deploy,omitempty"`
+	ReadOnlyRepository *bool    `json:"read_only_repository,omitempty"`
 }
 
 func parseInboxDelegation(content string) (string, *inboxDelegation, error) {
@@ -533,7 +537,14 @@ func (s *Server) applyInboxDelegation(ctx context.Context, q db.InboxRequest, co
 		// At most one task per user-approved scope. Repeated responses reuse it.
 		approvalText, _ := decodeAttachmentMessage(authorization.Content)
 		historyContext := formatConversationHistoryContext(messages, d.AuthorizationID, 10)
-		instructions := "Cuan managed delegation v1.\n" + delegationScopeDigest(*d) + "\n" + d.Description + "\n\nApproval message: " + d.AuthorizationID + "\nUser authorization: " + approvalText + attachmentContextWithBudget(q.OwnerID, s.inboxAttachmentIDs(ctx, q), 0) + "\nConversation: " + q.RoomID
+		contractLine := ""
+		if d.AllowPush != nil || d.AllowDeploy != nil || d.ReadOnlyRepository != nil {
+			allowPush := d.AllowPush == nil || *d.AllowPush
+			allowDeploy := d.AllowDeploy == nil || *d.AllowDeploy
+			readOnly := d.ReadOnlyRepository != nil && *d.ReadOnlyRepository
+			contractLine = "\n" + executionpolicy.FormatContract(allowPush, allowDeploy, readOnly)
+		}
+		instructions := "Cuan managed delegation v1.\n" + delegationScopeDigest(*d) + contractLine + "\n" + d.Description + "\n\nApproval message: " + d.AuthorizationID + "\nUser authorization: " + approvalText + attachmentContextWithBudget(q.OwnerID, s.inboxAttachmentIDs(ctx, q), 0) + "\nConversation: " + q.RoomID
 		if historyContext != "" {
 			instructions += "\n\n" + historyContext
 		}

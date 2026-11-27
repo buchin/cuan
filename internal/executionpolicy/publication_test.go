@@ -265,3 +265,23 @@ func TestMismatchConditionDoesNotProhibitDeployment(t *testing.T) {
 		}
 	}
 }
+
+func TestStructuredPublicationContractOverridesTextHeuristics(t *testing.T) {
+	allowAll := FormatContract(true, true, false) + "\nデプロイしないでください / jangan deploy / tidak cocok dengan skrip deploy"
+	got := FromInstructions(allowAll)
+	if got.ReadOnlyRepository || got.DenyPush || got.DenyDeploy {
+		t.Fatalf("structured contract should override text heuristics: %+v", got)
+	}
+
+	readOnly := FormatContract(true, true, true) + "\nImplement and deploy this feature"
+	gotRO := FromInstructions(readOnly)
+	if !gotRO.ReadOnlyRepository || !gotRO.DenyPush || !gotRO.DenyDeploy {
+		t.Fatalf("read_only_repository=true must deny push and deploy: %+v", gotRO)
+	}
+
+	pushOnly := FormatContract(true, false, false) + "\nDeploy everything"
+	gotPO := FromInstructions(pushOnly)
+	if gotPO.ReadOnlyRepository || gotPO.DenyPush || !gotPO.DenyDeploy {
+		t.Fatalf("allow_push=true allow_deploy=false failed: %+v", gotPO)
+	}
+}

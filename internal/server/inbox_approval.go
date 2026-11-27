@@ -66,8 +66,11 @@ type inboxApprovalPlan struct {
 	ExecutionCategory string                 `json:"execution_category,omitempty"`
 	// RequiredStages declares which acceptance stages this work must reach.
 	// Absent means "not declared" and keeps the previous behaviour.
-	RequiredStages []string               `json:"required_stages,omitempty"`
-	Continuation   *inboxContinuationPlan `json:"continuation,omitempty"`
+	RequiredStages     []string               `json:"required_stages,omitempty"`
+	AllowPush          *bool                  `json:"allow_push,omitempty"`
+	AllowDeploy        *bool                  `json:"allow_deploy,omitempty"`
+	ReadOnlyRepository *bool                  `json:"read_only_repository,omitempty"`
+	Continuation       *inboxContinuationPlan `json:"continuation,omitempty"`
 }
 type approvedInboxPlan struct {
 	Action          string            `json:"action,omitempty"`
@@ -224,7 +227,7 @@ func decodeApprovedInboxPlan(content string) *approvedInboxPlan {
 }
 
 func approvedPlanDelegation(plan *approvedInboxPlan, authorization string) string {
-	d := inboxDelegation{Title: plan.Plan.Title, Description: plan.Plan.Description, ProjectID: plan.Plan.ProjectID, ProjectName: plan.Plan.ProjectName, AuthorizationID: authorization, RequiredStages: plan.Plan.RequiredStages}
+	d := inboxDelegation{Title: plan.Plan.Title, Description: plan.Plan.Description, ProjectID: plan.Plan.ProjectID, ProjectName: plan.Plan.ProjectName, AuthorizationID: authorization, RequiredStages: plan.Plan.RequiredStages, AllowPush: plan.Plan.AllowPush, AllowDeploy: plan.Plan.AllowDeploy, ReadOnlyRepository: plan.Plan.ReadOnlyRepository}
 	if c := plan.Plan.Continuation; c != nil {
 		d = inboxDelegation{TaskID: c.TaskID, ProjectID: plan.Plan.ProjectID, Revision: c.Revision, AuthorizationID: authorization}
 	}

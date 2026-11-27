@@ -1,6 +1,7 @@
 package executionpolicy
 
 import (
+	"fmt"
 	"regexp"
 )
 
@@ -66,8 +67,32 @@ var falsePositiveAssertion = regexp.MustCompile(`(?i)\b(?:tidak\s+ada|tanpa|no)\
 // "do not match") is not a prohibition on deployment.
 var mismatchCondition = regexp.MustCompile(`(?i)\b(?:tidak\s+(?:cocok|sesuai|identik|sama)|(?:do|does|did)\s+not\s+match)\b`)
 
+var publicationContractLine = regexp.MustCompile(`(?m)^Publication policy contract:\s*allow_push=(true|false)\s+allow_deploy=(true|false)\s+read_only_repository=(true|false)\s*$`)
+
+// FormatContract formats an explicit machine-readable publication policy
+// contract emitted by the AI Coordinator or approved plan.
+func FormatContract(allowPush, allowDeploy, readOnly bool) string {
+	if readOnly {
+		allowPush, allowDeploy = false, false
+	}
+	return fmt.Sprintf("Publication policy contract: allow_push=%t allow_deploy=%t read_only_repository=%t", allowPush, allowDeploy, readOnly)
+}
+
 func FromInstructions(instructions string) PublicationPolicy {
 	instructions = publicationScope(instructions)
+	if match := publicationContractLine.FindStringSubmatch(instructions); len(match) == 4 {
+		allowPush := match[1] == "true"
+		allowDeploy := match[2] == "true"
+		readOnly := match[3] == "true"
+		if readOnly {
+			return PublicationPolicy{ReadOnlyRepository: true, DenyPush: true, DenyDeploy: true}
+		}
+		return PublicationPolicy{
+			ReadOnlyRepository: false,
+			DenyPush:           !allowPush,
+			DenyDeploy:         !allowDeploy,
+		}
+	}
 	instructions = completedNativeInspection.ReplaceAllString(instructions, "${1}${2}")
 	instructions = historicalAuditReference.ReplaceAllString(instructions, " prior audit ")
 	instructions = deploymentCancellationCaution.ReplaceAllString(instructions, "${1} release")
