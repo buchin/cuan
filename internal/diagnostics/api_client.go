@@ -543,15 +543,38 @@ func (c *CuanClient) ListConversations(ctx context.Context, projectID string, li
 	return res, nil
 }
 
+// TaskListPage represents a paginated response from the tasks API.
+type TaskListPage struct {
+	Tasks      []map[string]any `json:"tasks"`
+	Total      int              `json:"total"`
+	TotalCount int              `json:"total_count"`
+	Limit      int              `json:"limit"`
+	Offset     int              `json:"offset"`
+	HasMore    bool             `json:"has_more"`
+	NextOffset *int             `json:"next_offset,omitempty"`
+}
+
 // ListTasks queries tasks from the Cuan API.
 func (c *CuanClient) ListTasks(ctx context.Context, projectID, status string, limit int) ([]map[string]any, error) {
+	page, err := c.ListTasksPage(ctx, projectID, status, limit, 0)
+	if err != nil {
+		return nil, err
+	}
+	return page.Tasks, nil
+}
+
+// ListTasksPage queries a paginated list of tasks from the Cuan API.
+func (c *CuanClient) ListTasksPage(ctx context.Context, projectID, status string, limit, offset int) (*TaskListPage, error) {
 	if limit <= 0 {
 		limit = 20
 	} else if limit > 100 {
 		limit = 100
 	}
+	if offset < 0 {
+		offset = 0
+	}
 
-	endpoint := fmt.Sprintf("/api/v1/tasks?limit=%d", limit)
+	endpoint := fmt.Sprintf("/api/v1/tasks?limit=%d&offset=%d", limit, offset)
 	if projectID != "" {
 		endpoint += "&project_id=" + url.QueryEscape(projectID)
 	}
@@ -571,19 +594,64 @@ func (c *CuanClient) ListTasks(ctx context.Context, projectID, status string, li
 	}
 
 	var data struct {
-		Tasks []map[string]any `json:"tasks"`
+		Tasks      []map[string]any `json:"tasks"`
+		Total      int              `json:"total"`
+		TotalCount *int             `json:"total_count"`
+		Offset     *int             `json:"offset"`
+		HasMore    *bool            `json:"has_more"`
 	}
 	if err := json.Unmarshal(bodyBytes, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal tasks: %w", err)
 	}
 
-	if data.Tasks == nil {
-		data.Tasks = []map[string]any{}
+	tasks := data.Tasks
+	if tasks == nil {
+		tasks = []map[string]any{}
 	}
-	if limit > 0 && len(data.Tasks) > limit {
-		data.Tasks = data.Tasks[:limit]
+
+	var totalCount int
+	if data.TotalCount != nil {
+		totalCount = *data.TotalCount
+		if limit > 0 && len(tasks) > limit {
+			tasks = tasks[:limit]
+		}
+	} else {
+		// Legacy server that did not apply offset/limit or return total_count.
+		totalCount = data.Total
+		if len(tasks) > totalCount {
+			totalCount = len(tasks)
+		}
+		if offset > 0 {
+			if offset >= len(tasks) {
+				tasks = []map[string]any{}
+			} else {
+				tasks = tasks[offset:]
+			}
+		}
+		if limit > 0 && len(tasks) > limit {
+			tasks = tasks[:limit]
+		}
 	}
-	return data.Tasks, nil
+
+	hasMore := offset+len(tasks) < totalCount
+	if data.HasMore != nil && data.TotalCount != nil {
+		hasMore = *data.HasMore
+	}
+	var nextOffset *int
+	if hasMore {
+		next := offset + len(tasks)
+		nextOffset = &next
+	}
+
+	return &TaskListPage{
+		Tasks:      tasks,
+		Total:      len(tasks),
+		TotalCount: totalCount,
+		Limit:      limit,
+		Offset:     offset,
+		HasMore:    hasMore,
+		NextOffset: nextOffset,
+	}, nil
 }
 
 // GetTask returns a specific task by ID.

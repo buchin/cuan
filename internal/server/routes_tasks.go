@@ -207,6 +207,21 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 		tasks = []*task.TaskItemResponse{}
 	}
 
+	totalCount := len(tasks)
+	offset := 0
+	if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
+		if parsedOffset, err := strconv.Atoi(offsetStr); err == nil && parsedOffset > 0 {
+			offset = parsedOffset
+		}
+	}
+	if offset > 0 {
+		if offset >= len(tasks) {
+			tasks = []*task.TaskItemResponse{}
+		} else {
+			tasks = tasks[offset:]
+		}
+	}
+
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
 		if limit, err := strconv.Atoi(limitStr); err == nil && limit > 0 && len(tasks) > limit {
 			tasks = tasks[:limit]
@@ -217,10 +232,18 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 		respondJSONError(w, 503, "Could not read task review findings")
 		return
 	}
-	respondJSON(w, http.StatusOK, map[string]interface{}{
-		"tasks": tasks,
-		"total": len(tasks),
-	})
+	hasMore := offset+len(tasks) < totalCount
+	resp := map[string]interface{}{
+		"tasks":       tasks,
+		"total":       len(tasks),
+		"total_count": totalCount,
+		"offset":      offset,
+		"has_more":    hasMore,
+	}
+	if hasMore {
+		resp["next_offset"] = offset + len(tasks)
+	}
+	respondJSON(w, http.StatusOK, resp)
 }
 
 func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {

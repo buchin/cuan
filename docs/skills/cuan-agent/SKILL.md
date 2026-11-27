@@ -123,7 +123,7 @@ Configured in `~/.gemini/antigravity-cli/mcp_config.json`:
 - `create_inbox_conversation`: Create a room with an agent persona
 - `send_inbox_message`: Send a message and await assistant response
 - `update_task_status`: Update status, summary, and verification evidence
-- `list_tasks`, `get_task`, `create_task_draft`: Task board management
+- `list_tasks`, `get_task`, `create_task_draft`: Task board management (`list_tasks` returns compact summaries by default with `limit`/`offset`/`has_more`/`next_offset`/`total_count` paging; `get_task` returns bounded details with `status` and `latest_attempt.status`; both accept `full: true` for uncompacted payloads)
 - `list_inbox_conversations`, `get_inbox_messages`: Conversation inspection
 - `list_projects`, `get_project`: Project repositories
 - `get_project_deployment_config`, `update_project_deployment_config`: Declarative project deployment configuration (auto_deploy, deploy_branch, deploy_script)
