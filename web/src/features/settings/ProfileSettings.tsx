@@ -5,6 +5,7 @@ import { apiFetch } from '../../api/client'
 import { ChangePasswordModal } from '../../components/auth/ChangePasswordModal'
 import { GroupedSection, GroupedRow } from '../../components/layout/GroupedSection'
 import { Input } from '../../components/ui/forms'
+import { Badge } from '../../components/ui/badge'
 import { User, KeyRound, Mail, Shield, LogOut } from 'lucide-react'
 
 export function ProfileSettings() {
@@ -98,15 +99,12 @@ export function ProfileSettings() {
               : t('Akses penuh: mengelola tim staf, setelan model AI, koneksi aplikasi, dan operasional bisnis.')}
           </p>
         </div>
-        <span
-          className={`px-2.5 py-1 text-xs font-semibold rounded-full uppercase tracking-wider border shrink-0 ${
-            !isOwner
-              ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
-              : 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30'
-          }`}
+        <Badge
+          variant={!isOwner ? 'info' : 'success'}
+          className="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider shrink-0"
         >
           {!isOwner ? t('Member') : t('Owner')}
-        </span>
+        </Badge>
       </div>
 
       {error && (

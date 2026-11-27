@@ -1029,16 +1029,13 @@ export function TeamView({
                               <span className="font-mono text-xs text-muted-foreground">
                                 {getAgentHandle(a)}
                               </span>
-                              <span
-                                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold border ${
-                                  state?.verified
-                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                                    : 'bg-muted text-muted-foreground border-border'
-                                }`}
+                              <Badge
+                                variant={state?.verified ? 'success' : 'neutral'}
+                                className="gap-1.5 font-semibold"
                               >
                                 {state?.verified && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
                                 <span>{state?.verified ? t('Aktif & Siap') : t('Menunggu Verifikasi')}</span>
-                              </span>
+                              </Badge>
                             </div>
                             <p className="text-xs sm:text-sm text-muted-foreground truncate">
                               {a.role || t('Cuan Universal Assistant')}
@@ -1297,16 +1294,17 @@ export function TeamView({
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <span
-                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold border ${
+                <Badge
+                  variant={
                     state.verified
-                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                      ? 'success'
                       : state.state === 'quota_limited'
-                        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                        ? 'warning'
                         : state.state === 'login_required' || state.state === 'unavailable'
-                          ? 'bg-destructive/10 text-destructive border-destructive/20'
-                          : 'bg-muted text-muted-foreground border-border'
-                  }`}
+                          ? 'destructive'
+                          : 'neutral'
+                  }
+                  className="gap-1.5 py-1 font-semibold"
                 >
                   {state.verified && (
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -1316,7 +1314,7 @@ export function TeamView({
                       ? t('Check needed')
                       : t('Not checked')
                     : t(state.label)}
-                </span>
+                </Badge>
                 {canManageAgents && (
                   <AgentActions
                     name={a.name}
@@ -1894,16 +1892,13 @@ export function TeamView({
                                   {t('Anda')}
                                 </span>
                               )}
-                              <span
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold rounded-full border ${
-                                  isMemberOwner
-                                    ? 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30'
-                                    : 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
-                                }`}
+                              <Badge
+                                variant={isMemberOwner ? 'success' : 'info'}
+                                className="px-2 py-0.5 text-[11px] font-semibold"
                               >
                                 {isMemberOwner ? <Shield className="h-3 w-3" /> : <User className="h-3 w-3" />}
                                 <span className="capitalize">{isMemberOwner ? t('Owner') : t('Member')}</span>
-                              </span>
+                              </Badge>
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400 bg-green-500/10 rounded">
                                 <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
                                 <span>{t('Aktif')}</span>

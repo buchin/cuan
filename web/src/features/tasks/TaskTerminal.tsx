@@ -21,6 +21,7 @@ import {
   LoaderCircle,
 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
+import { Badge } from '../../components/ui/badge'
 import { getAuthToken } from '../../api/client'
 import { tasksApi, type LiveTaskSession, type TaskLog } from '../../api/tasks'
 import type { TaskAttempt } from '../../api/types'
@@ -1643,13 +1644,14 @@ export function TaskTerminal({
       {(isFullscreen || (!controlsTarget && !hideStatus)) && (
         <div className="flex items-center gap-1.5 min-w-0">
           {isTaskActive && (connection === 'streaming' || connection === 'connected') ? (
-            <span
-              className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-2xs"
+            <Badge
+              variant="success"
+              className="gap-1.5 px-2 py-0.5 text-[11px] font-medium"
               role="status"
             >
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse task-pulse-subtle" />
               <span>{language === 'id' ? '• Berjalan' : '• Live'}</span>
-            </span>
+            </Badge>
           ) : (
             <span
               role="status"
