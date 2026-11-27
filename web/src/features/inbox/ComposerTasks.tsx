@@ -236,13 +236,13 @@ function getComposerTaskBadgeStatus(task?: Task): TaskStateKey {
   return 'neutral'
 }
 
-function TaskStatusIcon({ task, size = 'md' }: { task: Task; size?: 'sm' | 'md' }) {
+export function TaskStatusIcon({ task, size = 'md' }: { task: Task; size?: 'sm' | 'md' }) {
   const { t } = useLanguage()
   const work = workStatus(task)
   const status = workDisplayStatus(task)
   const sizeClass = size === 'sm' ? 'h-3.5 w-3.5' : 'h-4 w-4'
   if (status === 'Completed' || work === 'Answered') {
-    return <CheckCircle2 className="h-4 w-4 shrink-0 text-[color:var(--status-success)]" aria-label={t(status)} />
+    return <CheckCircle2 className={cn(sizeClass, 'shrink-0 text-[color:var(--status-success)]')} aria-label={t(status)} />
   }
   if (taskExecutionActive(task)) {
     return <StatusDot status="working" size="xs" label={t(status)} />

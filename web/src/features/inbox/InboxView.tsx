@@ -8,7 +8,8 @@ import { ComposerInput, resizeComposerInput } from '../../components/ui/Composer
 import { ReplyDraftCard } from './ReplyDraftCard'
 import { useMessageReceipts } from './useMessageReceipts'
 import { InternalVisibility } from '../../components/ui/InternalVisibility'
-import { workStatus, workDisplayStatus } from '../tasks/task-ui'
+import { workStatus, workDisplayStatus, taskExecutionActive } from '../tasks/task-ui'
+import { TaskStatusIcon } from './ComposerTasks'
 import { setRoomActiveSubstage } from './task-substage'
 import { pickPriorityTask } from './conversation-status'
 import { startsMessageGroup } from './message-group'
@@ -63,7 +64,6 @@ import {
   CheckCircle2,
   MailCheck,
   Play,
-  CheckSquare,
   Sparkles,
   RefreshCw,
   ChevronLeft,
@@ -178,6 +178,32 @@ interface InboxViewProps {
   onCreateProject?: () => void
   checkRuntime?: boolean
   onRetrySetup?: () => void
+}
+
+function tasksListUnchanged(prev: Task[], next: Task[]): boolean {
+  if (prev.length !== next.length) return false
+  for (let i = 0; i < prev.length; i++) {
+    const a = prev[i]
+    const b = next[i]
+    if (
+      a.id !== b.id ||
+      a.status !== b.status ||
+      a.updated_at !== b.updated_at ||
+      a.title !== b.title ||
+      a.execution_status !== b.execution_status ||
+      a.review_state !== b.review_state ||
+      a.review_action !== b.review_action ||
+      a.result_kind !== b.result_kind ||
+      a.latest_attempt?.status !== b.latest_attempt?.status ||
+      a.latest_attempt?.cancel_requested !== b.latest_attempt?.cancel_requested ||
+      a.latest_attempt?.canceled_at !== b.latest_attempt?.canceled_at ||
+      a.launch?.state !== b.launch?.state ||
+      a.launch?.kind !== b.launch?.kind
+    ) {
+      return false
+    }
+  }
+  return true
 }
 
 function isSameConversation(a?: string | null, b?: string | null, contact?: ChatContact | null): boolean {
@@ -769,22 +795,7 @@ export function InboxView({
         })
         setLinkedTasks((prev) => {
           const next = data.tasks || []
-          if (prev.length === next.length) {
-            let same = true
-            for (let i = 0; i < prev.length; i++) {
-              if (
-                prev[i].id !== next[i].id ||
-                prev[i].status !== next[i].status ||
-                prev[i].updated_at !== next[i].updated_at ||
-                prev[i].title !== next[i].title
-              ) {
-                same = false
-                break
-              }
-            }
-            if (same) return prev
-          }
-          return next
+          return tasksListUnchanged(prev, next) ? prev : next
         })
         if (data.tasks) cacheTasks(data.tasks)
         if (data.contact && activeContact) {
@@ -1089,22 +1100,7 @@ export function InboxView({
           })
           setLinkedTasks((prev) => {
             const next = data.tasks || []
-            if (prev.length === next.length) {
-              let same = true
-              for (let i = 0; i < prev.length; i++) {
-                if (
-                  prev[i].id !== next[i].id ||
-                  prev[i].status !== next[i].status ||
-                  prev[i].updated_at !== next[i].updated_at ||
-                  prev[i].title !== next[i].title
-                ) {
-                  same = false
-                  break
-                }
-              }
-              if (same) return prev
-            }
-            return next
+            return tasksListUnchanged(prev, next) ? prev : next
           })
           if (data.tasks) cacheTasks(data.tasks)
           if (data.room_title && activeContact && activeContact.name !== data.room_title) {
@@ -2207,21 +2203,26 @@ export function InboxView({
                         </div>
                       )}
 
-                      {isOutgoing && msg.uuid && linkedTasks.some((t) => t.source_message_id === msg.uuid) && (
-                        <button
-                          type="button"
-                          data-testid="assigned-task-btn"
-                          onClick={() => {
-                            const task = linkedTasks.find((t) => t.source_message_id === msg.uuid)
-                            if (task) handleOpenTaskDrawer(task)
-                          }}
-                          className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer bg-transparent border-0 p-0"
-                          title={t('View in Tasks')}
-                        >
-                          <CheckSquare className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span>{t('Assigned to task')}</span>
-                        </button>
-                      )}
+                      {(() => {
+                        const task = isOutgoing && msg.uuid ? linkedTasks.find((t) => t.source_message_id === msg.uuid) : undefined
+                        if (!task) return null
+                        const isActive = taskExecutionActive(task)
+                        const displayStatus = workDisplayStatus(task)
+                        const labelText = isActive && displayStatus !== 'Deploying' ? t('Assigned to task') : t(displayStatus)
+                        return (
+                          <button
+                            type="button"
+                            data-testid="assigned-task-btn"
+                            data-task-status={displayStatus}
+                            onClick={() => handleOpenTaskDrawer(task)}
+                            className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer bg-transparent border-0 p-0"
+                            title={t('View in Tasks')}
+                          >
+                            <TaskStatusIcon task={task} size="sm" />
+                            <span>{labelText}</span>
+                          </button>
+                        )
+                      })()}
                       {isFormattedMessage && (
                         <div className="wa-markdown-footer">{metadata}</div>
                       )}
