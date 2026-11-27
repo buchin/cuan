@@ -247,3 +247,35 @@ func TestTaskService_Filtering(t *testing.T) {
 		t.Fatalf("expected 1 task for 'Frontend', got %d (err: %v)", len(searchTasks), err)
 	}
 }
+
+func TestUpdateTask_NoOpDoesNotRecordUpdatedActivity(t *testing.T) {
+	ctx := context.Background()
+	svc := NewService(NewMemoryStore(), nil)
+	created, err := svc.CreateTask(ctx, "owner", CreateTaskRequest{
+		ProjectID: "default",
+		Title:     "No-op Update Guard",
+		Status:    TaskStatusBacklog,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	blocked := TaskStatusBlocked
+	if _, err := svc.UpdateTask(ctx, created.ID, "coordinator", UpdateTaskRequest{Status: &blocked}); err != nil {
+		t.Fatal(err)
+	}
+	beforeActs, err := svc.Store().ListActivities(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sameStatus := TaskStatusBlocked
+	if _, err := svc.UpdateTask(ctx, created.ID, "coordinator", UpdateTaskRequest{Status: &sameStatus}); err != nil {
+		t.Fatal(err)
+	}
+	afterActs, err := svc.Store().ListActivities(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(afterActs) != len(beforeActs) {
+		t.Fatalf("expected no new activity on no-op UpdateTask, got %d -> %d", len(beforeActs), len(afterActs))
+	}
+}

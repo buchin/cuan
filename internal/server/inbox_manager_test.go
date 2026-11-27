@@ -291,3 +291,108 @@ func TestManagerContinuationPostgres(t *testing.T) {
 		}
 	})
 }
+
+func TestRecoverManagerVerificationHandoff_DoesNotLoopWithoutLaunch(t *testing.T) {
+	ctx := context.Background()
+	s, _, _, _ := inboxFixture(t)
+	now := time.Now().UTC()
+	origin := db.InboxRequest{
+		OwnerID:   "owner-1",
+		AgentID:   db.AgentIDCuan,
+		RoomID:    "room-loop",
+		RequestID: "req-origin",
+		MessageID: "msg-origin",
+		ReplyID:   "reply-origin",
+		State:     "completed",
+		CreatedAt: now.Add(-time.Minute),
+		Deadline:  now.Add(time.Hour),
+	}
+	if _, _, err := s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, origin, &db.ProjectMessage{
+		ID:         origin.MessageID,
+		RoomID:     origin.RoomID,
+		AuthorType: "user",
+		AuthorID:   origin.OwnerID,
+		Content:    "Clean up disk",
+		CreatedAt:  now.Add(-time.Minute),
+		UpdatedAt:  now.Add(-time.Minute),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	d := &task.TaskDetailResponse{
+		Task: task.Task{
+			ID:                "task-no-loop",
+			ProjectID:         "default",
+			SourceRoomID:      origin.RoomID,
+			SourceMessageID:   origin.MessageID,
+			Title:             "Optimasi & Pembersihan Ruang Penyimpanan",
+			Instructions:      "Cuan managed delegation v1.\nApproval message: " + origin.MessageID,
+			Status:            task.TaskStatusBlocked,
+			ExecutionCategory: task.ExecutionCategoryCode,
+		},
+		LatestAttempt: &task.TaskAttempt{
+			ID:        "att-no-loop",
+			TaskID:    "task-no-loop",
+			Status:    task.AttemptStatusSucceeded,
+			CreatedAt: now.Add(-30 * time.Second),
+		},
+	}
+	if err := s.taskSvc.Store().CreateTask(ctx, &d.Task); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.taskSvc.Store().CreateAttempt(ctx, d.LatestAttempt); err != nil {
+		t.Fatal(err)
+	}
+	reviewReq := db.InboxRequest{
+		OwnerID:   origin.OwnerID,
+		AgentID:   origin.AgentID,
+		RoomID:    origin.RoomID,
+		RequestID: "req-review-loop",
+		MessageID: "msg-review-loop",
+		ReplyID:   "reply-review-loop",
+		State:     "completed",
+		CreatedAt: now,
+		Deadline:  now.Add(time.Hour),
+	}
+	if _, _, err := s.projectStudioRepo.(db.InboxRequestRepository).AcceptInboxRequest(ctx, reviewReq, &db.ProjectMessage{
+		ID:         reviewReq.MessageID,
+		RoomID:     reviewReq.RoomID,
+		AuthorType: "system",
+		AuthorID:   "cuan_work_review",
+		Content:    inboxOwnershipPolicy + "\n[/tasks/" + d.ID + "]",
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	eval := inboxReviewEvaluation{
+		Decision:      "revise",
+		Finding:       "Hasil kode belum diperiksa dalam sesi verifikasi terpisah.",
+		RemainingWork: "verification",
+		Revision:      "Verify in separate session",
+		ManagerAction: "continue",
+		ManagerReason: "Continue verification",
+	}
+	if _, err := s.saveReviewAssessment(ctx, d, reviewReq, eval); err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := s.taskSvc.GetTaskDetail(ctx, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requests, err := s.projectStudioRepo.(db.InboxLifecycleRepository).ListInboxRequests(ctx, origin.RoomID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.recoverManagerVerificationHandoff(ctx, fresh, origin, requests) {
+		t.Fatal("expected recoverManagerVerificationHandoff to return false when no launch is created")
+	}
+	afterFirst, _ := s.taskSvc.GetTaskDetail(ctx, d.ID)
+	countFirst := len(afterFirst.Activities)
+	if s.recoverManagerVerificationHandoff(ctx, afterFirst, origin, requests) {
+		t.Fatal("expected second recoverManagerVerificationHandoff call to return false")
+	}
+	afterSecond, _ := s.taskSvc.GetTaskDetail(ctx, d.ID)
+	if len(afterSecond.Activities) != countFirst {
+		t.Fatalf("expected no extra activities on repeated recoverManagerVerificationHandoff, got %d -> %d", countFirst, len(afterSecond.Activities))
+	}
+}

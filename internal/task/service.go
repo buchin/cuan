@@ -586,6 +586,9 @@ func (s *Service) UpdateTask(ctx context.Context, id string, author string, req 
 	statusChanged := false
 	oldStatus := t.Status
 	newStatus := oldStatus
+	before := *t
+	beforeDoD := append([]DoDItem(nil), t.DoDChecklist...)
+	beforeProjectIDs := append([]string(nil), t.ProjectIDs...)
 
 	if req.Title != nil {
 		title := strings.TrimSpace(*req.Title)
@@ -727,6 +730,10 @@ func (s *Service) UpdateTask(ctx context.Context, id string, author string, req 
 		t.TestSummary = strings.TrimSpace(*req.TestSummary)
 	}
 
+	if !statusChanged && taskNonStatusFieldsEqual(&before, beforeDoD, beforeProjectIDs, t) {
+		return t, nil
+	}
+
 	t.UpdatedAt = time.Now().UTC()
 	if err := s.store.UpdateTask(ctx, t); err != nil {
 		return nil, fmt.Errorf("update task: %w", err)
@@ -842,4 +849,44 @@ func taskCreationHash(req CreateTaskRequest) string {
 	data, _ := json.Marshal(req)
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
+}
+
+func taskNonStatusFieldsEqual(before *Task, beforeDoD []DoDItem, beforeProjectIDs []string, after *Task) bool {
+	if before == nil || after == nil {
+		return false
+	}
+	if before.Title != after.Title ||
+		before.Instructions != after.Instructions ||
+		before.Summary != after.Summary ||
+		before.CompleteNote != after.CompleteNote ||
+		before.SourceRoomID != after.SourceRoomID ||
+		before.ProjectID != after.ProjectID ||
+		before.Priority != after.Priority ||
+		before.AssignedAgent != after.AssignedAgent ||
+		before.ExecutionCategory != after.ExecutionCategory ||
+		before.BranchName != after.BranchName ||
+		before.PRURL != after.PRURL ||
+		before.PRNumber != after.PRNumber ||
+		before.CommitSHA != after.CommitSHA ||
+		before.DiffSummary != after.DiffSummary ||
+		before.TestSummary != after.TestSummary {
+		return false
+	}
+	if len(beforeDoD) != len(after.DoDChecklist) {
+		return false
+	}
+	for i := range beforeDoD {
+		if beforeDoD[i] != after.DoDChecklist[i] {
+			return false
+		}
+	}
+	if len(beforeProjectIDs) != len(after.ProjectIDs) {
+		return false
+	}
+	for i := range beforeProjectIDs {
+		if beforeProjectIDs[i] != after.ProjectIDs[i] {
+			return false
+		}
+	}
+	return true
 }

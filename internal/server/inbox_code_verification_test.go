@@ -10,6 +10,7 @@ import (
 
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/executionpolicy"
+	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -167,5 +168,27 @@ func TestVerificationLaunchDoesNotWrapWritableOwnerContinuation(t *testing.T) {
 	policy := executionpolicy.FromInstructions(launch.Revision)
 	if !policy.ReadOnlyRepository || !policy.DenyPush || !policy.DenyDeploy {
 		t.Fatalf("verification launch lost read-only/no-push/no-deploy policy: %+v", policy)
+	}
+}
+
+func TestIndependentCodeReviewMissing_SkipsDefaultProjectWithoutRepo(t *testing.T) {
+	ctx := context.Background()
+	s, _, _, _ := inboxFixture(t)
+	projects := project.NewMemoryStore()
+	if err := projects.CreateProject(ctx, &project.Project{ID: "default", Name: "Default"}); err != nil {
+		t.Fatal(err)
+	}
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
+	d := &task.TaskDetailResponse{
+		Task: task.Task{
+			ID:                "default-ops-task",
+			ProjectID:         "default",
+			Title:             "Optimasi & Pembersihan Ruang Penyimpanan",
+			ExecutionCategory: task.ExecutionCategoryCode,
+			Status:            task.TaskStatusReview,
+		},
+	}
+	if s.independentCodeReviewMissing(ctx, d) {
+		t.Fatal("expected independentCodeReviewMissing to return false for default project without repository")
 	}
 }

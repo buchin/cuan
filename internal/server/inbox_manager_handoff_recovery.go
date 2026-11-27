@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/task"
@@ -115,6 +116,17 @@ func (s *Server) recoverManagerVerificationHandoff(ctx context.Context, d *task.
 		if (err != nil && !errors.Is(err, task.ErrTaskNotFound)) || launch != nil {
 			continue
 		}
+		recoveryID := "manager-handoff-recovery:" + d.LatestAttempt.ID + ":" + q.RequestID
+		alreadyAttempted := false
+		for _, act := range d.Activities {
+			if act != nil && act.ID == recoveryID {
+				alreadyAttempted = true
+				break
+			}
+		}
+		if alreadyAttempted {
+			continue
+		}
 		raw, err := json.Marshal(saved)
 		if err != nil {
 			return false
@@ -133,6 +145,17 @@ func (s *Server) recoverManagerVerificationHandoff(ctx context.Context, d *task.
 			s.publishInbox(d.SourceRoomID)
 			return true
 		}
+		// Record terminal no-launch recovery so the 5s dispatcher does not
+		// replay applyInboxReviewEvaluation indefinitely on a blocked task.
+		_ = s.taskSvc.Store().CreateActivity(ctx, &task.TaskActivity{
+			ID:           recoveryID,
+			TaskID:       d.ID,
+			AttemptID:    &d.LatestAttempt.ID,
+			ActivityType: "manager_handoff_recovery",
+			Author:       "coordinator",
+			Message:      q.RequestID,
+			CreatedAt:    time.Now().UTC(),
+		})
 		return false
 	}
 	return false

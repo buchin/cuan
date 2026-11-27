@@ -37,12 +37,20 @@ func (s *Server) independentCodeReviewMissing(ctx context.Context, d *task.TaskD
 		s.verificationReviewContext(ctx, d) != nil || s.liveInspectionReviewContext(ctx, d) != nil {
 		return false
 	}
-	if s.projectSvc != nil && d.ProjectID != "" && d.ProjectID != "default" {
-		if p, err := s.projectSvc.Get(ctx, d.ProjectID); err == nil && p != nil {
+	if d.ProjectID == "" {
+		return false
+	}
+	if s.projectSvc != nil {
+		p, err := s.projectSvc.Get(ctx, d.ProjectID)
+		if err == nil && p != nil {
 			if p.RepoURL == "" && p.LocalPath == "" {
 				return false
 			}
+		} else if d.ProjectID == "default" {
+			return false
 		}
+	} else if d.ProjectID == "default" {
+		return false
 	}
 	return true
 }
