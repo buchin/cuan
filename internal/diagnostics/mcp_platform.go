@@ -19,9 +19,16 @@ import (
 )
 
 var (
-	platformDB     *sql.DB
-	platformDBOnce sync.Once
+	platformDB         *sql.DB
+	platformDBOnce     sync.Once
+	platformDBDisabled bool
 )
+
+// DisablePlatformDB prevents fallback to ambient DATABASE_URL or host .env files.
+func DisablePlatformDB() {
+	platformDBDisabled = true
+	platformDB = nil
+}
 
 // SetPlatformDB allows injecting a database connection for tests or custom environments.
 func SetPlatformDB(db *sql.DB) {
@@ -29,6 +36,9 @@ func SetPlatformDB(db *sql.DB) {
 }
 
 func getPlatformDB() *sql.DB {
+	if platformDBDisabled {
+		return nil
+	}
 	platformDBOnce.Do(func() {
 		if platformDB != nil {
 			return

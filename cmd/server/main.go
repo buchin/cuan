@@ -84,6 +84,13 @@ func main() {
 		os.Exit(diagnostics.RunDiagCLI(os.Args[2:], os.Stdout, os.Stderr))
 	}
 	if len(os.Args) > 1 && os.Args[1] == "mcp" {
+		if len(os.Args) >= 3 && os.Args[2] == "--inbox-chat" {
+			if len(os.Args) != 4 {
+				fmt.Fprintln(os.Stderr, "usage: cuan mcp --inbox-chat SESSION")
+				os.Exit(1)
+			}
+			os.Exit(diagnostics.RunInboxChatMCP(os.Args[3], os.Stdin, os.Stdout, os.Stderr))
+		}
 		if len(os.Args) >= 3 && os.Args[2] == "--inbox-crm" {
 			if len(os.Args) != 4 {
 				fmt.Fprintln(os.Stderr, "usage: cuan mcp --inbox-crm SNAPSHOT")

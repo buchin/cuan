@@ -15,6 +15,14 @@ import (
 // /proc belongs to the new PID namespace; AGY needs /proc/self/exe and
 // optional nested browser namespaces need their own child UID/GID maps.
 func inboxSandboxArgs(binary, home, workspace string, attachments []string, crmSnapshots ...string) ([]string, error) {
+	crmSnapshot := ""
+	if len(crmSnapshots) == 1 {
+		crmSnapshot = crmSnapshots[0]
+	}
+	return inboxSandboxArgsWithChat(binary, home, workspace, attachments, crmSnapshot, "")
+}
+
+func inboxSandboxArgsWithChat(binary, home, workspace string, attachments []string, crmSnapshot, chatSession string) ([]string, error) {
 	absolute := func(path string) (string, error) {
 		p, err := filepath.Abs(path)
 		if err != nil {
@@ -138,13 +146,13 @@ func inboxSandboxArgs(binary, home, workspace string, attachments []string, crmS
 	// actions. Never inherit an account/workspace MCP connection (or advertise an
 	// unconfigured Owner CLI) into this provider process. Keep provider auth and
 	// settings mounted, overlay only MCP discovery files inside this namespace.
-	hasCRM := len(crmSnapshots) == 1 && crmSnapshots[0] != ""
+	hasCRM := crmSnapshot != ""
 	if hasCRM {
-		info, e := os.Lstat(crmSnapshots[0])
+		info, e := os.Lstat(crmSnapshot)
 		if e != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 {
 			return nil, fmt.Errorf("CRM snapshot must be a private regular file")
 		}
-		path, e := absolute(crmSnapshots[0])
+		path, e := absolute(crmSnapshot)
 		if e != nil {
 			return nil, fmt.Errorf("CRM snapshot must be a private regular file")
 		}
@@ -154,7 +162,28 @@ func inboxSandboxArgs(binary, home, workspace string, attachments []string, crmS
 		}
 		bindRO(path, "/cuan-inbox-crm.json")
 	}
-	mcpFile, err := prepareInboxMCPBoundary(home, hasCRM)
+	hasChat := chatSession != ""
+	if hasChat {
+		info, e := os.Lstat(chatSession)
+		if e != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0 {
+			return nil, fmt.Errorf("chat session must be a private regular file")
+		}
+		path, e := absolute(chatSession)
+		if e != nil {
+			return nil, fmt.Errorf("chat session must be a private regular file")
+		}
+		resolvedInfo, e := os.Lstat(path)
+		if e != nil || !resolvedInfo.Mode().IsRegular() || resolvedInfo.Mode().Perm()&0077 != 0 {
+			return nil, fmt.Errorf("chat session must be a private regular file")
+		}
+		bindRO(path, "/cuan-inbox-chat.json")
+	}
+	var mcpFile string
+	if hasChat {
+		mcpFile, err = prepareInboxChatMCPBoundary(home)
+	} else {
+		mcpFile, err = prepareInboxMCPBoundary(home, hasCRM)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -198,6 +227,14 @@ func inboxSandboxArgs(binary, home, workspace string, attachments []string, crmS
 }
 
 func sandboxInboxCommand(binary string, args, env []string, home, workspace string, attachments []string, crmSnapshots ...string) (string, []string, error) {
+	crmSnapshot := ""
+	if len(crmSnapshots) == 1 {
+		crmSnapshot = crmSnapshots[0]
+	}
+	return sandboxInboxCommandWithChat(binary, args, env, home, workspace, attachments, crmSnapshot, "")
+}
+
+func sandboxInboxCommandWithChat(binary string, args, env []string, home, workspace string, attachments []string, crmSnapshot, chatSession string) (string, []string, error) {
 	binary, err := filepath.EvalSymlinks(binary)
 	if err != nil {
 		return "", nil, err
@@ -214,7 +251,7 @@ func sandboxInboxCommand(binary string, args, env []string, home, workspace stri
 	if err != nil {
 		return "", nil, fmt.Errorf("external chat sandbox unavailable")
 	}
-	mounts, err := inboxSandboxArgs(binary, home, workspace, attachments, crmSnapshots...)
+	mounts, err := inboxSandboxArgsWithChat(binary, home, workspace, attachments, crmSnapshot, chatSession)
 	if err != nil {
 		return "", nil, err
 	}
@@ -229,19 +266,28 @@ func sandboxInboxCommand(binary string, args, env []string, home, workspace stri
 }
 
 const inboxPublicWebMCPConfig = "{\"mcpServers\":{\"cuan-inspect\":{\"command\":\"/cuan-public-web-mcp\",\"args\":[\"mcp\",\"--public-web\"]}}}\n"
+const inboxChatMCPConfig = "{\"mcpServers\":{\"cuan-inspect\":{\"command\":\"/cuan-public-web-mcp\",\"args\":[\"mcp\",\"--inbox-chat\",\"/cuan-inbox-chat.json\"]}}}\n"
+
+func prepareInboxChatMCPBoundary(home string) (string, error) {
+	return writeInboxMCPBoundary(home, ".cuan-chat-sandbox-chat-v1", inboxChatMCPConfig)
+}
 
 func prepareInboxMCPBoundary(home string, crm ...bool) (string, error) {
-	root, err := os.OpenRoot(home)
-	if err != nil {
-		return "", err
-	}
-	defer root.Close()
 	directory := ".cuan-chat-sandbox-public-web-v1"
 	config := inboxPublicWebMCPConfig
 	if len(crm) == 1 && crm[0] {
 		directory = ".cuan-chat-sandbox-crm-v1"
 		config = `{"mcpServers":{"cuan-inspect":{"command":"/cuan-public-web-mcp","args":["mcp","--inbox-crm","/cuan-inbox-crm.json"]}}}` + "\n"
 	}
+	return writeInboxMCPBoundary(home, directory, config)
+}
+
+func writeInboxMCPBoundary(home, directory, config string) (string, error) {
+	root, err := os.OpenRoot(home)
+	if err != nil {
+		return "", err
+	}
+	defer root.Close()
 	if err := root.Mkdir(directory, 0700); err != nil && !os.IsExist(err) {
 		return "", err
 	}
