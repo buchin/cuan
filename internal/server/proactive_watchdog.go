@@ -971,10 +971,16 @@ func (s *Server) reconcileVerifiedPublicationTasks(ctx context.Context) {
 					log.Printf("[Watchdog AI Orchestrator] Autonomously reconciled verified task %s -> DONE (commit: %s)",
 						detail.ID, verifiedCommit)
 					detail.Task = *updated
+					if updated.SourceRoomID == "" {
+						if targetRoom := s.resolveTaskRoomFromRecentMessages(ctx, updated.ID); targetRoom != "" {
+							updated.SourceRoomID = targetRoom
+							_, _ = s.taskSvc.UpdateTask(ctx, updated.ID, "coordinator", task.UpdateTaskRequest{SourceRoomID: &targetRoom})
+						}
+					}
 					_ = s.PostTaskCompletionMessage(ctx, updated)
 					s.DispatchTaskCompletedPush(ctx, updated)
-					if detail.SourceRoomID != "" {
-						s.publishInbox(detail.SourceRoomID)
+					if updated.SourceRoomID != "" {
+						s.publishInbox(updated.SourceRoomID)
 					}
 					continue
 				}
@@ -1036,21 +1042,8 @@ func (s *Server) reconcileVerifiedPublicationTasks(ctx context.Context) {
 				continue
 			}
 			targetRoom := detail.SourceRoomID
-			if targetRoom == "" && s.projectStudioRepo != nil {
-				if recentMap, err := s.projectStudioRepo.ListRecentMessages(ctx, 20); err == nil {
-					taskPattern := "/tasks/" + detail.ID
-					var earliestTime time.Time
-					for rID, msgs := range recentMap {
-						for _, m := range msgs {
-							if strings.Contains(m.Content, taskPattern) {
-								if targetRoom == "" || m.CreatedAt.Before(earliestTime) {
-									targetRoom = rID
-									earliestTime = m.CreatedAt
-								}
-							}
-						}
-					}
-				}
+			if targetRoom == "" {
+				targetRoom = s.resolveTaskRoomFromRecentMessages(ctx, detail.ID)
 				if targetRoom != "" {
 					detail.SourceRoomID = targetRoom
 					_, _ = s.taskSvc.UpdateTask(ctx, detail.ID, "coordinator", task.UpdateTaskRequest{SourceRoomID: &targetRoom})
@@ -1061,6 +1054,30 @@ func (s *Server) reconcileVerifiedPublicationTasks(ctx context.Context) {
 			}
 		}
 	}
+}
+
+func (s *Server) resolveTaskRoomFromRecentMessages(ctx context.Context, taskID string) string {
+	if s.projectStudioRepo == nil || taskID == "" {
+		return ""
+	}
+	recentMap, err := s.projectStudioRepo.ListRecentMessages(ctx, 20)
+	if err != nil {
+		return ""
+	}
+	taskPattern := "/tasks/" + taskID
+	var targetRoom string
+	var earliestTime time.Time
+	for rID, msgs := range recentMap {
+		for _, m := range msgs {
+			if strings.Contains(m.Content, taskPattern) {
+				if targetRoom == "" || m.CreatedAt.Before(earliestTime) {
+					targetRoom = rID
+					earliestTime = m.CreatedAt
+				}
+			}
+		}
+	}
+	return targetRoom
 }
 
 // drainQueuedProjectDeployments inspects each project's deployment lane:

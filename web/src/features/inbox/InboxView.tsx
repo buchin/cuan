@@ -81,7 +81,7 @@ import './chat-calm.css'
 import { StudioView } from './StudioView'
 import { MessageContent } from './MessageContent'
 import { withoutTaskLaunchAcknowledgement } from './task-launch-text'
-import { taskMessageBindings, isBackgroundWorkUpdate } from './task-message-bindings'
+import { taskMessageBindings, isBackgroundWorkUpdate, isStaleReleaseNoticeSuperseded } from './task-message-bindings'
 import { InboxActivity } from './InboxActivity'
 import { InboxTaskAction } from './InboxTaskAction'
 import { ApprovalCard } from './ApprovalCard'
@@ -192,6 +192,7 @@ function tasksListUnchanged(prev: Task[], next: Task[]): boolean {
       a.title !== b.title ||
       a.execution_status !== b.execution_status ||
       a.review_state !== b.review_state ||
+      a.release_status !== b.release_status ||
       a.review_action !== b.review_action ||
       a.result_kind !== b.result_kind ||
       a.latest_attempt?.status !== b.latest_attempt?.status ||
@@ -1823,6 +1824,9 @@ export function InboxView({
 
                 const msgTaskIdMatch = msgContent.match(/\/tasks\/([A-Za-z0-9_-]+)/)
                 const referencedTaskIds = [...msgContent.matchAll(/\/tasks\/([A-Za-z0-9_-]+)/g)].map(match => match[1])
+                if (!isOutgoing && isStaleReleaseNoticeSuperseded(msgContent, referencedTaskIds, linkedTasks, messages, index)) {
+                  return null
+                }
                 const isSupersededTaskMessage = !isOutgoing && referencedTaskIds.length > 0 && referencedTaskIds.every(id =>
                   latestMessageIdPerTask.has(id) && latestMessageIdPerTask.get(id) !== (msg.uuid || String(msg.id)))
 

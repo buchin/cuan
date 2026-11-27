@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/buchin/cuan/internal/db"
+	"github.com/buchin/cuan/internal/project"
 	"github.com/buchin/cuan/internal/task"
 )
 
@@ -179,6 +180,7 @@ func (s *Server) inboxLinkedTasks(ctx context.Context, room string, requestSets 
 	if err := s.projectInboxTaskReviews(ctx, items, requests, time.Now().UTC()); err != nil {
 		return nil, err
 	}
+	s.projectInboxTaskReleaseStatuses(ctx, items)
 	return items, nil
 }
 
@@ -215,4 +217,130 @@ func (s *Server) projectInboxTaskReviews(ctx context.Context, items []*task.Task
 		}
 	}
 	return nil
+}
+
+// projectInboxTaskReleaseStatuses aligns each linked task's visible release_status
+// with the project's actual live deployment state so the top bar and chat bubbles
+// never report green completion before the release is live.
+func (s *Server) projectInboxTaskReleaseStatuses(ctx context.Context, items []*task.TaskItemResponse) {
+	if len(items) == 0 {
+		return
+	}
+	projCache := make(map[string]*project.ProjectResponse)
+	depsCache := make(map[string][]*db.ProjectDeployment)
+
+	getProject := func(projectID string) *project.ProjectResponse {
+		if projectID == "" || s.projectSvc == nil {
+			return nil
+		}
+		if p, ok := projCache[projectID]; ok {
+			return p
+		}
+		p, err := s.projectSvc.Get(ctx, projectID)
+		if err != nil {
+			p = nil
+		}
+		projCache[projectID] = p
+		return p
+	}
+
+	getDeps := func(projectID string) []*db.ProjectDeployment {
+		if projectID == "" || s.projectDeploymentRepo == nil {
+			return nil
+		}
+		if deps, ok := depsCache[projectID]; ok {
+			return deps
+		}
+		deps, err := s.projectDeploymentRepo.ListByProjectID(ctx, projectID, 20)
+		if err != nil {
+			deps = nil
+		}
+		depsCache[projectID] = deps
+		return deps
+	}
+
+	for _, item := range items {
+		if item == nil || item.Status == "cancelled" || item.Status == "canceled" {
+			continue
+		}
+		if item.ExecutionCategory != "" && item.ExecutionCategory != task.ExecutionCategoryCode {
+			continue
+		}
+
+		// 1. Active native_release launch takes immediate precedence.
+		if item.Launch != nil && item.Launch.Kind == "native_release" {
+			switch item.Launch.State {
+			case "queued", "claimed":
+				item.ReleaseStatus = "pending"
+				continue
+			case "started":
+				item.ReleaseStatus = "deploying"
+				continue
+			case "stopped":
+				item.ReleaseStatus = "failed"
+				continue
+			}
+		}
+
+		// 2. Match explicit ProjectDeployment records for this task's commit or applied commit.
+		appliedSHA := extractAppliedCommitSHA(item.CompleteNote)
+		if item.ProjectID != "" {
+			matched := ""
+			for _, dep := range getDeps(item.ProjectID) {
+				if dep == nil {
+					continue
+				}
+				if (item.CommitSHA != "" && dep.CommitSHA == item.CommitSHA) ||
+					(appliedSHA != "" && dep.CommitSHA == appliedSHA) {
+					switch dep.Status {
+					case db.DeploymentStatusBuilding:
+						matched = "deploying"
+					case db.DeploymentStatusQueued, "pending":
+						matched = "pending"
+					case db.DeploymentStatusFailed:
+						matched = "failed"
+					case db.DeploymentStatusSuccess:
+						matched = "live"
+					}
+					break
+				}
+			}
+			if matched != "" {
+				item.ReleaseStatus = matched
+				continue
+			}
+		}
+
+		// 3. Fall back to auto_deploy + complete_note / publication markers.
+		proj := getProject(item.ProjectID)
+		if proj == nil || !project.SettingsFromMetadata(proj.Metadata).IsAutoDeployEnabled() {
+			continue
+		}
+		if strings.Contains(item.CompleteNote, "telah diverifikasi aktif pada rilis live") {
+			item.ReleaseStatus = "live"
+			continue
+		}
+		if strings.Contains(item.CompleteNote, "⚠️ Deploy production gagal") ||
+			strings.Contains(item.CompleteNote, "⚠️ Auto-apply tidak dapat menggabungkan") {
+			item.ReleaseStatus = "failed"
+			continue
+		}
+		if strings.Contains(item.CompleteNote, "Verifikasi deployment production belum dikonfirmasi") {
+			item.ReleaseStatus = "pending"
+			continue
+		}
+		if item.Status == task.TaskStatusDone && releaseObjectID.MatchString(item.CommitSHA) && s.taskSvc != nil {
+			if detail, err := s.taskSvc.GetTaskDetail(ctx, item.ID); err == nil && detail != nil {
+				if obs := s.inboxReviewPublication(ctx, detail); obs != nil && obs.Required {
+					if obs.Verified {
+						item.ReleaseStatus = "live"
+					} else if item.LatestAttempt != nil && item.LatestAttempt.Status == task.AttemptStatusFailed {
+						item.ReleaseStatus = "failed"
+					} else {
+						item.ReleaseStatus = "pending"
+					}
+				}
+			}
+		}
+	}
 }

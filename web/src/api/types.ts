@@ -111,6 +111,7 @@ export interface Task {
   /** Native Done transition; independent of subsequent edits. Absent when unknown. */
   completed_at?: string
   review_state?: 'queued' | 'running'
+  release_status?: 'pending' | 'deploying' | 'failed' | 'live'
   review_finding?: string
   review_action?: 'continue' | 'replan' | 'wait' | 'needs_owner'
   repo_url?: string

@@ -1043,7 +1043,42 @@ try{
   await page.locator('[data-message-id="proposal-pending"]').waitFor({ state: 'visible', timeout: 10000 })
   assert.equal(await page.locator('[data-message-id="reply-out"]').count(), 0, 'Deleted message must remain deleted after reload')
 
-  checks.push({width,composer_task_disclosure:true,composer_task_autoscroll:true,last_task_visible:true,no_chat_task_card:true,session_loading_running_completed:true,back_preserves_draft_and_scroll:true,full_terminal_height:terminalBox.height,panel_width:box.width,composer_alignment:true,multiline_autoexpand:true,studio_autoexpand:true,typing_dots_circular:true,message_context_menu_ui:menuMetrics,message_edit_and_delete:true})
+  // Verify release status sync between top bar (ComposerTasks) and chat bubbles:
+  // 1) Release failed/pending: top bar must NOT show done/green check, failure bubble remains visible
+  workTaskOverride = { ...baseTask, status: 'done', release_status: 'failed', updated_at: new Date(Date.parse(now) + 120000).toISOString() }
+  fixtureMessages.push(
+    message('release-fail-notice', 'Indikator status sudah diuji, tetapi pembaruan ini belum masuk ke aplikasi yang sedang berjalan.\n\n[View work](/tasks/work)', {
+      created_at: new Date(Date.parse(now) + 120000).toISOString(),
+    }),
+  )
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  const releaseBadge = page.locator('[data-testid="composer-tasks-badge"][data-status="attention"]')
+  await releaseBadge.waitFor({ state: 'visible', timeout: 10000 })
+  assert.equal(await releaseBadge.getAttribute('data-status'), 'attention', 'Top bar must show attention (not done) when release_status is failed')
+  const failBubble = page.locator('[data-message-id="release-fail-notice"]')
+  await failBubble.waitFor({ state: 'visible', timeout: 5000 })
+  await failBubble.scrollIntoViewIfNeeded()
+  await page.screenshot({ path: path.join(output, `release-sync-failed-${width}.png`) })
+
+  // 2) Release reconciled to live: top bar shows done (green check), completion message visible, stale failure hidden
+  workTaskOverride = { ...baseTask, status: 'done', release_status: 'live', updated_at: new Date(Date.parse(now) + 180000).toISOString() }
+  fixtureMessages.push(
+    message('release-live-notice', 'Pekerjaan **Perbaiki tampilan website pelanggan** telah selesai dan diverifikasi.\n\n[Lihat rincian pekerjaan](/tasks/work)', {
+      created_at: new Date(Date.parse(now) + 180000).toISOString(),
+    }),
+  )
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  const releaseDoneBadge = page.locator('[data-testid="composer-tasks-badge"][data-status="done"]')
+  await releaseDoneBadge.waitFor({ state: 'visible', timeout: 10000 })
+  assert.equal(await releaseDoneBadge.getAttribute('data-status'), 'done', 'Top bar must show done when release_status is live')
+  const liveBubble = page.locator('[data-message-id="release-live-notice"]')
+  await liveBubble.waitFor({ state: 'visible', timeout: 5000 })
+  await liveBubble.scrollIntoViewIfNeeded()
+  assert.equal(await page.locator('[data-message-id="release-fail-notice"]').count(), 0, 'Stale failure message must be hidden after live reconciliation')
+  await page.screenshot({ path: path.join(output, `release-sync-live-${width}.png`) })
+  workTaskOverride = null
+
+  checks.push({width,composer_task_disclosure:true,composer_task_autoscroll:true,last_task_visible:true,no_chat_task_card:true,session_loading_running_completed:true,back_preserves_draft_and_scroll:true,full_terminal_height:terminalBox.height,panel_width:box.width,composer_alignment:true,multiline_autoexpand:true,studio_autoexpand:true,typing_dots_circular:true,message_context_menu_ui:menuMetrics,message_edit_and_delete:true,release_status_sync:true})
   await context.close()
   await browser.close()
   browser=null

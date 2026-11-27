@@ -59,6 +59,11 @@ export const TASK_STATUS_THEMES: Record<TaskStateKey, TaskStatusTheme> = {
 export function getTaskStateKey(statusOrTask: string | Task): TaskStateKey {
   if (typeof statusOrTask === 'object' && statusOrTask !== null) {
     const task = statusOrTask
+    if (!['cancelled', 'canceled'].includes(task.status as string)) {
+      if (task.release_status === 'failed') return 'attention'
+      if (task.release_status === 'deploying') return 'working'
+      if (task.release_status === 'pending') return 'queued'
+    }
     if (task.status === 'done') return 'done'
     if (task.review_state || task.status === 'review') return 'review'
     const ws = workStatus(task)
@@ -157,8 +162,11 @@ export function attemptLabel(attempt: TaskAttempt) {
 // One user-facing status across project lists and session headers. A finished
 // process is not proof that a task was accepted or completed.
 export function workStatus(task: Task) {
-  if (task.status === 'done') return 'Completed'
   if (['cancelled', 'canceled'].includes(task.status as string)) return 'Cancelled'
+  if (task.release_status === 'failed') return 'Needs attention'
+  if (task.release_status === 'deploying') return 'Working'
+  if (task.release_status === 'pending') return 'Queued'
+  if (task.status === 'done') return 'Completed'
   if (task.launch?.state === 'queued' || task.launch?.state === 'claimed') return 'Queued'
   const attempt = task.latest_attempt?.status || task.execution_status
   if (attempt === 'running') return 'Working'
@@ -178,6 +186,9 @@ export function workStatus(task: Task) {
 export function workDisplayStatus(task: Task) {
   const status = workStatus(task)
   if (status === 'Completed' || status === 'Cancelled') return status
+  if (task.release_status === 'deploying') return 'Deploying'
+  if (task.release_status === 'pending') return 'Waiting to deploy'
+  if (task.release_status === 'failed') return 'Unfinished'
   if (status === 'Queued') {
     if (task.launch?.kind === 'native_release') return 'Waiting to deploy'
     if (task.launch?.kind === 'verification' || task.launch?.kind === 'inspection') return 'Waiting for checks'
@@ -196,7 +207,10 @@ export function workDisplayStatus(task: Task) {
 
 // Active execution means a runner or review worker is actively executing right now.
 export function taskExecutionActive(task: Task): boolean {
-  if (['done', 'cancelled', 'canceled'].includes(task.status as string)) return false
+  if (['cancelled', 'canceled'].includes(task.status as string)) return false
+  if (task.release_status === 'deploying') return true
+  if (task.release_status === 'failed' || task.release_status === 'pending') return false
+  if (task.status === 'done') return false
   const attempt = task.latest_attempt
   if (attempt?.cancel_requested || attempt?.canceled_at || ['cancelled', 'canceled'].includes(attempt?.status || '')) return false
   if (task.review_state === 'running') return true

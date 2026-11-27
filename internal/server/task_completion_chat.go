@@ -43,6 +43,9 @@ func (s *Server) PostTaskCompletionMessage(ctx context.Context, t *task.Task) er
 	if msgs, err := s.projectStudioRepo.ListMessagesByRoomID(ctx, t.SourceRoomID); err == nil && len(msgs) > 0 {
 		for i := len(msgs) - 1; i >= 0 && i >= len(msgs)-10; i-- {
 			content := msgs[i].Content
+			if isReleasePendingOrFailureNotice(content) {
+				continue
+			}
 			if msgs[i].ID == msgID || (strings.Contains(content, "/tasks/"+t.ID) &&
 				(strings.Contains(content, "telah selesai") ||
 					strings.Contains(content, "sudah diterima") ||
@@ -114,4 +117,13 @@ func (s *Server) PostTaskCompletionMessage(ctx context.Context, t *task.Task) er
 		return nil
 	}
 	return err
+}
+
+func isReleasePendingOrFailureNotice(content string) bool {
+	return strings.Contains(content, "Rilis hasil yang diperiksa belum tuntas") ||
+		strings.Contains(content, "belum masuk ke aplikasi yang sedang berjalan") ||
+		strings.Contains(content, "Cuan sedang menerapkannya melalui jalur rilis proyek") ||
+		strings.Contains(content, "⚠️ Deploy production gagal") ||
+		strings.Contains(content, "⚠️ Auto-apply tidak dapat menggabungkan") ||
+		strings.Contains(content, "Verifikasi deployment production belum dikonfirmasi")
 }
