@@ -3,7 +3,7 @@ import {
   NotificationsNavigation,
   NotificationsActions,
 } from './features/notifications/NotificationsView'
-import { useEffect, useState, useCallback, useMemo, useRef, lazy, Suspense } from 'react'
+import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef, lazy, Suspense } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { useLanguage } from './context/LanguageContext'
@@ -15,6 +15,7 @@ import { tasksApi } from './api/tasks'
 import { chatApi, ChatContact } from './api/chat'
 import { InboxSubPanel, ContactFilterTab } from './features/inbox/InboxSubPanel'
 import { getRoomActiveSubstage } from './features/inbox/task-substage'
+import { readInboxContactsCache, writeInboxContactsCache } from './features/inbox/contacts-cache'
 import { Project, Task, CreateTaskRequest, ProjectType } from './api/types'
 import { useMediaQuery } from './hooks/useMediaQuery'
 import { useArchivedItems } from './hooks/useArchivedItems'
@@ -215,7 +216,9 @@ function areContactsEqual(prev: ChatContact[], next: ChatContact[]): boolean {
 }
 
 export function App() {
-  const { isAuthenticated, isLoading: authLoading } = useAuth()
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth()
+  const userIdRef = useRef<string | undefined>(user?.id)
+  userIdRef.current = user?.id
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -284,12 +287,32 @@ export function App() {
   const [projects, setProjects] = useState<Project[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectsError, setProjectsError] = useState('')
-  const [contacts, setContacts] = useState<ChatContact[]>([])
+  const [contacts, setContacts] = useState<ChatContact[]>(() => readInboxContactsCache(user?.id) ?? [])
+  const contactsRef = useRef<ChatContact[]>(contacts)
+  contactsRef.current = contacts
   const [directoryAgents, setDirectoryAgents] = useState<Agent[]>([])
   const [agentsLoaded, setAgentsLoaded] = useState(false)
   const [agentsError, setAgentsError] = useState(false)
-  const [contactsLoading, setContactsLoading] = useState(true)
+  const [contactsLoading, setContactsLoading] = useState<boolean>(() => readInboxContactsCache(user?.id) === undefined)
   const [contactsError, setContactsError] = useState('')
+
+  useLayoutEffect(() => {
+    if (!user?.id) {
+      setContacts([])
+      setContactsLoading(true)
+      setContactsError('')
+      return
+    }
+    const cached = readInboxContactsCache(user.id)
+    if (cached !== undefined) {
+      setContacts(cached)
+      setContactsLoading(false)
+      setContactsError('')
+    } else {
+      setContacts([])
+      setContactsLoading(true)
+    }
+  }, [user?.id])
   const conversationArchive = useArchivedItems('conversation')
   const inboxUnread = useMemo(() => {
     return contacts.filter((contact) => {
@@ -454,11 +477,15 @@ export function App() {
             active_substage: substage,
           }
         })
+        writeInboxContactsCache(userIdRef.current, merged)
         return areContactsEqual(previous, merged) ? previous : merged
       })
       setContactsError('')
-    } catch { setContactsError('Could not load contacts. Check your connection and try again.') }
-    finally { setContactsLoading(false) }
+    } catch {
+      if (contactsRef.current.length === 0) {
+        setContactsError('Could not load contacts. Check your connection and try again.')
+      }
+    } finally { setContactsLoading(false) }
   }, [])
   useEffect(() => {
     const changed = (e?: Event) => {
@@ -486,20 +513,27 @@ export function App() {
       if (custom?.detail?.roomId) {
         const targetId = custom.detail.roomId
         const newSubstage = custom.detail.substage
-        setContacts((prev) =>
-          prev.map((c) => {
+        setContacts((prev) => {
+          let changedAny = false
+          const next = prev.map((c) => {
             if (
               c.conversation_id === targetId ||
               c.id === targetId ||
               c.id === 'topic_' + targetId
             ) {
               if (c.active_substage !== newSubstage) {
+                changedAny = true
                 return { ...c, active_substage: newSubstage }
               }
             }
             return c
-          }),
-        )
+          })
+          if (changedAny) {
+            writeInboxContactsCache(userIdRef.current, next)
+            return next
+          }
+          return prev
+        })
       }
     }
     window.addEventListener('cuan-conversation-resolution', changed)

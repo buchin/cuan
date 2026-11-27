@@ -5,6 +5,7 @@ import React, {
   useState,
   useCallback,
 } from 'react'
+import { clearInboxContactsCache } from '../features/inbox/contacts-cache'
 
 export interface OwnerInfo {
   id: string
@@ -99,6 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else if (meRes.status === 401) {
         // Token expired or invalid
         localStorage.removeItem(TOKEN_KEY)
+        clearInboxContactsCache()
         setToken('')
         setUser(null)
       }
@@ -190,6 +192,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.warn('Logout request error:', err)
     } finally {
       localStorage.removeItem(TOKEN_KEY)
+      clearInboxContactsCache()
       setToken('')
       setUser(null)
     }
