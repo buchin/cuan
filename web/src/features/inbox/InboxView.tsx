@@ -720,7 +720,9 @@ export function InboxView({
           return
         setLoading(false)
         setMessages((prev) => {
-          const merged = mergeConversationMessages(prev, data.messages || [])
+          const merged = mergeConversationMessages(prev, data.messages || [], {
+            authoritativeSnapshot: true,
+          })
           const existing = getCachedConversation(convId)
           setCachedConversation(convId, {
             messages: merged,
@@ -1040,7 +1042,9 @@ export function InboxView({
           setStreamState('live')
           setLoading(false)
           setMessages((prev) => {
-            const merged = mergeConversationMessages(prev, data.messages || [])
+            const merged = mergeConversationMessages(prev, data.messages || [], {
+              authoritativeSnapshot: true,
+            })
             setCachedConversation(convId, {
               messages: merged,
               requests: data.requests || [],

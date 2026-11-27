@@ -1333,7 +1333,34 @@ func TestHandleUpdateAndDeleteInboxMessage(t *testing.T) {
 		t.Fatalf("expected 400 for empty PATCH, got %d", recEmpty.Code)
 	}
 
-	// 3. Valid PATCH on user message updates content and sets edited=true
+	// 3. Valid PATCH on user message updates content and sets edited=true (even when edited <= 1s after creation)
+	immediateMsgID := cuanDB.GenerateUUID()
+	if err := srv.projectStudioRepo.CreateMessage(ctx, &cuanDB.ProjectMessage{
+		ID:         immediateMsgID,
+		RoomID:     roomID,
+		AuthorType: "user",
+		AuthorID:   "operator_user",
+		AuthorName: "Owner",
+		Content:    "Immediate message",
+	}); err != nil {
+		t.Fatalf("create immediate message: %v", err)
+	}
+	time.Sleep(5 * time.Millisecond)
+	reqImmediatePatch := httptest.NewRequest(http.MethodPatch, "/api/v1/chat/conversations/"+roomID+"/messages/"+immediateMsgID, strings.NewReader(`{"content":"Immediate edited"}`))
+	reqImmediatePatch.Header.Set("Authorization", "Bearer "+token)
+	recImmediatePatch := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recImmediatePatch, reqImmediatePatch)
+	if recImmediatePatch.Code != http.StatusOK {
+		t.Fatalf("expected 200 for immediate PATCH, got %d: %s", recImmediatePatch.Code, recImmediatePatch.Body.String())
+	}
+	var immediateDTO ChatMessageDTO
+	if err := json.Unmarshal(recImmediatePatch.Body.Bytes(), &immediateDTO); err != nil {
+		t.Fatalf("unmarshal immediate PATCH response: %v", err)
+	}
+	if !immediateDTO.Edited {
+		t.Fatalf("expected Edited=true for immediate edit within <=1s, got false")
+	}
+
 	reqPatch := httptest.NewRequest(http.MethodPatch, "/api/v1/chat/conversations/"+roomID+"/messages/"+userMsgID, strings.NewReader(`{"content":"Updated user message"}`))
 	reqPatch.Header.Set("Authorization", "Bearer "+token)
 	recPatch := httptest.NewRecorder()

@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/task"
@@ -404,7 +403,7 @@ func (s *Server) getFormattedMessagesResultPaged(ctx context.Context, roomID, pr
 			Attachments:     attached,
 			CreatedAt:       m.CreatedAt,
 			UpdatedAt:       m.UpdatedAt,
-			Edited:          m.AuthorType != "agent" && m.AuthorType != "system" && !m.UpdatedAt.IsZero() && m.UpdatedAt.Sub(m.CreatedAt) > time.Second,
+			Edited:          m.AuthorType != "agent" && m.AuthorType != "system" && !m.UpdatedAt.IsZero() && m.UpdatedAt.After(m.CreatedAt),
 			GroundingTastes: groundingTastes,
 		})
 	}

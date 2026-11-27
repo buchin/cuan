@@ -180,3 +180,63 @@ test('7. Empty edge cases', () => {
   assert.equal(mergeConversationMessages(prev, []), prev)
   assert.equal(mergeConversationMessages([], prev), prev)
 })
+
+test('8. Authoritative snapshot removes deleted messages while preserving older history', () => {
+  const prev = [
+    { id: 1, uuid: 'msg-1', sender_type: 'user', author_type: 'user', author_name: 'Owner', message: 'First', created_at: '2026-11-15T09:00:00Z' },
+    { id: 2, uuid: 'msg-2', sender_type: 'user', author_type: 'user', author_name: 'Owner', message: 'To delete', created_at: '2026-11-15T09:01:00Z' },
+  ]
+
+  // Snapshot with msg-2 removed
+  const afterDelete = mergeConversationMessages(prev, [prev[0]], { authoritativeSnapshot: true })
+  assert.equal(afterDelete.length, 1)
+  assert.equal(afterDelete[0].uuid, 'msg-1')
+
+  // Snapshot with all messages deleted
+  const afterClear = mergeConversationMessages(afterDelete, [], { authoritativeSnapshot: true })
+  assert.deepEqual(afterClear, [])
+
+  // 50-message snapshot preserves older loaded messages outside the window
+  const older = Array.from({ length: 10 }, (_, i) => ({
+    id: i + 1,
+    uuid: `old-${i + 1}`,
+    sender_type: 'operator',
+    author_type: 'agent',
+    author_name: 'Cuan',
+    message: `Old ${i + 1}`,
+    created_at: new Date(1700000000000 + (i + 1) * 1000).toISOString(),
+  }))
+  const window50 = Array.from({ length: 50 }, (_, i) => ({
+    id: i + 11,
+    uuid: `win-${i + 11}`,
+    sender_type: 'user',
+    author_type: 'user',
+    author_name: 'Owner',
+    message: `Win ${i + 11}`,
+    created_at: new Date(1700000000000 + (i + 11) * 1000).toISOString(),
+  }))
+  const fullPrev = [...older, ...window50]
+  // Remove one message inside the window, keep 50 in incoming by shifting window or 49 in incoming
+  const windowWithoutOne = window50.filter((m) => m.uuid !== 'win-20')
+  const mergedWindow = mergeConversationMessages(fullPrev, windowWithoutOne, { authoritativeSnapshot: true })
+  // When < 50 in incoming, snapshot is complete; when >= 50, older messages before windowStart are preserved
+  assert.equal(mergedWindow.some((m) => m.uuid === 'win-20'), false)
+  // Test >= 50 snapshot preserving older messages
+  const window50Plus1 = [
+    ...window50.filter((m) => m.uuid !== 'win-20'),
+    {
+      id: 61,
+      uuid: 'win-61',
+      sender_type: 'user',
+      author_type: 'user',
+      author_name: 'Owner',
+      message: 'Win 61',
+      created_at: new Date(1700000000000 + 61 * 1000).toISOString(),
+    },
+  ]
+  const merged50 = mergeConversationMessages(fullPrev, window50Plus1, { authoritativeSnapshot: true })
+  assert.equal(merged50.length, 60) // 10 older + 49 remaining + 1 new
+  assert.equal(merged50[0].uuid, 'old-1')
+  assert.equal(merged50.some((m) => m.uuid === 'win-20'), false)
+  assert.equal(merged50[merged50.length - 1].uuid, 'win-61')
+})

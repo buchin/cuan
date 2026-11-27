@@ -72,48 +72,72 @@ export function compareMessages(a: ChatMessage, b: ChatMessage): number {
   return (a.id || 0) - (b.id || 0)
 }
 
+export interface MergeConversationOptions {
+  /**
+   * When true, `incoming` is treated as an authoritative latest-window snapshot
+   * from the server (e.g., GET /conversations/:id or SSE `snapshot` event).
+   * Messages in `prev` within the snapshot window (or all of `prev` when
+   * `incoming.length < 50`) that are absent from `incoming` are removed.
+   */
+  authoritativeSnapshot?: boolean
+}
+
 /**
  * Reconciles and merges incoming messages into previous message state.
  *
  * 1. Upserts messages matching by ID or UUID.
- * 2. Preserves all older history and existing messages in `prev`.
+ * 2. Preserves all older history and existing messages in `prev` (and removes
+ *    deleted messages only when `options.authoritativeSnapshot` is true).
  * 3. Appends new messages chronologically.
  * 4. Crucially: returns `prev` unmodified (preserving reference equality)
- *    if no message changed and no new message was added.
+ *    if no message changed and no new message was added or removed.
  */
 export function mergeConversationMessages(
   prev: ChatMessage[],
   incoming: ChatMessage[],
+  options?: MergeConversationOptions,
 ): ChatMessage[] {
-  if (!incoming || incoming.length === 0) return prev.length === 0 ? prev : []
+  const isSnapshot = Boolean(options?.authoritativeSnapshot)
+  if (!incoming || incoming.length === 0) {
+    if (isSnapshot) {
+      return prev.length === 0 ? prev : []
+    }
+    return prev
+  }
   if (!prev || prev.length === 0) return incoming
 
-  const incomingUuids = new Set<string>()
-  const incomingIds = new Set<number>()
-  for (const inc of incoming) {
-    if (inc.uuid) incomingUuids.add(inc.uuid)
-    if (inc.id != null && inc.id !== 0) incomingIds.add(inc.id)
-  }
-
-  const windowStart = incoming[0]?.created_at ? Date.parse(incoming[0].created_at) : Number.NaN
-  const hasOlderWindow = incoming.length >= 50 && !Number.isNaN(windowStart)
-
   let hasChanges = false
-  const updated: ChatMessage[] = []
-  for (const m of prev) {
-    const inIncoming =
-      (m.uuid ? incomingUuids.has(m.uuid) : false) ||
-      (m.id != null && m.id !== 0 ? incomingIds.has(m.id) : false)
-    if (inIncoming) {
-      updated.push(m)
-      continue
+  let updated: ChatMessage[]
+
+  if (isSnapshot) {
+    const incomingUuids = new Set<string>()
+    const incomingIds = new Set<number>()
+    for (const inc of incoming) {
+      if (inc.uuid) incomingUuids.add(inc.uuid)
+      if (inc.id != null && inc.id !== 0) incomingIds.add(inc.id)
     }
-    const mTime = m.created_at ? Date.parse(m.created_at) : Number.NaN
-    if (hasOlderWindow && !Number.isNaN(mTime) && mTime < windowStart) {
-      updated.push(m)
-    } else {
-      hasChanges = true
+
+    const windowStart = incoming[0]?.created_at ? Date.parse(incoming[0].created_at) : Number.NaN
+    const hasOlderWindow = incoming.length >= 50 && !Number.isNaN(windowStart)
+
+    updated = []
+    for (const m of prev) {
+      const inIncoming =
+        (m.uuid ? incomingUuids.has(m.uuid) : false) ||
+        (m.id != null && m.id !== 0 ? incomingIds.has(m.id) : false)
+      if (inIncoming) {
+        updated.push(m)
+        continue
+      }
+      const mTime = m.created_at ? Date.parse(m.created_at) : Number.NaN
+      if (hasOlderWindow && !Number.isNaN(mTime) && mTime < windowStart) {
+        updated.push(m)
+      } else {
+        hasChanges = true
+      }
     }
+  } else {
+    updated = [...prev]
   }
 
   const byUuid = new Map<string, number>()
