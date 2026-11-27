@@ -1,4 +1,4 @@
-type Task = { id: string; source_message_id?: string }
+type Task = { id: string; source_message_id?: string; status?: string; release_status?: string }
 type Message = { uuid?: string; id: number | string; author_type?: string; author_id?: string; is_internal?: boolean; content?: string; message?: string; work_update?: {task_id: string} }
 type Request = { reply_id: string; message_id: string }
 
@@ -29,4 +29,40 @@ export function taskMessageBindings(tasks: Task[], messages: Message[], requests
 /** Background records retain their card/draft, while genuine decisions remain speech. */
 export function isBackgroundWorkUpdate(message: {work_update?: {kind: string}; approval_plan?: unknown; prompt_choices?: unknown; action_card?: unknown; receipt_extraction?: unknown}) {
   return !!message.work_update && message.work_update.kind !== 'result' && !message.approval_plan && !message.prompt_choices && !message.action_card && !message.receipt_extraction
+}
+
+const RELEASE_PENDING_OR_FAILURE_RE = /Rilis hasil yang diperiksa belum tuntas|belum masuk ke aplikasi yang sedang berjalan|Cuan sedang menerapkannya melalui jalur rilis proyek|⚠️ Deploy production gagal|⚠️ Auto-apply tidak dapat menggabungkan|Verifikasi deployment production belum dikonfirmasi/i
+const RELEASE_COMPLETION_RE = /telah selesai dan diverifikasi|sudah selesai dan diverifikasi|Pekerjaan ditandai selesai|telah diverifikasi aktif pada rilis live|Perubahan telah berhasil diterapkan/i
+
+/**
+ * Suppresses an older release-pending or release-failure notice once every
+ * referenced task is done, live (not pending/deploying/failed), and followed
+ * by a completion message for that task in the conversation.
+ */
+export function isStaleReleaseNoticeSuperseded(
+  content: string,
+  referencedTaskIds: string[],
+  tasks: Task[],
+  messages: Message[],
+  msgIndex: number,
+): boolean {
+  if (!referencedTaskIds.length || !RELEASE_PENDING_OR_FAILURE_RE.test(content)) {
+    return false
+  }
+  const allLiveDone = referencedTaskIds.every((id) => {
+    const t = tasks.find((item) => item.id === id)
+    return (
+      t?.status === 'done' &&
+      t.release_status !== 'pending' &&
+      t.release_status !== 'deploying' &&
+      t.release_status !== 'failed'
+    )
+  })
+  if (!allLiveDone) return false
+  return referencedTaskIds.every((id) =>
+    messages.slice(msgIndex + 1).some((m) => {
+      const text = m.content || m.message || ''
+      return text.includes(`/tasks/${id}`) && RELEASE_COMPLETION_RE.test(text)
+    }),
+  )
 }

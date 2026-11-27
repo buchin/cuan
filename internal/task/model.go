@@ -172,6 +172,7 @@ type TaskItemResponse struct {
 	ReviewFinding        string      `json:"review_finding,omitempty"`
 	ReviewAction         string      `json:"review_action,omitempty"`
 	ReviewState          string      `json:"review_state,omitempty"`
+	ReleaseStatus        string      `json:"release_status,omitempty"`
 	Launch               *LaunchInfo `json:"launch,omitempty"`
 	ResultKind           string      `json:"result_kind,omitempty"`
 	Task
