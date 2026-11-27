@@ -113,6 +113,8 @@ export interface ChatMessage {
   mention_handle?: string
   reply_draft?: string
   created_at: string
+  updated_at?: string
+  edited?: boolean
   grounding_tastes?: GroundingTaste[]
   receipt_extraction?: ReceiptExtraction
 }
@@ -337,6 +339,32 @@ export const chatApi = {
       {
         method: 'PATCH',
         body: JSON.stringify({ title }),
+      },
+    )
+  },
+
+  updateMessage: async (
+    conversationId: string,
+    messageId: string,
+    content: string,
+  ): Promise<ChatMessage> => {
+    return apiFetch<ChatMessage>(
+      `/api/v1/chat/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ content, message: content }),
+      },
+    )
+  },
+
+  deleteMessage: async (
+    conversationId: string,
+    messageId: string,
+  ): Promise<{ status: string; id: string }> => {
+    return apiFetch<{ status: string; id: string }>(
+      `/api/v1/chat/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}`,
+      {
+        method: 'DELETE',
       },
     )
   },

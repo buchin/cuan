@@ -66,6 +66,8 @@ type ChatMessageDTO struct {
 	MentionHandle      string                   `json:"mention_handle,omitempty"`
 	ReplyDraft         string                   `json:"reply_draft,omitempty"`
 	CreatedAt          time.Time                `json:"created_at"`
+	UpdatedAt          time.Time                `json:"updated_at,omitempty"`
+	Edited             bool                     `json:"edited,omitempty"`
 	GroundingTastes    []GroundingTaste         `json:"grounding_tastes,omitempty"`
 }
 
@@ -626,4 +628,146 @@ func safeInboxProviderFailure(ctxErr error, raw string) string {
 
 // Note: customerAttachmentBaseURL, isCustomerRoom, splitCustomerReplyDraft,
 // getFormattedMessages, and triage helpers are moved to chat_formatting.go.
+
+func isOwnerEditableInboxMessage(msg *db.ProjectMessage, isCustomer bool) bool {
+	if msg == nil || msg.AuthorType == "agent" || msg.AuthorType == "system" {
+		return false
+	}
+	if isCustomer {
+		return msg.AuthorID == "operator_user" || msg.AuthorName == "You" || msg.AuthorName == "Owner"
+	}
+	return msg.AuthorType == "user"
+}
+
+func (s *Server) resolveOwnedInboxMessage(w http.ResponseWriter, r *http.Request) (*http.Request, ResolvedConversation, *db.ProjectMessage, bool) {
+	owner := s.authenticateOwner(w, r)
+	if owner == nil {
+		return r, ResolvedConversation{}, nil, false
+	}
+	r = r.WithContext(auth.ContextWithOwner(r.Context(), owner))
+
+	convID := strings.TrimSpace(chi.URLParam(r, "id"))
+	msgID := strings.TrimSpace(chi.URLParam(r, "messageID"))
+	if convID == "" || msgID == "" {
+		respondJSONError(w, http.StatusBadRequest, "conversation id and message id are required")
+		return r, ResolvedConversation{}, nil, false
+	}
+	if !db.IsValidUUID(msgID) {
+		respondJSONError(w, http.StatusBadRequest, "invalid message id")
+		return r, ResolvedConversation{}, nil, false
+	}
+	if s.projectStudioRepo == nil {
+		respondJSONError(w, http.StatusServiceUnavailable, "inbox storage is not configured")
+		return r, ResolvedConversation{}, nil, false
+	}
+
+	resolved := s.resolveConversationContext(r.Context(), convID, "")
+	msg, err := s.projectStudioRepo.GetMessageByID(r.Context(), msgID)
+	if err != nil {
+		if errors.Is(err, db.ErrMessageNotFound) {
+			respondJSONError(w, http.StatusNotFound, "message not found")
+			return r, resolved, nil, false
+		}
+		respondJSONError(w, http.StatusInternalServerError, "failed to load message")
+		return r, resolved, nil, false
+	}
+	if msg.RoomID != resolved.RoomID {
+		respondJSONError(w, http.StatusNotFound, "message not found")
+		return r, resolved, nil, false
+	}
+	if !isOwnerEditableInboxMessage(msg, !resolved.IsAgent) {
+		respondJSONError(w, http.StatusForbidden, "only your own messages can be modified")
+		return r, resolved, nil, false
+	}
+	return r, resolved, msg, true
+}
+
+// PATCH /api/v1/chat/conversations/{id}/messages/{messageID}
+func (s *Server) handleUpdateInboxMessage(w http.ResponseWriter, r *http.Request) {
+	r, resolved, msg, ok := s.resolveOwnedInboxMessage(w, r)
+	if !ok {
+		return
+	}
+
+	var payload struct {
+		Content string `json:"content"`
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		respondJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	newText := strings.TrimSpace(payload.Content)
+	if newText == "" {
+		newText = strings.TrimSpace(payload.Message)
+	}
+	if newText == "" {
+		respondJSONError(w, http.StatusBadRequest, "message content is required")
+		return
+	}
+
+	_, attIDs := decodeAttachmentMessage(msg.Content)
+	if len(attIDs) > 0 {
+		msg.Content = encodeAttachmentMessage(newText, attIDs)
+	} else {
+		msg.Content = newText
+	}
+
+	if err := s.projectStudioRepo.UpdateMessage(r.Context(), msg); err != nil {
+		if errors.Is(err, db.ErrMessageNotFound) {
+			respondJSONError(w, http.StatusNotFound, "message not found")
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, "failed to update message")
+		return
+	}
+
+	s.publishInbox(resolved.RoomID)
+
+	formatted, err := s.getFormattedMessagesResult(r.Context(), resolved.RoomID, "", !resolved.IsAgent)
+	if err == nil {
+		for _, dto := range formatted {
+			if dto.UUID == msg.ID {
+				respondJSON(w, http.StatusOK, dto)
+				return
+			}
+		}
+	}
+
+	respondJSON(w, http.StatusOK, ChatMessageDTO{
+		UUID:       msg.ID,
+		RoomID:     msg.RoomID,
+		AuthorType: msg.AuthorType,
+		AuthorID:   msg.AuthorID,
+		AuthorName: msg.AuthorName,
+		Message:    newText,
+		Content:    newText,
+		CreatedAt:  msg.CreatedAt,
+		UpdatedAt:  msg.UpdatedAt,
+		Edited:     true,
+	})
+}
+
+// DELETE /api/v1/chat/conversations/{id}/messages/{messageID}
+func (s *Server) handleDeleteInboxMessage(w http.ResponseWriter, r *http.Request) {
+	r, resolved, msg, ok := s.resolveOwnedInboxMessage(w, r)
+	if !ok {
+		return
+	}
+
+	if err := s.projectStudioRepo.DeleteMessage(r.Context(), msg.ID); err != nil {
+		if errors.Is(err, db.ErrMessageNotFound) {
+			respondJSONError(w, http.StatusNotFound, "message not found")
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, "failed to delete message")
+		return
+	}
+
+	s.publishInbox(resolved.RoomID)
+	respondJSON(w, http.StatusOK, map[string]any{
+		"status": "deleted",
+		"id":     msg.ID,
+	})
+}
 

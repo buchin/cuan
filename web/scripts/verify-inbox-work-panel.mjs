@@ -185,6 +185,7 @@ try{
    socket.send(Buffer.from('Isolated terminal fixture output\r\nApplication workflow verification ready.\r\n'))
   })
   let releaseSession,sessionLoading=true,sessionStatus='running'
+  const fixtureMessages=messages.map(m=>({...m}))
   page.on('pageerror',error=>errors.push(error.stack || error.message))
   page.on('console',message=>{if(message.type()==='error')console.log(message.text())})
   await page.route('**/api/**',async route=>{
@@ -201,12 +202,32 @@ try{
      }
      return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true})})
    }
+   else if(/\/conversations\/[^/]+\/messages\/[^/]+$/.test(pathname)&&route.request().method()==='PATCH'){
+     const msgId=pathname.split('/').pop()
+     let body={}
+     try{body=route.request().postDataJSON()||{}}catch{}
+     const newText=(body?.content||body?.message||'').trim()
+     const target=fixtureMessages.find(m=>m.uuid===msgId||String(m.id)===msgId)
+     if(!target)return route.fulfill({status:404,contentType:'application/json',body:JSON.stringify({error:'message not found'})})
+     target.content=newText
+     target.message=newText
+     target.updated_at=new Date(Date.parse(now)+60000).toISOString()
+     target.edited=true
+     return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(target)})
+   }
+   else if(/\/conversations\/[^/]+\/messages\/[^/]+$/.test(pathname)&&route.request().method()==='DELETE'){
+     const msgId=pathname.split('/').pop()
+     const idx=fixtureMessages.findIndex(m=>m.uuid===msgId||String(m.id)===msgId)
+     if(idx<0)return route.fulfill({status:404,contentType:'application/json',body:JSON.stringify({error:'message not found'})})
+     fixtureMessages.splice(idx,1)
+     return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'deleted',id:msgId})})
+   }
    else if(pathname.endsWith('/messages')){
      const match=pathname.match(/\/conversations\/([^/]+)\/messages/)
      const reqId=match?match[1]:null
      const matchedContact=reqId?(contactsList.find(c=>c.id===reqId||c.conversation_id===reqId)||contact):contact
      const activeRequests=reqId==='c-agent'?[{request_id:'req-typing-dots',message_id:'source',agent_id:'agent_cuan',state:'running',created_at:now,started_at:now,steps:[]}]:[]
-     data={messages,tasks:allTasks,contact:matchedContact,requests:activeRequests}
+     data={messages:fixtureMessages,tasks:allTasks,contact:matchedContact,requests:activeRequests}
    }
    else if(pathname==='/api/v1/tasks/work'){
     if(page.url().includes('/sessions/')&&sessionLoading){sessionLoading=false;await new Promise(resolve=>{releaseSession=resolve})}
@@ -928,7 +949,77 @@ try{
   await page.waitForTimeout(100)
   await page.screenshot({ path: path.join(output, `typing-dots-${width}-dark.png`) })
 
-  checks.push({width,composer_task_disclosure:true,composer_task_autoscroll:true,last_task_visible:true,no_chat_task_card:true,session_loading_running_completed:true,back_preserves_draft_and_scroll:true,full_terminal_height:terminalBox.height,panel_width:box.width,composer_alignment:true,multiline_autoexpand:true,studio_autoexpand:true,typing_dots_circular:true})
+  // Verify message context menu UI, Edit message, Delete message, and non-owner restrictions
+  await page.evaluate(() => document.documentElement.classList.remove('dark'))
+  await page.goto(new URL('/inbox/work-fixture', origin).href, { waitUntil: 'domcontentloaded' })
+  const userMsgRow = page.locator('[data-message-id="reply-out"]')
+  await userMsgRow.waitFor({ state: 'visible', timeout: 10000 })
+  await userMsgRow.scrollIntoViewIfNeeded()
+
+  // Open context menu on user-owned message (via right-click / contextmenu so it works identically on desktop & touch)
+  await userMsgRow.locator('.wa-message-bubble').click({ button: 'right' })
+  const menuPanel = page.locator('[data-item-menu-panel][role="menu"]')
+  await menuPanel.waitFor({ state: 'visible', timeout: 5000 })
+  const menuMetrics = await menuPanel.evaluate(el => {
+    const s = getComputedStyle(el)
+    const items = Array.from(el.querySelectorAll('[role="menuitem"]'))
+    const firstItemRect = items[0]?.getBoundingClientRect()
+    return {
+      borderRadius: s.borderRadius,
+      boxShadow: s.boxShadow,
+      itemHeight: firstItemRect ? firstItemRect.height : 0,
+      labels: items.map(i => i.textContent?.trim() || ''),
+    }
+  })
+  assert.notEqual(menuMetrics.borderRadius, '0px', `Context menu must have rounded corners, got ${menuMetrics.borderRadius}`)
+  assert.notEqual(menuMetrics.boxShadow, 'none', 'Context menu must have elevation shadow')
+  assert.ok(menuMetrics.itemHeight >= 34 && menuMetrics.itemHeight <= 42, `Context menu item height should be compact & touch-friendly (34-42px), got ${menuMetrics.itemHeight}px`)
+  assert.ok(menuMetrics.labels.includes('Edit pesan'), `User message menu must include 'Edit pesan', got ${JSON.stringify(menuMetrics.labels)}`)
+  assert.ok(menuMetrics.labels.includes('Hapus pesan'), `User message menu must include 'Hapus pesan', got ${JSON.stringify(menuMetrics.labels)}`)
+  await page.screenshot({ path: path.join(output, `message-context-menu-${width}.png`) })
+
+  // Edit user message
+  await menuPanel.getByRole('menuitem', { name: 'Edit pesan' }).click()
+  const editTextarea = userMsgRow.locator('[data-message-edit-form] textarea')
+  await editTextarea.waitFor({ state: 'visible', timeout: 5000 })
+  await editTextarea.fill('Sudut bubble chat diperbarui dan telah diedit.')
+  await userMsgRow.locator('[data-message-edit-form]').getByRole('button', { name: /Simpan|Save/i }).click()
+  await userMsgRow.getByText('Sudut bubble chat diperbarui dan telah diedit.').waitFor({ state: 'visible', timeout: 5000 })
+  await userMsgRow.getByText('(diedit)').waitFor({ state: 'visible', timeout: 5000 })
+
+  // Verify edit persists across reload
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await page.locator('[data-message-id="reply-out"]').getByText('Sudut bubble chat diperbarui dan telah diedit.').waitFor({ state: 'visible', timeout: 10000 })
+  await page.locator('[data-message-id="reply-out"]').getByText('(diedit)').waitFor({ state: 'visible', timeout: 5000 })
+
+  // Verify agent and system messages do NOT show Edit pesan / Hapus pesan
+  for (const nonOwnerId of ['proposal-pending', 'system-notice-1']) {
+    const nonOwnerRow = page.locator(`[data-message-id="${nonOwnerId}"]`)
+    await nonOwnerRow.scrollIntoViewIfNeeded()
+    await nonOwnerRow.locator('.wa-message-bubble').click({ button: 'right' })
+    await menuPanel.waitFor({ state: 'visible', timeout: 5000 })
+    const nonOwnerLabels = await menuPanel.locator('[role="menuitem"]').allTextContents()
+    assert.ok(!nonOwnerLabels.includes('Edit pesan'), `Non-owner message ${nonOwnerId} must NOT have Edit pesan`)
+    assert.ok(!nonOwnerLabels.includes('Hapus pesan'), `Non-owner message ${nonOwnerId} must NOT have Hapus pesan`)
+    await page.keyboard.press('Escape')
+    await menuPanel.waitFor({ state: 'hidden', timeout: 5000 })
+  }
+
+  // Delete user message with confirmation and verify persistence across reload
+  const userMsgAfterReload = page.locator('[data-message-id="reply-out"]')
+  await userMsgAfterReload.scrollIntoViewIfNeeded()
+  await userMsgAfterReload.locator('.wa-message-bubble').click({ button: 'right' })
+  await menuPanel.waitFor({ state: 'visible', timeout: 5000 })
+  await menuPanel.getByRole('menuitem', { name: 'Hapus pesan' }).click()
+  const confirmDeleteBtn = page.locator('[data-confirm-delete-message]')
+  await confirmDeleteBtn.waitFor({ state: 'visible', timeout: 5000 })
+  await confirmDeleteBtn.click()
+  await userMsgAfterReload.waitFor({ state: 'detached', timeout: 5000 })
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await page.locator('[data-message-id="proposal-pending"]').waitFor({ state: 'visible', timeout: 10000 })
+  assert.equal(await page.locator('[data-message-id="reply-out"]').count(), 0, 'Deleted message must remain deleted after reload')
+
+  checks.push({width,composer_task_disclosure:true,composer_task_autoscroll:true,last_task_visible:true,no_chat_task_card:true,session_loading_running_completed:true,back_preserves_draft_and_scroll:true,full_terminal_height:terminalBox.height,panel_width:box.width,composer_alignment:true,multiline_autoexpand:true,studio_autoexpand:true,typing_dots_circular:true,message_context_menu_ui:menuMetrics,message_edit_and_delete:true})
   await context.close()
   await browser.close()
   browser=null

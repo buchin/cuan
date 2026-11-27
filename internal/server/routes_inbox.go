@@ -89,6 +89,8 @@ func (s *Server) registerInboxRoutes(pr chi.Router) {
 	pr.Get("/chat/conversations/{id}/grounding", s.handleGetConversationTasteGrounding)
 	pr.Post("/chat/conversations/{id}/messages", s.handleInternalSendConversationMessage)
 	pr.Get("/chat/conversations/{id}/events", s.handleInboxStream)
+	pr.Patch("/chat/conversations/{id}/messages/{messageID}", s.handleUpdateInboxMessage)
+	pr.Delete("/chat/conversations/{id}/messages/{messageID}", s.handleDeleteInboxMessage)
 	pr.Post("/chat/conversations/{id}/messages/{messageID}/task", s.handleInboxMessageTask)
 	pr.Post("/chat/conversations/{id}/messages/{messageID}/email", s.handleSendCustomerReplyEmail)
 	pr.Post("/chat/conversations/{id}/send-email", s.handleSendConversationEmail)

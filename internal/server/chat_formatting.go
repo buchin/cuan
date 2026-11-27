@@ -402,6 +402,8 @@ func (s *Server) getFormattedMessagesResultPaged(ctx context.Context, roomID, pr
 			PromptChoices:   promptChoices,
 			Attachments:     attached,
 			CreatedAt:       m.CreatedAt,
+			UpdatedAt:       m.UpdatedAt,
+			Edited:          m.AuthorType != "agent" && m.AuthorType != "system" && !m.UpdatedAt.IsZero() && m.UpdatedAt.After(m.CreatedAt),
 			GroundingTastes: groundingTastes,
 		})
 	}
