@@ -15,14 +15,21 @@ const workspaceSource = fs.readFileSync(workspacePath, 'utf8')
 const settingsSource = fs.readFileSync(settingsPath, 'utf8')
 const apiSource = fs.readFileSync(apiProjectsPath, 'utf8')
 
-test('1. ProjectsWorkspace: navigation includes dedicated Environment tab', () => {
+test('1. ProjectsWorkspace: navigation simplifies to 3 tabs (Activity, Deployments, Settings) and defaults to Activity', () => {
   assert.ok(
-    workspaceSource.includes("const environmentView = pathSegments[2] === 'environment'"),
-    'ProjectsWorkspace must detect environmentView from URL path'
+    workspaceSource.includes("label: 'Activity', path: 'tasks'") &&
+    workspaceSource.includes("label: 'Deployments', path: 'deployments'") &&
+    workspaceSource.includes("label: 'Settings', path: 'settings'"),
+    'ProjectsWorkspace must render Activity, Deployments, and Settings tabs'
   )
   assert.ok(
-    workspaceSource.includes("label: 'Environment', path: 'environment'"),
-    'ProjectsWorkspace must render Environment tab in project navigation'
+    !workspaceSource.includes("label: 'Environment', path: 'environment'") &&
+    !workspaceSource.includes("label: 'Repository', path: 'repository'"),
+    'ProjectsWorkspace must not render separate Environment or Repository tabs'
+  )
+  assert.ok(
+    workspaceSource.includes("to={`/projects/${encodeURIComponent(item.id)}/tasks`}"),
+    'Project list row must link directly to Activity (/tasks)'
   )
 })
 

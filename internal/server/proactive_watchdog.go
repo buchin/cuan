@@ -1088,9 +1088,9 @@ func (s *Server) drainQueuedProjectDeployments(ctx context.Context) {
 		// Check if active building deployment exists
 		building, err := s.projectDeploymentRepo.GetActiveBuilding(ctx, p.ID)
 		if err == nil && building != nil {
-			// If stuck in building for > 30 minutes, mark failed so queue doesn't block forever
-			if time.Since(building.StartedAt) > 30*time.Minute {
-				log.Printf("[Watchdog] Stale building deployment %s timed out (>30m), marking failed", building.ID)
+			// If stuck in building for > 50 minutes, mark failed so queue doesn't block forever
+			if time.Since(building.StartedAt) > 50*time.Minute {
+				log.Printf("[Watchdog] Stale building deployment %s timed out (>50m), marking failed", building.ID)
 				building.Status = db.DeploymentStatusFailed
 				building.ErrorMessage = "Deployment timed out or interrupted by server restart"
 				now := time.Now().UTC()
