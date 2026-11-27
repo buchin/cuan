@@ -201,7 +201,7 @@ func (s *Server) taskPublicationPolicy(ctx context.Context, detail *task.TaskDet
 	if s.taskSvc != nil && s.taskSvc.Store() != nil {
 		if proof, err := task.ValidateVerificationSource(ctx, s.taskSvc.Store(), &detail.Task, attemptID); err == nil && proof != nil && proof.SourceAttemptID != "" {
 			attemptID = proof.SourceAttemptID
-		} else if liveProof, err := task.ValidateLiveInspection(ctx, s.taskSvc.Store(), &detail.Task, attemptID); err == nil && liveProof != nil && liveProof.SourceAttemptID != "" {
+		} else if liveProof, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &detail.Task, attemptID); err == nil && liveProof != nil && liveProof.SourceAttemptID != "" && detail.CommitSHA == liveProof.SourceCommit {
 			attemptID = liveProof.SourceAttemptID
 		}
 	}
