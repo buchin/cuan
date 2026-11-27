@@ -870,6 +870,39 @@ try{
   await page.locator('.xterm').waitFor({state:'visible',timeout:15000})
   await page.locator('.xterm-screen').getByText('Application workflow verification ready.',{exact:false}).waitFor()
   await page.screenshot({path:path.join(output,`session-running-${width}.png`)})
+  // Verify TerminalComposer Quick Reply button beside Mic/Send, popover, search, insert without auto-send, and `/` slash commands
+  const qrTrigger = page.locator('[data-testid="terminal-quick-reply-trigger"]')
+  await qrTrigger.waitFor({state:'visible',timeout:5000})
+  const qrInput = page.locator('#terminal_composer_input')
+  const qrSendBtn = page.locator('[aria-label="Terminal input composer"] button.composer-send')
+  const [qrTriggerBox, qrInputBox, qrSendBox] = await Promise.all([
+    qrTrigger.boundingBox(),
+    qrInput.boundingBox(),
+    qrSendBtn.boundingBox(),
+  ])
+  assert.ok(qrTriggerBox && qrInputBox && qrSendBox, 'TerminalComposer controls must have bounding boxes')
+  assert.ok(qrInputBox.width >= 150, `Terminal input width (${qrInputBox.width}px) must stay comfortable on ${width}px`)
+  assert.ok(qrInputBox.x + qrInputBox.width <= qrTriggerBox.x + 2, 'Quick reply button must be to the right of input')
+  assert.ok(qrTriggerBox.x + qrTriggerBox.width <= qrSendBox.x + 2, 'Quick reply button must be immediately beside Mic/Send button without overlap')
+  await qrTrigger.click()
+  const qrPopover = page.locator('[data-testid="terminal-quick-reply-popover"]')
+  await qrPopover.waitFor({state:'visible',timeout:5000})
+  await page.screenshot({path:path.join(output,`terminal-quick-reply-popover-${width}.png`)})
+  await page.locator('[data-testid="terminal-quick-reply-search"]').fill('test')
+  const beforeQrText = await qrInput.inputValue()
+  const qrFirstItem = page.locator('[data-testid="terminal-quick-reply-item"]').first()
+  await qrFirstItem.waitFor({state:'visible',timeout:5000})
+  const expectedText = await qrFirstItem.locator('p').innerText()
+  await qrFirstItem.click()
+  await qrPopover.waitFor({state:'hidden',timeout:5000})
+  const expectedAfterQr = beforeQrText.trim() ? `${beforeQrText.trimEnd()} ${expectedText}` : expectedText
+  assert.equal(await qrInput.inputValue(), expectedAfterQr, 'Selecting a quick reply must insert its text without auto-sending')
+  const isFocused = await qrInput.evaluate((el) => document.activeElement === el)
+  assert.equal(isFocused, true, 'Selecting a quick reply must focus the terminal input')
+  // Verify `/` slash commands still open without conflict, then restore
+  await qrInput.fill('/')
+  await page.getByText('Slash Commands', {exact:true}).waitFor({state:'visible',timeout:5000})
+  await qrInput.fill(beforeQrText)
   // Test Stop/Cancel session modal
   const cancelButton = page.locator("button[aria-label=\"Stop session\"], button[aria-label=\"Cancel session\"], button[aria-label=\"Hentikan sesi\"]")
   await cancelButton.waitFor({state: "visible", timeout: 5000})

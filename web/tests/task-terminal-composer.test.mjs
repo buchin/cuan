@@ -209,3 +209,35 @@ test('12. TerminalComposer uses server-returned upload path and quotes whitespac
   const terminalContent = fs.readFileSync(path.join(rootDir, 'src/features/tasks/TaskTerminal.tsx'), 'utf8')
   assert.match(terminalContent, /sf\.abs_path\s*\|\|\s*sf\.path/, 'TaskTerminal drag-drop upload must prefer server-returned abs_path with path fallback')
 })
+
+test('13. TerminalComposer renders Quick Reply trigger beside Mic/Send without auto-sending or conflicting with slash commands', () => {
+  const composerContent = fs.readFileSync(path.join(rootDir, 'src/features/tasks/terminal/TerminalComposer.tsx'), 'utf8')
+  const pickerContent = fs.readFileSync(path.join(rootDir, 'src/features/tasks/terminal/TerminalQuickRepliesPicker.tsx'), 'utf8')
+  const storeContent = fs.readFileSync(path.join(rootDir, 'src/features/tasks/terminal/terminalQuickReplies.ts'), 'utf8')
+
+  // Quick reply accessory is placed immediately before the Send/Mic ComposerSendButton
+  const accessoryIdx = composerContent.indexOf('<TerminalQuickRepliesPicker')
+  const sendIdx = composerContent.indexOf('<ComposerSendButton')
+  assert.notEqual(accessoryIdx, -1, 'TerminalComposer must render TerminalQuickRepliesPicker')
+  assert.notEqual(sendIdx, -1, 'TerminalComposer must render ComposerSendButton')
+  assert.ok(accessoryIdx < sendIdx, 'TerminalQuickRepliesPicker must be placed immediately before ComposerSendButton on the right')
+
+  // Selecting a quick reply inserts into text, resizes, focuses, and does NOT auto-send
+  assert.match(composerContent, /const handleSelectQuickReply = useCallback/, 'Must define handleSelectQuickReply')
+  const selectFnStart = composerContent.indexOf('const handleSelectQuickReply')
+  const selectFnEnd = composerContent.indexOf('const handleKeyDown', selectFnStart)
+  const selectFnBody = composerContent.slice(selectFnStart, selectFnEnd)
+  assert.match(selectFnBody, /setText\(/, 'handleSelectQuickReply must update text')
+  assert.match(selectFnBody, /autoResizeTextarea\(/, 'handleSelectQuickReply must auto-resize textarea')
+  assert.match(selectFnBody, /textareaRef\.current\.focus\(\)/, 'handleSelectQuickReply must focus textarea')
+  assert.doesNotMatch(selectFnBody, /handleSend\(|onSend\(/, 'handleSelectQuickReply must NOT auto-send')
+
+  // Dedicated terminal storage separate from Inbox canned-responses API
+  assert.match(storeContent, /cuan_terminal_quick_replies_v1/, 'Must use dedicated terminal quick replies storage key')
+  assert.doesNotMatch(pickerContent, /canned-responses|chatApi/, 'Terminal quick replies must stay separate from Inbox canned responses')
+
+  // Does not hijack `/` slash commands
+  assert.doesNotMatch(pickerContent, /slashMatch|isSlashActive/, 'TerminalQuickRepliesPicker must not hijack / slash commands')
+  assert.match(pickerContent, /<Zap\b/, 'TerminalQuickRepliesPicker must render Zap icon')
+  assert.match(pickerContent, /ActionDialog/, 'TerminalQuickRepliesPicker must include Manage dialog')
+})
