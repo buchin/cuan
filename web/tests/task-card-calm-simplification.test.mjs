@@ -38,10 +38,10 @@ test('2. ComposerTasks: mobile task banner layout supports 2-line title and mute
     'ComposerTasks must allow 2-line title clamp on mobile to prevent awkward cutoff'
   )
 
-  // Check counter badge styling is muted
+  // Check counter badge styling is muted and borderless
   assert.ok(
-    composerSource.includes('bg-muted/80 text-muted-foreground border border-border/30'),
-    'ComposerTasks must style count badge with neutral muted border and text'
+    composerSource.includes('bg-muted/80 text-muted-foreground') && !composerSource.includes('border-border/30'),
+    'ComposerTasks must style count badge with neutral muted borderless pill'
   )
 })
 

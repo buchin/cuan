@@ -12,6 +12,7 @@ import type { ChatContact } from '../../api/chat'
 import { chatApi } from '../../api/chat'
 import { useLanguage } from '../../context/LanguageContext'
 import { cn } from '../../lib/utils'
+import { Badge } from '../../components/ui/badge'
 import { relativeTime, agentDisplayName } from '../tasks/task-ui'
 import {
   extractConversationRoomId,
@@ -269,14 +270,14 @@ export const RoomCard = memo(function RoomCard({
 
       {/* Supporting Metadata: Room Type Badge, Online Indicator, Participants */}
       <div className="flex flex-wrap items-center gap-2 text-xs">
-        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border/40 bg-muted/30 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+        <Badge variant="neutral" className="shrink-0 gap-1.5 bg-muted/40 px-2.5 py-0.5 text-[11px]">
           {isCustomer ? (
             <MessageSquare className="h-3 w-3 shrink-0" />
           ) : (
             <Bot className="h-3 w-3 shrink-0" />
           )}
           <span>{isCustomer ? t('Customer Room') : t('Agent Room')}</span>
-        </span>
+        </Badge>
 
         {isOnline && (
           <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">

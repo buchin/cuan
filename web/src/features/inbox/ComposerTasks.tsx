@@ -109,9 +109,9 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
           </div>
         )}
         <div className="ml-auto inline-flex shrink-0 items-center gap-1.5">
-          <span className={cn(
+          <span data-badge="true" className={cn(
             "composer-tasks-count tabular-nums px-1.5 py-0.5 text-[11px] font-medium rounded-full",
-            TASK_STATUS_THEMES[badgeStatus]?.counterBadgeClass || "bg-muted/80 text-muted-foreground border border-border/30"
+            TASK_STATUS_THEMES[badgeStatus]?.counterBadgeClass || "bg-muted/80 text-muted-foreground"
           )}>{ordered.length}</span>
           <span className="inline-flex min-h-11 min-w-11 sm:min-h-8 sm:min-w-8 items-center justify-center -mr-2 text-muted-foreground">
             <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200 ease-in-out", open && "rotate-180")} />
@@ -128,9 +128,9 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
         }}
         bodyRef={panelRef}
         title={t('Conversation tasks')}
-        badge={<span className={cn(
+        badge={<span data-badge="true" className={cn(
           "composer-tasks-count tabular-nums px-1.5 py-0.5 text-[11px] font-medium rounded-full",
-          TASK_STATUS_THEMES[badgeStatus]?.counterBadgeClass || "bg-muted/80 text-muted-foreground border border-border/30"
+          TASK_STATUS_THEMES[badgeStatus]?.counterBadgeClass || "bg-muted/80 text-muted-foreground"
         )}>{ordered.length}</span>}
         data-testid="composer-tasks-drawer"
         size="md"

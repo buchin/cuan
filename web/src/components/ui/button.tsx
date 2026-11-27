@@ -9,9 +9,9 @@ export interface ButtonProps
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = "default", size = "default", ...props }, ref) => {
-    const baseStyles = "inline-flex items-center justify-center rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none select-none cursor-pointer"
+    const baseStyles = "inline-flex items-center justify-center rounded-none text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none select-none cursor-pointer"
     const variantStyles = {
-      default: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs",
+      default: "border border-primary bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs",
       destructive: "bg-destructive/10 text-destructive border border-destructive/20 hover:bg-destructive/20",
       outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground text-foreground",
       secondary: "border border-input bg-background hover:bg-accent hover:text-accent-foreground text-foreground shadow-xs",

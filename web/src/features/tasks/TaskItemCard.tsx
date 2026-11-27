@@ -25,6 +25,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import { cn } from '../../lib/utils'
 import { ActionDialog } from '../../components/dialogs/ActionDialog'
 import { StatusDot, type StatusDotVariant } from '../../components/ui/StatusDot'
+import { Badge } from '../../components/ui/badge'
 import './task-workspace.css'
 import {
   workStatus,
@@ -333,9 +334,9 @@ export const TaskItemCard = memo(function TaskItemCard({
       {/* Header: Status badge, Project badge, TaskRef, and Timestamp */}
       <div className="flex items-start justify-between gap-2 relative z-10">
         <div className="flex flex-wrap items-center gap-2">
-          <span
+          <Badge
             className={cn(
-              'inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border transition-colors',
+              'gap-1.5 text-[11px] font-semibold px-2.5 py-0.5',
               statusBadgeClass
             )}
           >
@@ -355,7 +356,7 @@ export const TaskItemCard = memo(function TaskItemCard({
               <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-muted-foreground/60 shrink-0" />
             )}
             {isQueued && queuePosition ? `${t(displayStatus)} #${queuePosition}` : t(displayStatus)}
-          </span>
+          </Badge>
 
           {showProject && currentTask.project_name && (
             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-medium">
