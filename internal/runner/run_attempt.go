@@ -33,11 +33,17 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 	t := claim.Task
 	startTime := time.Now()
 	deadline := verificationDeadline(task.AttemptDeadline(t, att), startTime, claim.Verification != nil || claim.LiveInspection != nil)
+	maxCeiling := task.MaxAttemptCeiling(t, att)
 	if claim.Verification != nil && claim.Verification.FinalizeAttemptID != "" && startTime.Add(30*time.Second).Before(deadline) {
 		deadline = startTime.Add(30 * time.Second)
+		maxCeiling = deadline
 	}
-	ctx, cancelAttempt := context.WithDeadline(ctx, deadline)
+	adaptiveCtx, cancelAttempt := newAdaptiveDeadlineContext(ctx, deadline, maxCeiling)
 	defer cancelAttempt()
+	ctx = withProjectVerifierActivity(adaptiveCtx, func() {
+		r.recordAttemptActivity(att.ID)
+	})
+	r.setAttemptDeadlineExtender(att.ID, adaptiveCtx.Extend)
 
 	lane := task.NormalizeExecutionCategory(t.ExecutionCategory)
 	if lane == "" {
@@ -472,6 +478,7 @@ func (r *Runner) runAttempt(ctx context.Context, claim ClaimTaskResponse) {
 				OutputFormat: "stream-json",
 				OnLog: func(stream, line string) {
 					atomic.AddInt64(&liveStreamedCount, 1)
+					r.recordAttemptActivity(att.ID)
 					r.streamLogLine(ctx, att.ID, stream, line)
 				},
 				RegisterSteer: func(steerFn func(prompt string) error) {

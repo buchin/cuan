@@ -25,6 +25,7 @@ import { getAuthToken } from '../../../api/client'
 import { ActionDialog } from '../../../components/dialogs/ActionDialog'
 import { useLanguage } from '../../../context/LanguageContext'
 import { isImageFile } from '../../../components/dialogs/filePreviewUtils'
+import { TerminalQuickRepliesPicker } from './TerminalQuickRepliesPicker'
 import '../../inbox/chat-calm.css'
 
 export interface TerminalComposerHandle {
@@ -427,6 +428,18 @@ export function TerminalComposer({
       setSlashQuery('')
     }
   }
+
+  const handleSelectQuickReply = useCallback((content: string) => {
+    setText((prev) => (prev.trim() ? `${prev.trimEnd()} ${content}` : content))
+    setShowSlashPopup(false)
+    setSlashQuery('')
+    setTimeout(() => {
+      if (textareaRef.current) {
+        autoResizeTextarea(textareaRef.current)
+        textareaRef.current.focus()
+      }
+    }, 0)
+  }, [])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (showSlashPopup && filteredCommands.length > 0) {
@@ -927,6 +940,14 @@ export function TerminalComposer({
             </button>
           )}
         </div>
+
+        {/* Quick Reply Trigger (beside Mic/Send on the right, matching Inbox composer) */}
+        <ComposerAccessory>
+          <TerminalQuickRepliesPicker
+            onSelect={handleSelectQuickReply}
+            disabled={disabled}
+          />
+        </ComposerAccessory>
 
         {/* Unified Send / Dictation Action (Yields space to Send while typing like Inbox) */}
         {(speechSupported && !text.trim()) || isListening ? (

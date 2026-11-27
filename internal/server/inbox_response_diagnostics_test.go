@@ -83,3 +83,21 @@ func TestReviewContractDiagnostic_FencedAndDuplicateFindingLimit(t *testing.T) {
 		}
 	}
 }
+
+func TestReviewContractAllowsBlockedPublicationWhenSourcePassed(t *testing.T) {
+	for _, action := range []string{"wait", "needs_owner"} {
+		raw := `{"visual_inspection":"","decision":"blocked","source_review":"pass","finding":"Source verified; publication blocked.","remaining_work":"publication","explanation":"Source passed, waiting for publication.","revision":"","manager_action":"` + action + `","manager_reason":"Deployment configuration missing."}`
+		got, err := parseInboxReviewEvaluation(raw)
+		if err != nil {
+			t.Fatalf("expected %s with source_review=pass and remaining_work=publication to pass, got err: %v", action, err)
+		}
+		if got.ManagerAction != action || got.RemainingWork != "publication" || got.Decision != "blocked" {
+			t.Fatalf("unexpected parsed evaluation: %+v", got)
+		}
+	}
+
+	invalidWait := `{"visual_inspection":"","decision":"blocked","source_review":"not_checked","finding":"Blocked","remaining_work":"publication","explanation":"Blocked","revision":"","manager_action":"wait","manager_reason":"Waiting"}`
+	if _, err := parseInboxReviewEvaluation(invalidWait); err == nil {
+		t.Fatal("expected wait with remaining_work=publication and source_review!=pass to fail")
+	}
+}

@@ -130,6 +130,19 @@ func (s *RunnerService) Heartbeat(ctx context.Context, req HeartbeatRequest, lea
 
 	shouldCancel := false
 	var canceledIDs []string
+	var extendedDeadlines map[string]time.Time
+	activeProgressSet := make(map[string]bool, len(req.ActiveProgressAttemptIDs))
+	for _, id := range req.ActiveProgressAttemptIDs {
+		if id != "" {
+			activeProgressSet[id] = true
+		}
+	}
+	deadlineExtension := task.ProgressIdleTimeout() + leaseDuration
+	if deadlineExtension < 2*leaseDuration {
+		deadlineExtension = 2 * leaseDuration
+	}
+	maxCeiling := task.MaxAdaptiveExecutionTimeout()
+
 	attemptIDsToCheck := req.ActiveAttemptIDs
 	if len(attemptIDsToCheck) == 0 && req.CurrentAttemptID != "" {
 		attemptIDsToCheck = []string{req.CurrentAttemptID}
@@ -138,7 +151,22 @@ func (s *RunnerService) Heartbeat(ctx context.Context, req HeartbeatRequest, lea
 		if attID == "" {
 			continue
 		}
-		canceled, err := s.store.RenewLease(ctx, attID, req.RunnerID, leaseDuration)
+		var (
+			canceled         bool
+			extendedDeadline *time.Time
+			err              error
+		)
+		if renewer, ok := s.store.(ActivityLeaseRenewer); ok {
+			canceled, extendedDeadline, err = renewer.RenewLeaseWithActivity(ctx, attID, req.RunnerID, leaseDuration, activeProgressSet[attID], deadlineExtension, maxCeiling)
+		} else {
+			canceled, err = s.store.RenewLease(ctx, attID, req.RunnerID, leaseDuration)
+		}
+		if extendedDeadline != nil {
+			if extendedDeadlines == nil {
+				extendedDeadlines = make(map[string]time.Time)
+			}
+			extendedDeadlines[attID] = *extendedDeadline
+		}
 		s.cancelMu.Lock()
 		pendingCancel := s.pendingCancels != nil && s.pendingCancels[attID]
 		if pendingCancel {
@@ -167,6 +195,7 @@ func (s *RunnerService) Heartbeat(ctx context.Context, req HeartbeatRequest, lea
 		ShouldCancel:       shouldCancel,
 		CanceledAttemptIDs: canceledIDs,
 		SteeringDirectives: directives,
+		ExtendedDeadlines:  extendedDeadlines,
 	}, nil
 }
 

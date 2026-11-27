@@ -21,3 +21,9 @@ type Store interface {
 	RenewLease(ctx context.Context, attemptID, runnerID string, leaseDuration time.Duration) (bool, error)
 	MarkInterruptedLeases(ctx context.Context) ([]*task.TaskAttempt, error)
 }
+
+// ActivityLeaseRenewer extends Store with activity-aware lease and execution
+// deadline renewal, bounded by maxCeiling so hung processes still terminate.
+type ActivityLeaseRenewer interface {
+	RenewLeaseWithActivity(ctx context.Context, attemptID, runnerID string, leaseDuration time.Duration, activeProgress bool, deadlineExtension, maxCeiling time.Duration) (canceled bool, extendedDeadline *time.Time, err error)
+}

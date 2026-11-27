@@ -67,8 +67,6 @@ export function ProjectsWorkspace({
   const navigate = useNavigate()
   const location = useLocation()
   const pathSegments = location.pathname.split('/').filter(Boolean)
-  const repositoryView = pathSegments[2] === 'repository'
-  const environmentView = pathSegments[2] === 'environment'
   const deploymentsView = pathSegments[2] === 'deployments'
   const activityView = pathSegments[2] === 'tasks' || pathSegments[2] === 'activity'
   const [query, setQuery] = useState('')
@@ -318,16 +316,16 @@ export function ProjectsWorkspace({
             )
             return (
               <ItemActions key={item.id} label={item.name} actions={[
-                { label: 'Open project', run: () => navigate('/projects/' + encodeURIComponent(item.id) + '/settings') },
-                { label: 'Activity', run: () => navigate('/projects/' + encodeURIComponent(item.id) + '/tasks') },
+                { label: 'Open project', run: () => navigate('/projects/' + encodeURIComponent(item.id) + '/tasks') },
+                { label: 'Settings', run: () => navigate('/projects/' + encodeURIComponent(item.id) + '/settings') },
                 { label: 'Terminal', run: () => void handleOpenProjectTerminal(item.id) },
-                { label: 'Copy link', run: () => copyItemLink('/projects/' + encodeURIComponent(item.id) + '/settings') },
+                { label: 'Copy link', run: () => copyItemLink('/projects/' + encodeURIComponent(item.id) + '/tasks') },
                 ...(onArchiveProject ? [{ label: item.is_archived ? 'Restore project' : 'Archive project', run: () => onArchiveProject(item.id, !item.is_archived) }] : []),
               ]}>
                 <div data-project-row className={`group flex rounded-lg min-h-[4.5rem] items-center transition-colors ${project?.id === item.id ? 'bg-accent' : ''}`}>
                   <Link
                     key={item.id}
-                    to={`/projects/${encodeURIComponent(item.id)}/settings`}
+                    to={`/projects/${encodeURIComponent(item.id)}/tasks`}
                     aria-current={project?.id === item.id ? 'page' : undefined}
                     className="project-list-row flex-1 min-w-0 flex items-center gap-3 px-3 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
                   >
@@ -464,11 +462,9 @@ export function ProjectsWorkspace({
             </div>}
             {!taskId && <nav aria-label={t('Project navigation')} className="flex shrink-0 gap-5 border-b bg-transparent px-4 sm:px-5 overflow-x-auto no-scrollbar scrollbar-none">
               {[
-                {label: 'Settings', path: 'settings', active: !!settingsContent && !repositoryView && !environmentView && !deploymentsView},
-                {label: 'Environment', path: 'environment', active: !!settingsContent && environmentView},
-                ...(project.id !== 'default' ? [{label: 'Repository', path: 'repository', active: !!settingsContent && repositoryView}] : []),
                 {label: 'Activity', path: 'tasks', active: activityView || (!settingsContent && !deploymentsView)},
-                {label: 'Deployments', path: 'deployments', active: deploymentsView}
+                {label: 'Deployments', path: 'deployments', active: deploymentsView},
+                {label: 'Settings', path: 'settings', active: !!settingsContent && !deploymentsView}
               ].map(item => <Link
                 key={item.path}
                 to={`/projects/${encodeURIComponent(project.id)}/${item.path}`}

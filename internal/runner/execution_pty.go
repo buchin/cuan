@@ -105,7 +105,15 @@ func (r *Runner) executeWithPTY(
 		return nil, fmt.Errorf("resolve agy binary: %w", err)
 	}
 
-	execCtx, cancelExec := context.WithTimeout(ctx, timeoutDuration)
+	var (
+		execCtx    context.Context
+		cancelExec context.CancelFunc
+	)
+	if _, hasDeadline := ctx.Deadline(); hasDeadline {
+		execCtx, cancelExec = context.WithCancel(ctx)
+	} else {
+		execCtx, cancelExec = context.WithTimeout(ctx, timeoutDuration)
+	}
 	defer cancelExec()
 
 	r.mu.Lock()
@@ -260,6 +268,7 @@ func (r *Runner) executeWithPTY(
 	lastProgress.Store(time.Now().UnixNano())
 	lastProgressActivity := func() {
 		lastProgress.Store(time.Now().UnixNano())
+		r.recordAttemptActivity(att.ID)
 	}
 	var stalled atomic.Bool
 	persistLines := func(logCtx context.Context, lines []string) {

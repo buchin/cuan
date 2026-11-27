@@ -96,8 +96,8 @@ func TestWorkspaceRetentionProtectsLocalFiles(t *testing.T) {
 func TestWorkspaceRetentionPeriodConfigurable(t *testing.T) {
 	os.Unsetenv("CUAN_WORKSPACE_RETENTION_HOURS")
 	os.Unsetenv("CUAN_WORKSPACE_TTL")
-	if p := WorkspaceRetentionPeriod(); p != 7*24*time.Hour {
-		t.Fatalf("expected default 7 days, got %v", p)
+	if p := WorkspaceRetentionPeriod(); p != 24*time.Hour {
+		t.Fatalf("expected default 24 hours, got %v", p)
 	}
 	t.Setenv("CUAN_WORKSPACE_RETENTION_HOURS", "24")
 	if p := WorkspaceRetentionPeriod(); p != 24*time.Hour {
