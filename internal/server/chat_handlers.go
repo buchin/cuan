@@ -419,8 +419,12 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 				s.resolveAgentFromMessageAuthor(r.Context(), targetMsg, &resolved)
 			}
 		}
-		if !resolved.IsAgent || len(payload.AttachmentIDs) > 0 {
-			respondJSONError(w, 400, "Approve a plan in an agent conversation without new attachments")
+		if !resolved.IsAgent {
+			respondJSONError(w, 400, "Approve a plan in an agent conversation")
+			return
+		}
+		if len(payload.AttachmentIDs) > 0 {
+			respondJSONError(w, 400, "Approve a plan without new attachments")
 			return
 		}
 		plan, err := s.persistedInboxPlan(r.Context(), resolved.RoomID, ownerID, resolved.TargetAgentID, payload.ApproveMessageID)
