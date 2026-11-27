@@ -137,6 +137,9 @@ func (s *Server) applyInboxSkill(ctx context.Context, q db.InboxRequest, content
 		if connectErr != nil {
 			return cleanText + fmt.Sprintf("\n\n⚠️ Gagal menghubungkan MCP server %s: %v", action.URL, connectErr)
 		}
+		if err := s.persistRemoteMCP(ctx, cfg, app); err != nil {
+			return cleanText + fmt.Sprintf("\n\n⚠️ Konektor MCP **%s** (`%s`) terhubung, namun gagal menyimpan konfigurasi ke database: %v", app.Name, app.ID, err)
+		}
 		return cleanText + fmt.Sprintf("\n\n✓ **Konektor MCP Terhubung:** **%s** (`%s`) dengan %d tools aktif siap digunakan.", app.Name, app.ID, len(tools))
 
 	case "toggle":
