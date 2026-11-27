@@ -208,8 +208,8 @@ echo '::cuan-release-stage::build'
 echo "==> Compiling Go backend binaries with shared cache reuse for $release_sha..."
 # Export GOCACHE and GOMODCACHE explicitly so maintenance cleanup sees active
 # references in /proc/<pid>/environ and does not prune caches mid-build.
-export GOCACHE="${GOCACHE:-$(go env GOCACHE)}"
-export GOMODCACHE="${GOMODCACHE:-$(go env GOMODCACHE)}"
+export GOCACHE="${GOCACHE:-${HOME:-/home/ubuntu}/.cache/go-build}"
+export GOMODCACHE="${GOMODCACHE:-${HOME:-/home/ubuntu}/go/pkg/mod}"
 # Each concurrent go build creates its own temporary dependency graph. On the
 # production host that multiplied peak disk use and exhausted the filesystem.
 # Serial builds reuse Go's completed cache entries and stop at the first failure.
