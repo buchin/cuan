@@ -19,6 +19,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -1376,6 +1378,78 @@ func (s *Server) processNextQueuedDeployment(projectID, repoDir string, proj *pr
 	go s.runProjectDeploymentPipeline(next.ID, projectID, repoDir, proj, next.Branch, next.CommitSHA)
 }
 
+type deployBuildOutputWriter struct {
+	mu           sync.Mutex
+	buf          bytes.Buffer
+	lastActivity atomic.Int64
+}
+
+func (w *deployBuildOutputWriter) Write(p []byte) (int, error) {
+	w.lastActivity.Store(time.Now().UnixNano())
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.buf.Write(p)
+}
+
+func (w *deployBuildOutputWriter) Bytes() []byte {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return append([]byte(nil), w.buf.Bytes()...)
+}
+
+// runDeployBuildCommand streams stdout/stderr and terminates only if the build
+// produces no output for idleTimeout (or when ctx hits the hard ceiling).
+func runDeployBuildCommand(ctx context.Context, name string, args []string, dir string, env []string, idleTimeout time.Duration) ([]byte, error) {
+	cmdCtx, cmdCancel := context.WithCancel(ctx)
+	defer cmdCancel()
+
+	cmd := exec.CommandContext(cmdCtx, name, args...)
+	cmd.Dir = dir
+	cmd.Env = env
+	out := &deployBuildOutputWriter{}
+	out.lastActivity.Store(time.Now().UnixNano())
+	cmd.Stdout = out
+	cmd.Stderr = out
+
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+
+	var stalled atomic.Bool
+	done := make(chan struct{})
+	if idleTimeout > 0 {
+		poll := min(idleTimeout/4, 5*time.Second)
+		if poll <= 0 {
+			poll = 20 * time.Millisecond
+		}
+		go func() {
+			ticker := time.NewTicker(poll)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-done:
+					return
+				case <-cmdCtx.Done():
+					return
+				case <-ticker.C:
+					if time.Since(time.Unix(0, out.lastActivity.Load())) >= idleTimeout {
+						stalled.Store(true)
+						cmdCancel()
+						return
+					}
+				}
+			}
+		}()
+	}
+
+	err := cmd.Wait()
+	close(done)
+	if stalled.Load() {
+		return out.Bytes(), fmt.Errorf("build stalled: no output for %s", idleTimeout.Round(time.Second))
+	}
+	return out.Bytes(), err
+}
+
 // runProjectDeploymentPipeline executes the 5 sequential deployment steps:
 // 1. Source Checkout (remote fetch, checkout branch, reset --hard to ref, clean untracked)
 // 2. Compile & Build (custom deploy script or repo script with native-sync or multi-layer stack detector)
@@ -1383,11 +1457,17 @@ func (s *Server) processNextQueuedDeployment(projectID, repoDir string, proj *pr
 // 4. Atomic Service Switch (zero-downtime release activation and distribution verification)
 // 5. Health Verification (HTTP probe against publication health URL or canonical domain)
 func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, proj *project.ProjectResponse, branch, commitSHA string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Minute)
 	defer cancel()
 
 	if s.projectDeploymentRepo == nil {
 		return
+	}
+
+	persistDep := func(d *cuanDB.ProjectDeployment) {
+		uCtx, uCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer uCancel()
+		_ = s.projectDeploymentRepo.Update(uCtx, d)
 	}
 
 	dep, err := s.projectDeploymentRepo.GetByID(ctx, depID)
@@ -1402,7 +1482,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	dep.Steps[0].StartedAt = &step1Start
 	dep.Steps[0].Status = cuanDB.StepStatusBuilding
 	dep.Steps[0].Summary = fmt.Sprintf("Fetching and checking out branch %s...", branch)
-	_ = s.projectDeploymentRepo.Update(ctx, dep)
+	persistDep(dep)
 
 	var checkoutLog bytes.Buffer
 	checkoutSuccess := true
@@ -1483,7 +1563,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 		dep.Status = cuanDB.DeploymentStatusFailed
 		dep.ErrorMessage = "Source checkout step failed"
 		dep.DurationSeconds = int(time.Since(startTime).Seconds())
-		_ = s.projectDeploymentRepo.Update(ctx, dep)
+		persistDep(dep)
 		s.processNextQueuedDeployment(projectID, repoDir, proj)
 		return
 	}
@@ -1491,14 +1571,14 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	dep.Steps[0].Status = cuanDB.StepStatusSuccess
 	dep.Steps[0].Summary = fmt.Sprintf("Checked out commit %s", dep.ShortSHA)
 	dep.Steps[0].Log = checkoutLog.String()
-	_ = s.projectDeploymentRepo.Update(ctx, dep)
+	persistDep(dep)
 
 	// Step 2: Compile & Build
 	step2Start := time.Now().UTC()
 	dep.Steps[1].StartedAt = &step2Start
 	dep.Steps[1].Status = cuanDB.StepStatusBuilding
 	dep.Steps[1].Summary = "Compiling application dependencies and assets..."
-	_ = s.projectDeploymentRepo.Update(ctx, dep)
+	persistDep(dep)
 
 	var buildLog bytes.Buffer
 	buildSuccess := true
@@ -1522,10 +1602,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	if strings.TrimSpace(settings.DeployScript) != "" && repoDir != "" {
 		ranDeployScript = true
 		buildLog.WriteString(fmt.Sprintf("Executing project deploy script in %s\n", repoDir))
-		cmd := exec.CommandContext(ctx, "bash", "-c", settings.DeployScript)
-		cmd.Dir = repoDir
-		cmd.Env = deployEnv
-		out, err := cmd.CombinedOutput()
+		out, err := runDeployBuildCommand(ctx, "bash", []string{"-c", settings.DeployScript}, repoDir, deployEnv, 10*time.Minute)
 		buildLog.Write(out)
 		if err != nil {
 			buildSuccess = false
@@ -1545,10 +1622,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 			if dirExists(filepath.Join(repoDir, "cmd", "server")) && dirExists("/opt/cuan/releases") {
 				deployArgs = append(deployArgs, "--local", "--native-sync", "--branch", branch, "--allow-divergent")
 			}
-			cmd := exec.CommandContext(ctx, "bash", deployArgs...)
-			cmd.Dir = repoDir
-			cmd.Env = deployEnv
-			out, err := cmd.CombinedOutput()
+			out, err := runDeployBuildCommand(ctx, "bash", deployArgs, repoDir, deployEnv, 10*time.Minute)
 			buildLog.Write(out)
 			if err != nil {
 				buildSuccess = false
@@ -1564,10 +1638,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 			if hasComposerJSON && hasPackageJSON {
 				buildCmd := "if [ ! -f .env ] && [ -f .env.example ]; then cp .env.example .env; fi && mkdir -p database storage/framework/sessions storage/framework/views storage/framework/cache bootstrap/cache && touch database/database.sqlite && composer install --no-dev --prefer-dist --no-interaction && if [ -f package-lock.json ]; then npm ci; elif [ -f yarn.lock ]; then yarn --frozen-lockfile; else npm install; fi && npm run build && if [ -f artisan ]; then php artisan view:clear && php artisan config:clear && php artisan route:clear; fi"
 				buildLog.WriteString(fmt.Sprintf("Auto-detected Laravel Fullstack project. Executing: %s\n", buildCmd))
-				cmd := exec.CommandContext(ctx, "bash", "-c", buildCmd)
-				cmd.Dir = repoDir
-				cmd.Env = deployEnv
-				out, err := cmd.CombinedOutput()
+				out, err := runDeployBuildCommand(ctx, "bash", []string{"-c", buildCmd}, repoDir, deployEnv, 10*time.Minute)
 				buildLog.Write(out)
 				if err != nil {
 					buildSuccess = false
@@ -1583,10 +1654,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 					buildCmd = "pnpm install --frozen-lockfile && pnpm build"
 				}
 				buildLog.WriteString(fmt.Sprintf("Auto-detected Node.js project. Executing: %s\n", buildCmd))
-				cmd := exec.CommandContext(ctx, "bash", "-c", buildCmd)
-				cmd.Dir = repoDir
-				cmd.Env = deployEnv
-				out, err := cmd.CombinedOutput()
+				out, err := runDeployBuildCommand(ctx, "bash", []string{"-c", buildCmd}, repoDir, deployEnv, 10*time.Minute)
 				buildLog.Write(out)
 				if err != nil {
 					buildSuccess = false
@@ -1595,10 +1663,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 			} else if hasGoMod {
 				buildCmd := "go build -v ."
 				buildLog.WriteString(fmt.Sprintf("Auto-detected Golang project. Executing: %s\n", buildCmd))
-				cmd := exec.CommandContext(ctx, "bash", "-c", buildCmd)
-				cmd.Dir = repoDir
-				cmd.Env = deployEnv
-				out, err := cmd.CombinedOutput()
+				out, err := runDeployBuildCommand(ctx, "bash", []string{"-c", buildCmd}, repoDir, deployEnv, 10*time.Minute)
 				buildLog.Write(out)
 				if err != nil {
 					buildSuccess = false
@@ -1607,10 +1672,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 			} else if hasComposerJSON {
 				buildCmd := "if [ ! -f .env ] && [ -f .env.example ]; then cp .env.example .env; fi && mkdir -p database storage/framework/sessions storage/framework/views storage/framework/cache bootstrap/cache && touch database/database.sqlite && composer install --no-dev --prefer-dist --no-interaction && if [ -f artisan ]; then php artisan view:clear && php artisan config:clear && php artisan route:clear; fi"
 				buildLog.WriteString(fmt.Sprintf("Auto-detected PHP/Laravel project. Executing: %s\n", buildCmd))
-				cmd := exec.CommandContext(ctx, "bash", "-c", buildCmd)
-				cmd.Dir = repoDir
-				cmd.Env = deployEnv
-				out, err := cmd.CombinedOutput()
+				out, err := runDeployBuildCommand(ctx, "bash", []string{"-c", buildCmd}, repoDir, deployEnv, 10*time.Minute)
 				buildLog.Write(out)
 				if err != nil {
 					buildSuccess = false
@@ -1637,7 +1699,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 		dep.Status = cuanDB.DeploymentStatusFailed
 		dep.ErrorMessage = "Build step failed"
 		dep.DurationSeconds = int(time.Since(startTime).Seconds())
-		_ = s.projectDeploymentRepo.Update(ctx, dep)
+		persistDep(dep)
 
 		// Process next queued deployment even if current failed
 		s.processNextQueuedDeployment(projectID, repoDir, proj)
@@ -1647,14 +1709,14 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	dep.Steps[1].Status = cuanDB.StepStatusSuccess
 	dep.Steps[1].Summary = "Application compiled successfully"
 	dep.Steps[1].Log = buildLog.String()
-	_ = s.projectDeploymentRepo.Update(ctx, dep)
+	persistDep(dep)
 
 	// Step 3: Database Migration
 	step3Start := time.Now().UTC()
 	dep.Steps[2].StartedAt = &step3Start
 	dep.Steps[2].Status = cuanDB.StepStatusBuilding
 	dep.Steps[2].Summary = "Verifying database migrations..."
-	_ = s.projectDeploymentRepo.Update(ctx, dep)
+	persistDep(dep)
 
 	var migrationLog bytes.Buffer
 	migrationSuccess := true
@@ -1696,7 +1758,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 		dep.Status = cuanDB.DeploymentStatusFailed
 		dep.ErrorMessage = "Database migration step failed"
 		dep.DurationSeconds = int(time.Since(startTime).Seconds())
-		_ = s.projectDeploymentRepo.Update(ctx, dep)
+		persistDep(dep)
 		s.processNextQueuedDeployment(projectID, repoDir, proj)
 		return
 	}
@@ -1704,14 +1766,14 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	dep.Steps[2].Status = cuanDB.StepStatusSuccess
 	dep.Steps[2].Summary = "Database schema synchronized and up to date"
 	dep.Steps[2].Log = migrationLog.String()
-	_ = s.projectDeploymentRepo.Update(ctx, dep)
+	persistDep(dep)
 
 	// Step 4: Atomic Service Switch
 	step4Start := time.Now().UTC()
 	dep.Steps[3].StartedAt = &step4Start
 	dep.Steps[3].Status = cuanDB.StepStatusBuilding
 	dep.Steps[3].Summary = "Performing atomic service switch..."
-	_ = s.projectDeploymentRepo.Update(ctx, dep)
+	persistDep(dep)
 
 	var switchLog bytes.Buffer
 	if ranDeployScript {
@@ -1739,14 +1801,14 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	dep.Steps[3].Status = cuanDB.StepStatusSuccess
 	dep.Steps[3].Summary = "Service symlink swapped and process reloaded"
 	dep.Steps[3].Log = switchLog.String()
-	_ = s.projectDeploymentRepo.Update(ctx, dep)
+	persistDep(dep)
 
 	// Step 5: Health Verification
 	step5Start := time.Now().UTC()
 	dep.Steps[4].StartedAt = &step5Start
 	dep.Steps[4].Status = cuanDB.StepStatusBuilding
 	dep.Steps[4].Summary = "Probing health check endpoint..."
-	_ = s.projectDeploymentRepo.Update(ctx, dep)
+	persistDep(dep)
 
 	var healthLog bytes.Buffer
 	healthSuccess := true
@@ -1820,7 +1882,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 		dep.Status = cuanDB.DeploymentStatusFailed
 		dep.ErrorMessage = "Health check probe failed"
 		dep.DurationSeconds = int(time.Since(startTime).Seconds())
-		_ = s.projectDeploymentRepo.Update(ctx, dep)
+		persistDep(dep)
 		s.processNextQueuedDeployment(projectID, repoDir, proj)
 		return
 	}
@@ -1828,7 +1890,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	dep.Steps[4].Status = cuanDB.StepStatusSuccess
 	dep.Steps[4].Summary = fmt.Sprintf("Health probe verified (%dms)", probeLatency)
 	dep.Steps[4].Log = healthLog.String()
-	_ = s.projectDeploymentRepo.Update(ctx, dep)
+	persistDep(dep)
 
 	// Finish Deployment
 	dep.Status = cuanDB.DeploymentStatusSuccess
@@ -1837,7 +1899,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	if dep.DurationSeconds <= 0 {
 		dep.DurationSeconds = 1
 	}
-	_ = s.projectDeploymentRepo.Update(ctx, dep)
+	persistDep(dep)
 
 	// Process next queued deployment in this project's lane
 	s.processNextQueuedDeployment(projectID, repoDir, proj)
