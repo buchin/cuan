@@ -27,7 +27,7 @@ func WorkspaceRetentionPeriod() time.Duration {
 			return time.Duration(h) * time.Hour
 		}
 	}
-	return 7 * 24 * time.Hour
+	return 24 * time.Hour
 }
 
 // WorkspaceRetentionDecision explains why a completed task can or cannot release

@@ -5,6 +5,9 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -39,8 +42,10 @@ func (s *Server) registerStorageMaintenance() {
 func (s *Server) registerStorageMaintenanceHandler(enabled bool, handler scheduler.HandlerFunc) {
 	workspaceCursor := 0
 	_ = s.scheduler.Register(&scheduler.Job{ID: storageMaintenanceJob, Name: "Storage maintenance", Description: "Reclaim idle generated caches while preserving active work and saved results", ScheduleType: scheduler.ScheduleInterval, Interval: 15 * time.Minute, Timeout: 220 * time.Second, Enabled: enabled, Handler: func(ctx context.Context) error {
+		now := time.Now()
 		s.markAcceptedVerificationSnapshots(ctx)
-		workspaceCursor = s.runWorkspaceRetention(ctx, workspaceCursor, time.Now())
+		workspaceCursor = s.runWorkspaceRetention(ctx, workspaceCursor, now)
+		s.pruneIdleStorageArtifacts(now)
 		return handler(ctx)
 	}})
 	bus := runner.GlobalEventBus
@@ -77,4 +82,73 @@ func runInstalledStorageMaintenance(ctx context.Context) error {
 		return errors.New("Storage maintenance did not finish successfully; inspect the installed maintenance service")
 	}
 	return nil
+}
+
+func (s *Server) pruneIdleStorageArtifacts(now time.Time) {
+	if s.cfg != nil {
+		if s.cfg.WorkspacesDir != "" {
+			pruneOldArtifactDirs(filepath.Join(s.cfg.WorkspacesDir, "verification"), 24*time.Hour, 5, now)
+		}
+		if s.cfg.ProjectsDir != "" {
+			pruneOldArtifactDirs(filepath.Join(s.cfg.ProjectsDir, "verification-snapshots"), 24*time.Hour, 5, now)
+			pruneOldArtifactDirs(filepath.Join(s.cfg.ProjectsDir, "release-workspaces"), 24*time.Hour, 3, now)
+		}
+	}
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		pruneProviderAccountArtifacts(filepath.Join(home, ".local", "share", "cuan", "accounts"), 48*time.Hour, 5, now)
+	}
+}
+
+func pruneOldArtifactDirs(root string, maxAge time.Duration, keepNewest int, now time.Time) int {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return 0
+	}
+	type dirItem struct {
+		path    string
+		modTime time.Time
+	}
+	var items []dirItem
+	for _, entry := range entries {
+		name := entry.Name()
+		if strings.HasPrefix(name, ".") || entry.Type()&os.ModeSymlink != 0 {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		items = append(items, dirItem{path: filepath.Join(root, name), modTime: info.ModTime()})
+	}
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].modTime.After(items[j].modTime)
+	})
+	removed := 0
+	for i, item := range items {
+		if i < keepNewest || now.Sub(item.modTime) < maxAge {
+			continue
+		}
+		if os.RemoveAll(item.path) == nil {
+			removed++
+		}
+	}
+	return removed
+}
+
+func pruneProviderAccountArtifacts(accountsRoot string, maxAge time.Duration, keepNewest int, now time.Time) int {
+	accounts, err := os.ReadDir(accountsRoot)
+	if err != nil {
+		return 0
+	}
+	removed := 0
+	for _, acct := range accounts {
+		if !acct.IsDir() || !strings.HasPrefix(acct.Name(), "acct_") {
+			continue
+		}
+		cliRoot := filepath.Join(accountsRoot, acct.Name(), "home", ".gemini", "antigravity-cli")
+		for _, sub := range []string{"conversations", "brain"} {
+			removed += pruneOldArtifactDirs(filepath.Join(cliRoot, sub), maxAge, keepNewest, now)
+		}
+	}
+	return removed
 }
