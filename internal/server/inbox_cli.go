@@ -287,7 +287,7 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	if coordinator {
 		if chatSession != "" {
 			system += "\nCuan workspace MCP tools are available on cuan-inspect for this authenticated session (including list_inbox_conversations, get_inbox_messages, list_tasks, get_task, list_projects, get_project, list_contacts, get_contact, and all other Cuan MCP tools scoped to this workspace). Use them when you need live Cuan state beyond the injected snapshot; get_contact accepts current for the contact bound to this conversation. Never ask for an Owner API token or attempt to configure a global Cuan connection.\n"
-		} else {
+		} else if !reconcileRetry && !directCoordinator && !formatRepair {
 			system += "\nCuan platform state is supplied by the backend in this request context. Account/workspace MCP servers are unavailable in chat. Use the supplied task/room/project evidence and validated coordinator actions; never ask for an Owner API token or attempt to configure a global Cuan connection. Missing snapshot evidence is uncertainty, not proof of absence.\n"
 		}
 	}
@@ -358,6 +358,8 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 	}
 	binary := "agy"
 	var args []string
+	var agyStdin string
+	const agyMaxArgPromptBytes = 100 * 1024
 	switch normHarness {
 	case "claude":
 		binary = "claude"
@@ -377,12 +379,24 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 			// Let the native formatter stop cleanly before the outer 45s cap.
 			timeout = "40s"
 		}
-		args = []string{"-p", system, "--print-timeout", timeout, "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
+		promptArg := []string{"-p", system}
+		if len(system) > agyMaxArgPromptBytes {
+			// Linux MAX_ARG_STRLEN caps any single argv string at 128 KiB (E2BIG).
+			// Stream oversized prompts via stdin using stream-json input format.
+			if encoded, err := json.Marshal(map[string]any{
+				"event":   "user",
+				"message": map[string]string{"content": system},
+			}); err == nil {
+				agyStdin = string(encoded) + "\n"
+				promptArg = []string{"-p=", "--input-format", "stream-json"}
+			}
+		}
+		args = append(append([]string{}, promptArg...), "--print-timeout", timeout, "--sandbox", "--disable-slash-commands", "--output-format", "stream-json")
 		if workspace != "" && !directCoordinator && !formatRepair && !snapshotReview {
 			args = append(args, "--add-dir", workspace)
 		}
 		if answerOnly {
-			args = []string{"-p", system, "--print-timeout", "45s", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json"}
+			args = append(append([]string{}, promptArg...), "--print-timeout", "45s", "--sandbox", "--disable-slash-commands", "--output-format", "stream-json")
 		}
 		if snapshotReview {
 			args = append(args, "--json-schema", inboxReviewEvaluationSchema)
@@ -658,6 +672,9 @@ func (s *Server) executeInboxCLIWithSafety(ctx context.Context, name, harness, p
 		cmd.Dir = executionWorkspace
 	}
 	cmd.Env = profileEnv
+	if agyStdin != "" {
+		cmd.Stdin = strings.NewReader(agyStdin)
+	}
 	cmd.SysProcAttr = taskprocess.SysProcAttr()
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
