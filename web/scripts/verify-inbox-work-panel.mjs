@@ -586,7 +586,7 @@ try{
   for(const button of await choices.getByRole('button').all()) {
    assert.ok((await button.boundingBox()).height>=44)
    const style=await button.evaluate(el=>({radius:getComputedStyle(el).borderRadius,background:getComputedStyle(el).backgroundColor}))
-   assert.equal(style.radius,'12px')
+   assert.equal(style.radius,'0px')
    assert.ok(style.background==='rgba(0, 0, 0, 0)' || style.background==='transparent',JSON.stringify(style))
   }
   const incomingBubble=page.locator('.wa-message-bubble.wa-incoming').first()

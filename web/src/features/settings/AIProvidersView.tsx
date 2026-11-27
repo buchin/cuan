@@ -1,4 +1,5 @@
 import { useEffect, useState, useId } from 'react'
+import { Badge } from '../../components/ui/badge'
 import {
   Sparkles,
   Check,
@@ -336,15 +337,15 @@ export function AIProvidersView() {
                           {provider.name}
                         </h4>
                         {isDeepSeek && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-2.5 py-0.5 text-xs font-semibold">
+                          <Badge variant="success" className="font-semibold">
                             <Sparkles className="h-3 w-3" />
                             {t('Paling Hemat')}
-                          </span>
+                          </Badge>
                         )}
                         {isGoogle && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400 px-2.5 py-0.5 text-xs font-semibold">
+                          <Badge variant="info" className="font-semibold">
                             {t('Bawaan Cuan')}
-                          </span>
+                          </Badge>
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
@@ -362,10 +363,10 @@ export function AIProvidersView() {
                   </div>
 
                   {isStoreDefault && (
-                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/15 text-primary px-2.5 py-1 text-xs font-semibold">
+                    <Badge variant="default" className="shrink-0 py-1 font-semibold">
                       <Star className="h-3.5 w-3.5 fill-current" />
                       {t('Default Ruang Kerja')}
-                    </span>
+                    </Badge>
                   )}
                 </div>
 
@@ -423,15 +424,15 @@ export function AIProvidersView() {
                           {t('Status Binary Harness')} ({binName})
                         </span>
                         {isBinInstalled ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-2.5 py-0.5 text-xs font-medium">
+                          <Badge variant="success">
                             <CheckCircle2 className="h-3.5 w-3.5" />
                             {t('Terpasang')}
-                          </span>
+                          </Badge>
                         ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-2.5 py-0.5 text-xs font-medium">
+                          <Badge variant="warning">
                             <AlertCircle className="h-3.5 w-3.5" />
                             {t('Belum Terpasang')}
-                          </span>
+                          </Badge>
                         )}
                       </div>
 

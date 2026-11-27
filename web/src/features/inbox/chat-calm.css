@@ -742,10 +742,10 @@
 
 .composer-tasks:has(.composer-tasks-panel) + .shared-composer { border-top-left-radius: 0; border-top-right-radius: 0; }
 
-/* Choice pills are an explicit component shape, independent of the global
-   square surface theme. Preserve their quiet, transparent touch surface. */
+/* Choice buttons use the 0px square bordered Button surface, preserving
+   their quiet, transparent touch surface. */
 .prompt-choice-container .prompt-choice-option {
-  border-radius: 0.75rem !important;
+  border-radius: 0 !important;
 }
 
 /* Dynamic task progress indicator subtle pulse (Things 3 & Zero Cognitive Fatigue) */

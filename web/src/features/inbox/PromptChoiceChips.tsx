@@ -76,15 +76,15 @@ export function PromptChoiceChips({
               key={opt.id}
               type="button"
               size="sm"
-              variant="ghost"
+              variant="outline"
               disabled={disabled || (selectedId !== null && !isSelected)}
               onClick={() => handleChoose(opt)}
               data-testid={`prompt-choice-${opt.id}`}
               data-primary-action={isSelected || (!otherOpen && !selectedId && isPrimary) ? true : undefined}
               aria-pressed={isSelected}
               className={cn(
-                'prompt-choice-option min-h-11 rounded-xl px-3.5 py-2 text-xs font-medium max-w-full text-left whitespace-normal break-words leading-snug cursor-pointer transition-all duration-150 shadow-none',
-                'bg-transparent hover:bg-muted/20 border border-border/40 hover:border-border/70 text-foreground/90 hover:text-foreground',
+                'prompt-choice-option h-auto min-h-11 px-3.5 py-2 text-xs font-medium max-w-full text-left whitespace-normal break-words leading-snug cursor-pointer transition-all duration-150 shadow-none',
+                'bg-transparent hover:bg-muted/20 border-border/40 hover:border-border/70 text-foreground/90 hover:text-foreground',
                 isPrimary && !isSelected && 'border-primary/30 hover:border-primary/60 text-foreground hover:bg-primary/5',
                 isSelected && 'border-primary/60 bg-primary/10 text-primary font-semibold',
                 disabled && 'opacity-60 cursor-not-allowed pointer-events-none',
@@ -99,7 +99,7 @@ export function PromptChoiceChips({
           <Button
             type="button"
             size="sm"
-            variant="ghost"
+            variant="outline"
             disabled={selectedId !== null}
             onClick={openOther}
             aria-expanded={otherOpen}
@@ -107,8 +107,8 @@ export function PromptChoiceChips({
             data-primary-action={otherOpen || selectedId === 'custom' ? true : undefined}
             data-testid="prompt-choice-other"
             className={cn(
-              'prompt-choice-option min-h-11 rounded-xl px-3.5 py-2 text-xs font-medium max-w-full text-left whitespace-normal break-words leading-snug cursor-pointer transition-all duration-150 shadow-none',
-              'bg-transparent hover:bg-muted/20 border border-border/30 hover:border-border/60 text-muted-foreground hover:text-foreground',
+              'prompt-choice-option h-auto min-h-11 px-3.5 py-2 text-xs font-medium max-w-full text-left whitespace-normal break-words leading-snug cursor-pointer transition-all duration-150 shadow-none',
+              'bg-transparent hover:bg-muted/20 border-border/30 hover:border-border/60 text-muted-foreground hover:text-foreground',
               (otherOpen || selectedId === 'custom') && 'border-primary/60 bg-primary/10 text-primary font-semibold',
             )}
           >

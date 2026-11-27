@@ -12,6 +12,7 @@ import {
   ChevronDown,
 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
+import { Badge } from '../../components/ui/badge'
 import { aiProvidersApi, type AIProviderDTO, type AIProviderModelInfo } from '../../api/aiProviders'
 import { accountsApi } from '../../api/accounts'
 import { agentsApi } from '../../api/agents'
@@ -542,9 +543,9 @@ export function AddBrainModal({
                   ? t('Akun Google Resmi')
                   : t('Langganan Resmi')}
               </span>
-              <span className="rounded-full px-1.5 py-0.2 text-[10px] font-medium bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+              <Badge variant="success" size="sm">
                 {t('Hemat')}
-              </span>
+              </Badge>
             </button>
             <button
               type="button"

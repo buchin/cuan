@@ -9,6 +9,7 @@ import { useAuth } from './context/AuthContext'
 import { useLanguage } from './context/LanguageContext'
 import { reloadApp } from './lib/reload'
 import { AppShell, AppTab } from './components/layout/AppShell'
+import { Button } from './components/ui/button'
 import { agentsApi, type Agent } from './api/agents'
 import { projectsApi } from './api/projects'
 import { tasksApi } from './api/tasks'
@@ -1474,19 +1475,21 @@ export function App() {
         >
           <span className="flex h-2 w-2 rounded-full bg-emerald-500" />
           <span className="font-normal text-muted-foreground">{t('Versi baru aktif')}</span>
-          <button
+          <Button
             type="button"
+            size="sm"
+            variant="default"
             disabled={reloadingRelease}
             onClick={() => {
               if (reloadingRelease) return
               setReloadingRelease(true)
               void reloadApp().catch(() => setReloadingRelease(false))
             }}
-            className="inline-flex min-h-8 items-center gap-1.5 px-3 py-1 rounded-full bg-foreground text-background font-medium hover:opacity-90 disabled:opacity-60 transition-opacity text-xs cursor-pointer"
+            className="h-8 px-3 text-xs shadow-none"
           >
             {reloadingRelease && <Loader2 className="h-3 w-3 animate-spin" />}
             {reloadingRelease ? t('Memuat ulang...') : t('Muat Ulang')}
-          </button>
+          </Button>
         </aside>
       )}
     </>

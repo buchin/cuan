@@ -70,8 +70,35 @@ test('4. Shared task/room/report status badges reuse Badge without borders', asy
     'src/features/tasks/TaskItemCard.tsx',
     'src/features/tasks/TaskSessionPage.tsx',
     'src/components/ui/StatusReportCard.tsx',
+    'src/components/auth/AcceptInvitePage.tsx',
+    'src/features/settings/NotificationSettings.tsx',
+    'src/features/settings/AgentMemoryView.tsx',
+    'src/features/settings/AIProvidersView.tsx',
+    'src/features/team/TeamMembersView.tsx',
+    'src/features/team/TeamView.tsx',
+    'src/features/agents/AddBrainModal.tsx',
+    'src/features/projects/ProjectWorkView.tsx',
+    'src/features/projects/ProjectActivityView.tsx',
+    'src/features/contacts/ContactsView.tsx',
+    'src/features/contacts/BroadcastAudiencePanel.tsx',
   ]) {
     const src = fs.readFileSync(path.join(webDir, rel), 'utf8')
     assert.ok(src.includes('<Badge'), `${rel} must reuse shared <Badge> component`)
   }
+})
+
+test('5. Action and choice buttons reuse shared <Button> with 0px corners and borders', () => {
+  for (const rel of [
+    'src/App.tsx',
+    'src/features/inbox/InboxTaskAction.tsx',
+    'src/features/inbox/PromptChoiceChips.tsx',
+    'src/features/contacts/ContactsView.tsx',
+    'src/features/contacts/BroadcastAudiencePanel.tsx',
+  ]) {
+    const src = fs.readFileSync(path.join(webDir, rel), 'utf8')
+    assert.ok(src.includes('<Button'), `${rel} must reuse shared <Button> component`)
+  }
+
+  const promptChoiceSrc = fs.readFileSync(path.join(webDir, 'src/features/inbox/PromptChoiceChips.tsx'), 'utf8')
+  assert.ok(!promptChoiceSrc.includes('rounded-xl'), 'PromptChoiceChips must not override Button 0px corners with rounded-xl')
 })

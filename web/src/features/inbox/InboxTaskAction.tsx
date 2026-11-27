@@ -1,4 +1,5 @@
 import { CardActions } from './CardActions'
+import { Button } from '../../components/ui/button'
 import { SurfaceHeader } from '../../components/layout/SurfaceHeader'
 import { InternalVisibility } from '../../components/ui/InternalVisibility'
 import { useLanguage } from '../../context/LanguageContext'
@@ -131,14 +132,14 @@ export function InboxTaskAction({
       {attention ? <p className="break-words text-sm leading-5 text-muted-foreground"><span className="text-foreground">{t(attention.reason)}</span></p> : update && <p data-task-latest-update className="line-clamp-2 break-words text-xs leading-5 text-muted-foreground">{update}</p>}
       {attention && proposal && <p data-task-recommendation className="whitespace-pre-wrap break-words text-sm leading-5">{proposal.description}</p>}
       <CardActions className="-mx-4 px-4">
-        {onViewTask ? <button type="button" data-task-detail className="mr-auto inline-flex min-h-9 items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors" onClick={() => onViewTask(existing)}><FileText aria-hidden className="h-4 w-4" />{t('Detail')}</button>
-          : <Link data-task-detail className="mr-auto inline-flex min-h-9 items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors" to={taskDetailUrl(existing)}><FileText aria-hidden className="h-4 w-4" />{t('Detail')}</Link>}
+        {onViewTask ? <Button type="button" variant="ghost" size="sm" data-task-detail className="mr-auto h-auto min-h-9 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => onViewTask(existing)}><FileText aria-hidden className="h-4 w-4" />{t('Detail')}</Button>
+          : <Link data-task-detail className="mr-auto inline-flex min-h-9 items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-none hover:bg-muted text-muted-foreground hover:text-foreground transition-colors" to={taskDetailUrl(existing)}><FileText aria-hidden className="h-4 w-4" />{t('Detail')}</Link>}
         {attention && proposal && <>
-          <button type="button" data-task-other disabled={proposal.disabled || proposal.accepted} className="inline-flex min-h-9 items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-input bg-background hover:bg-accent text-foreground transition-colors disabled:opacity-50" onClick={proposal.onOther}>{t('Others')}</button>
-          <button type="button" data-task-approve data-primary-action disabled={proposal.disabled || proposal.accepted} className="inline-flex min-h-9 items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50" onClick={proposal.onApprove}><Check aria-hidden className="h-4 w-4" />{t(proposal.accepted ? 'Approved' : 'Approve')}</button>
+          <Button type="button" variant="outline" size="sm" data-task-other disabled={proposal.disabled || proposal.accepted} className="h-auto min-h-9 px-3 py-1.5 text-xs" onClick={proposal.onOther}>{t('Others')}</Button>
+          <Button type="button" variant="default" size="sm" data-task-approve data-primary-action disabled={proposal.disabled || proposal.accepted} className="h-auto min-h-9 px-3 py-1.5 text-xs shadow-none" onClick={proposal.onApprove}><Check aria-hidden className="h-4 w-4" />{t(proposal.accepted ? 'Approved' : 'Approve')}</Button>
         </>}
-        {hasLiveTerminal && (onOpenTerminal ? <button type="button" className="inline-flex min-h-9 items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors" onClick={() => onOpenTerminal(existing)}><Terminal aria-hidden className="h-4 w-4" />{t('Terminal')}</button>
-          : <Link className="inline-flex min-h-9 items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors" to={taskTerminalUrl(existing)}><Terminal aria-hidden className="h-4 w-4" />{t('Terminal')}</Link>)}
+        {hasLiveTerminal && (onOpenTerminal ? <Button type="button" variant="ghost" size="sm" className="h-auto min-h-9 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground" onClick={() => onOpenTerminal(existing)}><Terminal aria-hidden className="h-4 w-4" />{t('Terminal')}</Button>
+          : <Link className="inline-flex min-h-9 items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-none hover:bg-muted text-muted-foreground hover:text-foreground transition-colors" to={taskTerminalUrl(existing)}><Terminal aria-hidden className="h-4 w-4" />{t('Terminal')}</Link>)}
       </CardActions>
     </section>
   }

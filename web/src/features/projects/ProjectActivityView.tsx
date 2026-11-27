@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
+import { Badge } from '../../components/ui/badge'
 import {
   GitCommit,
   GitBranch,
@@ -265,13 +266,15 @@ export function ProjectActivityView({ project }: ProjectActivityViewProps) {
                         )}
 
                         {liveSha && (commit.sha === liveSha || liveSha.startsWith(commit.short_sha) || commit.sha.startsWith(liveSha.slice(0, 7))) && (
-                          <span
-                            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                          <Badge
+                            variant="success"
+                            size="sm"
+                            className="shrink-0 px-2 py-0.5"
                             title={t('Commit ini sedang aktif berjalan di deployment live')}
                           >
                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                             Live
-                          </span>
+                          </Badge>
                         )}
 
                         <span className="truncate text-sm text-foreground group-hover:text-primary transition-colors">

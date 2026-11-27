@@ -1,4 +1,5 @@
 import { useLanguage } from '../../context/LanguageContext'
+import { Badge } from '../../components/ui/badge'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
@@ -1971,20 +1972,17 @@ export function TeamView({
                                 <span className="font-semibold text-sm text-foreground truncate">
                                   {invite.email}
                                 </span>
-                                <span
-                                  className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold rounded-full border ${
-                                    isInviteOwner
-                                      ? 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30'
-                                      : 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
-                                  }`}
+                                <Badge
+                                  variant={isInviteOwner ? 'success' : 'info'}
+                                  className="text-[11px] font-semibold"
                                 >
                                   {isInviteOwner ? <Shield className="h-3 w-3" /> : <User className="h-3 w-3" />}
                                   <span className="capitalize">{isInviteOwner ? t('Owner') : t('Member')}</span>
-                                </span>
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 rounded-full border border-amber-500/20">
+                                </Badge>
+                                <Badge variant="warning" size="sm" className="px-2 py-0.5">
                                   <Clock className="h-2.5 w-2.5" />
                                   <span>{t('Menunggu Aktivasi')}</span>
-                                </span>
+                                </Badge>
                               </div>
 
                               <div className="text-xs text-muted-foreground">

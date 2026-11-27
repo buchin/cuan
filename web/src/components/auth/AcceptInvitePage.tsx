@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { teamApi } from '../../api/team'
 import { CuanMark } from '../brand/CuanMark'
+import { Badge } from '../ui/badge'
 import { CheckCircle, AlertCircle, Loader2, ArrowRight, Shield, User } from 'lucide-react'
 
 export function AcceptInvitePage() {
@@ -179,14 +180,13 @@ export function AcceptInvitePage() {
                     <span className="font-semibold text-sm text-foreground truncate">
                       {inviteData.email}
                     </span>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full border shrink-0 ${
-                      inviteData.role === 'owner'
-                        ? 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30'
-                        : 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
-                    }`}>
+                    <Badge
+                      variant={inviteData.role === 'owner' ? 'success' : 'info'}
+                      className="shrink-0 font-semibold"
+                    >
                       {inviteData.role === 'owner' ? <Shield className="h-3 w-3" /> : <User className="h-3 w-3" />}
                       <span className="capitalize">{inviteData.role === 'owner' ? t('Owner') : t('Member')}</span>
-                    </span>
+                    </Badge>
                   </div>
                 </div>
               )}
