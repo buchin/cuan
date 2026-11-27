@@ -24,6 +24,17 @@ export function Fixture() {
       : [],
   }
 
+  const queuedRequest = {
+    request_id: 'req-queued-1',
+    message_id: 'msg-user-2',
+    reply_id: 'msg-user-2',
+    agent_id: 'agent_cuan',
+    state: 'queued' as const,
+    queue_reason: 'waiting_previous_message',
+    created_at: new Date(Date.now() - 5000).toISOString(),
+    steps: [],
+  }
+
   return (
     <LanguageProvider>
       <div className="min-h-screen bg-background text-foreground p-4 sm:p-6 flex flex-col justify-start items-center">
@@ -54,6 +65,18 @@ export function Fixture() {
               bubble={true}
               onCancel={async () => {}}
             />
+          </div>
+
+          {/* Queued Reply Status above Composer (non-bubble) */}
+          <div data-testid="inbox-activity-queued-wrapper" className="w-full pt-2 border-t border-border/30 space-y-2">
+            <InboxActivity
+              request={queuedRequest}
+              bubble={false}
+              onCancel={async () => {}}
+            />
+            <div className="flex items-center rounded-xl border border-border/50 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+              Tulis balasan...
+            </div>
           </div>
         </div>
       </div>

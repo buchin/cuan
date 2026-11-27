@@ -544,12 +544,12 @@ export function InboxActivity({
           </span>
           {!autoPending && seconds !== null && (
             <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
-              {seconds} s
+              {seconds}s
             </span>
           )}
         </div>
       )}
-      <div className={bubble ? 'flex min-w-0 items-center justify-between gap-2' : 'flex min-w-0 items-start gap-2'}>
+      <div className={bubble ? 'flex min-w-0 items-center justify-between gap-2' : 'flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-2'}>
         <div className="min-w-0 flex-1">
           <button type="button" aria-expanded={expanded} onClick={() => setExpanded(true)}
             className={
@@ -557,7 +557,7 @@ export function InboxActivity({
                 ? 'inline-flex min-h-11 cursor-pointer list-none items-center gap-1 px-1 text-xs text-muted-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden'
                 : bubble
                   ? '-ml-1.5 inline-flex min-h-10 cursor-pointer list-none items-center gap-1.5 rounded-md px-1.5 text-muted-foreground hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden'
-                  : 'flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md px-2 text-muted-foreground hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden'
+                  : 'flex min-h-11 w-full cursor-pointer list-none items-center gap-2 rounded-md px-2 text-muted-foreground hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden'
             }
           >
             {compact && (
@@ -584,13 +584,13 @@ export function InboxActivity({
               )
             )}
             {!bubble && !compact && (
-              <span className="font-medium" role="status">
+              <span className="min-w-0 text-left font-medium" role="status">
                 {label}
               </span>
             )}
             {!bubble && !compact && seconds !== null && (
-              <span className="tabular-nums">
-                {seconds} s{!active && ' recorded'}
+              <span className="shrink-0 whitespace-nowrap tabular-nums">
+                {seconds}s{!active && ' recorded'}
               </span>
             )}
             {bubble && (displayedText || streamingText) && (
@@ -605,7 +605,7 @@ export function InboxActivity({
             )}
             {!compact && (
               <>
-                <span className={bubble ? 'text-xs' : 'ml-auto text-xs'}>
+                <span className={bubble ? 'text-xs' : 'ml-auto shrink-0 whitespace-nowrap text-xs'}>
                   {t('Detail')}
                 </span>
                 {bubble && (displayedText || streamingText) && seconds !== null && (
@@ -804,7 +804,7 @@ export function InboxActivity({
             className={
               bubble
                 ? '-mr-1.5 inline-flex min-h-10 shrink-0 items-center gap-1 rounded-md px-1.5 text-muted-foreground hover:bg-muted/50 hover:text-foreground disabled:opacity-50'
-                : 'inline-flex min-h-11 shrink-0 items-center gap-1 px-2 text-muted-foreground hover:text-foreground disabled:opacity-50'
+                : 'inline-flex min-h-11 shrink-0 items-center gap-1 self-end px-2 text-muted-foreground hover:text-foreground disabled:opacity-50 sm:self-auto'
             }
             onClick={async () => {
               setCancelling(true)
