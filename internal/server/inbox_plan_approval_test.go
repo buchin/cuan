@@ -184,3 +184,67 @@ echo provider >>`, 1)
 		}
 	}
 }
+
+func TestInboxPlanApprovalWorksInCustomerRoom(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping slow plan approval test in short mode")
+	}
+	s, _, call, _ := inboxFixture(t)
+	ctx := context.Background()
+	projects := project.NewMemoryStore()
+	projects.CreateProject(ctx, &project.Project{ID: "plan-project", Name: "Plan project"})
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
+	api := httptest.NewServer(s.Router())
+	defer api.Close()
+	s.taskAgentURL = api.URL
+
+	custRoomID := db.GenerateUUID()
+	if err := s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
+		ID:        custRoomID,
+		ProjectID: "default",
+		Title:     "Beckthe98",
+		Topic:     "",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	plan := inboxApprovalPlan{Title: "Add deploy wrapper", Description: "Add scripts/deploy.sh wrapper.", ProjectID: "plan-project"}
+	encoded, _ := json.Marshal(plan)
+	content := "Here is the proposed wrapper.\n```cuan-approval\n" + string(encoded) + "\n```"
+	response, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": coordinatorFixtureResponse(content)}})
+	script := `#!/bin/sh
+if [ "$1" = "--dangerously-skip-permissions" ]; then
+ "$CUAN_TASK_EXECUTABLE" task report --state done --summary 'Done' --complete-note 'Added wrapper' >/dev/null || exit 22
+ exit 0
+fi
+printf '%s' '` + string(response) + `'
+`
+	os.WriteFile(filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy"), []byte(script), 0700)
+
+	post := func(payload map[string]string) db.InboxRequest {
+		t.Helper()
+		raw, _ := json.Marshal(payload)
+		w := call("POST", "/api/v1/chat/conversations/"+custRoomID+"/messages", string(raw))
+		if w.Code != 200 && w.Code != 202 {
+			t.Fatalf("expected 200/202, got %d: %s", w.Code, w.Body.String())
+		}
+		var got struct{ Request db.InboxRequest }
+		json.Unmarshal(w.Body.Bytes(), &got)
+		return got.Request
+	}
+
+	first := post(map[string]string{"request_id": db.GenerateUUID(), "message": "@lifecycle cek script deploy"})
+	waitInboxState(t, s, first.RoomID, first.RequestID, "completed")
+
+	// Clicking Approve sends "Approve this plan" with approve_message_id and no @mention.
+	approved := post(map[string]string{"request_id": db.GenerateUUID(), "message": "Approve this plan", "approve_message_id": first.ReplyID})
+	waitInboxState(t, s, approved.RoomID, approved.RequestID, "completed")
+
+	tasks, _ := s.taskSvc.ListTasks(ctx, task.TaskFilter{})
+	if len(tasks) != 1 {
+		t.Fatalf("expected one task from customer room plan approval, got %d", len(tasks))
+	}
+	if tasks[0].AssignedAgent != "agent_lifecycle" {
+		t.Fatalf("expected assigned agent agent_lifecycle, got %q", tasks[0].AssignedAgent)
+	}
+}

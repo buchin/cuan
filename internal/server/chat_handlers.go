@@ -412,6 +412,11 @@ func (s *Server) handleInternalSendConversationMessage(w http.ResponseWriter, r 
 		payload.ApproveMessageID = s.conversationalApprovalID(r.Context(), resolved.RoomID, text)
 	}
 	if payload.ApproveMessageID != "" {
+		if !resolved.IsAgent && resolved.RoomID != "" && s.projectStudioRepo != nil {
+			if targetMsg, err := s.projectStudioRepo.GetMessageByID(r.Context(), payload.ApproveMessageID); err == nil && targetMsg != nil && targetMsg.RoomID == resolved.RoomID && targetMsg.AuthorType == "agent" {
+				s.resolveAgentFromMessageAuthor(r.Context(), targetMsg, &resolved)
+			}
+		}
 		if !resolved.IsAgent || len(payload.AttachmentIDs) > 0 {
 			respondJSONError(w, 400, "Approve a plan in an agent conversation without new attachments")
 			return

@@ -347,3 +347,37 @@ func (s *Server) resolveAgentFromMention(ctx context.Context, mention string, re
 		}
 	}
 }
+
+func (s *Server) resolveAgentFromMessageAuthor(ctx context.Context, msg *db.ProjectMessage, result *ResolvedConversation) {
+	if msg == nil || msg.AuthorType != "agent" || result == nil {
+		return
+	}
+	candidateID := strings.TrimSpace(msg.AuthorID)
+	if candidateID == "" || msg.AuthorName == "Cuan Watchdog" || strings.HasPrefix(candidateID, "system:") {
+		candidateID = db.AgentIDCuan
+	}
+	if s.agentRepo != nil {
+		if isLegacyInternalAgent(candidateID) {
+			if cuan, err := s.agentRepo.GetAgentByID(ctx, db.AgentIDCuan); err == nil && cuan != nil && cuan.Enabled {
+				result.IsAgent = true
+				result.TargetAgentID = cuan.ID
+				result.TargetAgentName = cuan.Name
+				result.TargetHarness = db.NormalizeHarness(cuan.Harness, cuan.Provider)
+				return
+			}
+		}
+		if ag, err := s.agentRepo.GetAgentByID(ctx, candidateID); err == nil && ag != nil && ag.Enabled {
+			result.IsAgent = true
+			result.TargetAgentID = ag.ID
+			result.TargetAgentName = ag.Name
+			result.TargetHarness = db.NormalizeHarness(ag.Harness, ag.Provider)
+			return
+		}
+	}
+	if candidateID == db.AgentIDCuan || isLegacyInternalAgent(candidateID) {
+		result.IsAgent = true
+		result.TargetAgentID = candidateID
+		result.TargetAgentName = db.DefaultAgentHandle
+		result.TargetHarness = "agy"
+	}
+}
