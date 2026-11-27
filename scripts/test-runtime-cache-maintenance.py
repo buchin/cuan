@@ -62,6 +62,7 @@ class MaintenanceInstall(unittest.TestCase):
                 self.assertIn('--snapshots ' + str(base / snapshots) + ' --under-storage-pressure --apply', service)
                 self.assertIn('/compact-verification-source.py --snapshots ' + str(base / snapshots) + ' --apply', service)
             self.assertIn('--under-storage-pressure --apply', service)
+            self.assertIn('TimeoutStartSec=600', service)
             self.assertIn('OnUnitInactiveSec=2min', (units / 'cuan-runtime-cache-maintenance.timer').read_text())
             (source / module.TOOLS[0]).write_text('# legacy overwrite')
             self.assertTrue((pinned / module.TOOLS[0]).read_text().startswith('# safe original'))
