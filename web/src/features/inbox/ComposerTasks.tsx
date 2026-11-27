@@ -5,6 +5,7 @@ import type { Task } from '../../api/types'
 import { useLanguage } from '../../context/LanguageContext'
 import { StatusDot } from '../../components/ui/StatusDot'
 import { Badge } from '../../components/ui/badge'
+import { Button } from '../../components/ui/button'
 import { SlideDrawer } from '../../components/ui/SlideDrawer'
 import { CollapsibleChatText } from './CollapsibleChatText'
 import { workStatus, workDisplayStatus, taskExecutionActive, taskConversationSummary, TASK_STATUS_THEMES, type TaskStateKey } from '../tasks/task-ui'
@@ -192,17 +193,19 @@ export function ComposerTasks({ tasks, onDetails, onTerminal, modes }: {
                         />
                       </div>
                     )}
-                    <CardActions className="px-0 pt-1 text-xs">
-                      <button
+                    <CardActions className="px-0 pt-1.5 text-xs">
+                      <Button
                         type="button"
-                        className="mr-auto"
+                        variant="outline"
+                        size="sm"
+                        className="mr-auto min-h-11 sm:min-h-9 px-3 text-xs"
                         onClick={() => {
                           setOpen(false)
                           onDetails(task)
                         }}
                       >
                         {t('Details')}
-                      </button>
+                      </Button>
                       {workStatus(task) === 'Working' && (
                         <TaskTerminalAction
                           task={task}
@@ -279,5 +282,16 @@ function TaskTerminalAction({ task, onTerminal }: { task: Task; onTerminal: (tas
     return () => { live = false; clearInterval(timer); document.removeEventListener('visibilitychange', onResume) }
   }, [task.id, attempt])
   if (!attempt || available !== attempt) return null
-  return <button type="button" className="inline-flex items-center gap-1.5" onClick={() => onTerminal(task)}><Terminal className="h-3.5 w-3.5" />{t('Terminal')}</button>
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="min-h-11 sm:min-h-9 px-3 text-xs"
+      onClick={() => onTerminal(task)}
+    >
+      <Terminal className="h-3.5 w-3.5" aria-hidden />
+      {t('Terminal')}
+    </Button>
+  )
 }
