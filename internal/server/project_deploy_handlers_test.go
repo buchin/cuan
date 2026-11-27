@@ -614,3 +614,23 @@ func TestIsCuanProject_ExcludesSiblingProjects(t *testing.T) {
 		})
 	}
 }
+
+func TestRunDeployBuildCommand_ActivityExtendsBeyondIdleAndKillsStalled(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Active output every 50ms for 250ms must survive a 120ms idle timeout.
+	out, err := runDeployBuildCommand(ctx, "bash", []string{"-c", "for i in 1 2 3 4 5; do sleep 0.05; echo tick-$i; done"}, t.TempDir(), nil, 120*time.Millisecond)
+	if err != nil {
+		t.Fatalf("expected active build command to succeed beyond idle timeout, got err=%v out=%s", err, string(out))
+	}
+	if !strings.Contains(string(out), "tick-5") {
+		t.Fatalf("expected full streamed output, got %q", string(out))
+	}
+
+	// Silent build exceeding idle timeout must be killed with stalled error.
+	_, stallErr := runDeployBuildCommand(ctx, "bash", []string{"-c", "echo starting; sleep 2"}, t.TempDir(), nil, 100*time.Millisecond)
+	if stallErr == nil || !strings.Contains(stallErr.Error(), "build stalled") {
+		t.Fatalf("expected build stalled error, got %v", stallErr)
+	}
+}
