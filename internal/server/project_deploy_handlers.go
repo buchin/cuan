@@ -1450,6 +1450,8 @@ func runDeployBuildCommand(ctx context.Context, name string, args []string, dir 
 	return out.Bytes(), err
 }
 
+const deployBuildIdleTimeout = 20 * time.Minute
+
 // runProjectDeploymentPipeline executes the 5 sequential deployment steps:
 // 1. Source Checkout (remote fetch, checkout branch, reset --hard to ref, clean untracked)
 // 2. Compile & Build (custom deploy script or repo script with native-sync or multi-layer stack detector)
@@ -1602,7 +1604,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	if strings.TrimSpace(settings.DeployScript) != "" && repoDir != "" {
 		ranDeployScript = true
 		buildLog.WriteString(fmt.Sprintf("Executing project deploy script in %s\n", repoDir))
-		out, err := runDeployBuildCommand(ctx, "bash", []string{"-c", settings.DeployScript}, repoDir, deployEnv, 10*time.Minute)
+		out, err := runDeployBuildCommand(ctx, "bash", []string{"-c", settings.DeployScript}, repoDir, deployEnv, deployBuildIdleTimeout)
 		buildLog.Write(out)
 		if err != nil {
 			buildSuccess = false
@@ -1622,7 +1624,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 			if dirExists(filepath.Join(repoDir, "cmd", "server")) && dirExists("/opt/cuan/releases") {
 				deployArgs = append(deployArgs, "--local", "--native-sync", "--branch", branch, "--allow-divergent")
 			}
-			out, err := runDeployBuildCommand(ctx, "bash", deployArgs, repoDir, deployEnv, 10*time.Minute)
+			out, err := runDeployBuildCommand(ctx, "bash", deployArgs, repoDir, deployEnv, deployBuildIdleTimeout)
 			buildLog.Write(out)
 			if err != nil {
 				buildSuccess = false
@@ -1638,7 +1640,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 			if hasComposerJSON && hasPackageJSON {
 				buildCmd := "if [ ! -f .env ] && [ -f .env.example ]; then cp .env.example .env; fi && mkdir -p database storage/framework/sessions storage/framework/views storage/framework/cache bootstrap/cache && touch database/database.sqlite && composer install --no-dev --prefer-dist --no-interaction && if [ -f package-lock.json ]; then npm ci; elif [ -f yarn.lock ]; then yarn --frozen-lockfile; else npm install; fi && npm run build && if [ -f artisan ]; then php artisan view:clear && php artisan config:clear && php artisan route:clear; fi"
 				buildLog.WriteString(fmt.Sprintf("Auto-detected Laravel Fullstack project. Executing: %s\n", buildCmd))
-				out, err := runDeployBuildCommand(ctx, "bash", []string{"-c", buildCmd}, repoDir, deployEnv, 10*time.Minute)
+				out, err := runDeployBuildCommand(ctx, "bash", []string{"-c", buildCmd}, repoDir, deployEnv, deployBuildIdleTimeout)
 				buildLog.Write(out)
 				if err != nil {
 					buildSuccess = false
@@ -1654,7 +1656,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 					buildCmd = "pnpm install --frozen-lockfile && pnpm build"
 				}
 				buildLog.WriteString(fmt.Sprintf("Auto-detected Node.js project. Executing: %s\n", buildCmd))
-				out, err := runDeployBuildCommand(ctx, "bash", []string{"-c", buildCmd}, repoDir, deployEnv, 10*time.Minute)
+				out, err := runDeployBuildCommand(ctx, "bash", []string{"-c", buildCmd}, repoDir, deployEnv, deployBuildIdleTimeout)
 				buildLog.Write(out)
 				if err != nil {
 					buildSuccess = false
@@ -1663,7 +1665,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 			} else if hasGoMod {
 				buildCmd := "go build -v ."
 				buildLog.WriteString(fmt.Sprintf("Auto-detected Golang project. Executing: %s\n", buildCmd))
-				out, err := runDeployBuildCommand(ctx, "bash", []string{"-c", buildCmd}, repoDir, deployEnv, 10*time.Minute)
+				out, err := runDeployBuildCommand(ctx, "bash", []string{"-c", buildCmd}, repoDir, deployEnv, deployBuildIdleTimeout)
 				buildLog.Write(out)
 				if err != nil {
 					buildSuccess = false
@@ -1672,7 +1674,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 			} else if hasComposerJSON {
 				buildCmd := "if [ ! -f .env ] && [ -f .env.example ]; then cp .env.example .env; fi && mkdir -p database storage/framework/sessions storage/framework/views storage/framework/cache bootstrap/cache && touch database/database.sqlite && composer install --no-dev --prefer-dist --no-interaction && if [ -f artisan ]; then php artisan view:clear && php artisan config:clear && php artisan route:clear; fi"
 				buildLog.WriteString(fmt.Sprintf("Auto-detected PHP/Laravel project. Executing: %s\n", buildCmd))
-				out, err := runDeployBuildCommand(ctx, "bash", []string{"-c", buildCmd}, repoDir, deployEnv, 10*time.Minute)
+				out, err := runDeployBuildCommand(ctx, "bash", []string{"-c", buildCmd}, repoDir, deployEnv, deployBuildIdleTimeout)
 				buildLog.Write(out)
 				if err != nil {
 					buildSuccess = false

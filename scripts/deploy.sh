@@ -214,7 +214,7 @@ export GOMODCACHE="${GOMODCACHE:-${HOME:-/home/ubuntu}/go/pkg/mod}"
 # production host that multiplied peak disk use and exhausted the filesystem.
 # Serial builds reuse Go's completed cache entries and stop at the first failure.
 for component in server migrate runner; do
-  if CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$release_linker_flags" -o "$release_dir/bin/cuan-$component" "./cmd/$component"; then
+  if CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -trimpath -ldflags "$release_linker_flags" -o "$release_dir/bin/cuan-$component" "./cmd/$component"; then
     :
   else
     build_status=$?
