@@ -127,6 +127,7 @@ type Server struct {
 	taskProjectRepo             cuanDB.TaskProjectRepository
 	agentSessionStore           agent.SessionStore
 	mcpRegistry                 *mcp.Registry
+	remoteMCPRepo               cuanDB.RemoteMCPConnectorRepository
 	scheduler                   *scheduler.Scheduler
 	taskManager                 *scheduler.TaskManager
 	updater                     *updater.Service
@@ -505,14 +506,17 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	var projRepo cuanDB.ProjectRepository
 	var tpRepo cuanDB.TaskProjectRepository
 	var projDepRepo cuanDB.ProjectDeploymentRepository
+	var remoteMCPRepo cuanDB.RemoteMCPConnectorRepository
 	if db != nil {
 		projRepo = cuanDB.NewSQLProjectRepository(db)
 		tpRepo = cuanDB.NewSQLTaskProjectRepository(db)
 		projDepRepo = cuanDB.NewSQLProjectDeploymentRepository(db)
+		remoteMCPRepo = cuanDB.NewSQLRemoteMCPConnectorRepository(db)
 	} else {
 		projRepo = cuanDB.NewMemoryProjectRepository()
 		tpRepo = cuanDB.NewMemoryTaskProjectRepository()
 		projDepRepo = cuanDB.NewMemoryProjectDeploymentRepository()
+		remoteMCPRepo = cuanDB.NewMemoryRemoteMCPConnectorRepository()
 	}
 
 	sched := scheduler.New()
@@ -608,6 +612,7 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 		taskProjectRepo:        tpRepo,
 		agentSessionStore:      agent.NewMemorySessionStore(),
 		mcpRegistry:            mcp.NewRegistry(),
+		remoteMCPRepo:          remoteMCPRepo,
 		scheduler:              sched,
 		taskManager:            taskMgr,
 		updater:                updateSvc,
@@ -727,6 +732,13 @@ func NewServer(cfg *config.Config, db *sql.DB, authSvc ...*auth.Service) *Server
 	s.routes()
 	s.setupStaticRoutes()
 	s.SetExtensionRegistry(s.extensions)
+	if db != nil {
+		go func() {
+			restoreCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			s.RestoreRemoteMCPConnectors(restoreCtx)
+		}()
+	}
 	if cfg.InboxExecutionRole != "worker" {
 		s.reconcileStartupState(context.Background())
 	}

@@ -1,12 +1,18 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/buchin/cuan/internal/crypto"
+	cuanDB "github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/mcp"
 )
 
@@ -136,6 +142,10 @@ func (s *Server) handleConnectRemoteApp(w http.ResponseWriter, r *http.Request) 
 		respondJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if err := s.persistRemoteMCP(r.Context(), cfg, app); err != nil {
+		respondJSONError(w, http.StatusInternalServerError, "failed to persist remote MCP connector: "+err.Error())
+		return
+	}
 
 	respondJSON(w, http.StatusOK, map[string]any{
 		"status": "success",
@@ -159,11 +169,107 @@ func (s *Server) handleUnregisterRemoteApp(w http.ResponseWriter, r *http.Reques
 		respondJSONError(w, http.StatusNotFound, err.Error())
 		return
 	}
+	if err := s.deletePersistedRemoteMCP(r.Context(), id); err != nil {
+		respondJSONError(w, http.StatusInternalServerError, "failed to delete persisted remote MCP connector: "+err.Error())
+		return
+	}
 
 	respondJSON(w, http.StatusOK, map[string]any{
 		"status": "success",
 		"app_id": id,
 	})
+}
+
+func (s *Server) remoteMCPSecret() string {
+	if s.cfg != nil && strings.TrimSpace(s.cfg.AuthSecret) != "" {
+		return s.cfg.AuthSecret
+	}
+	return "cuan-default-remote-mcp-secret-32b"
+}
+
+func (s *Server) persistRemoteMCP(ctx context.Context, cfg mcp.ServerConfig, app *mcp.App) error {
+	if s.remoteMCPRepo == nil || app == nil {
+		return nil
+	}
+	var encKey string
+	if strings.TrimSpace(cfg.APIKey) != "" {
+		var err error
+		encKey, err = crypto.EncryptStringAES256GCM(strings.TrimSpace(cfg.APIKey), s.remoteMCPSecret())
+		if err != nil {
+			return err
+		}
+	}
+	return s.remoteMCPRepo.UpsertRemoteMCPConnector(ctx, &cuanDB.RemoteMCPConnector{
+		ID:              app.ID,
+		Name:            app.Name,
+		Description:     app.Description,
+		BaseURL:         app.BaseURL,
+		Transport:       app.Transport,
+		APIKeyEncrypted: encKey,
+		Enabled:         true,
+	})
+}
+
+func (s *Server) deletePersistedRemoteMCP(ctx context.Context, appID string) error {
+	if s.remoteMCPRepo == nil {
+		return nil
+	}
+	return s.remoteMCPRepo.DeleteRemoteMCPConnector(ctx, appID)
+}
+
+// RestoreRemoteMCPConnectors reloads saved Remote MCP connectors from the database into the registry.
+// Unreachable endpoints are recorded with status "error" without blocking startup.
+func (s *Server) RestoreRemoteMCPConnectors(ctx context.Context) {
+	if s.remoteMCPRepo == nil {
+		return
+	}
+	connectors, err := s.remoteMCPRepo.ListRemoteMCPConnectors(ctx)
+	if err != nil {
+		log.Printf("[Startup] ListRemoteMCPConnectors error: %v", err)
+		return
+	}
+	if len(connectors) == 0 {
+		return
+	}
+
+	reg := s.MCPRegistry()
+	secret := s.remoteMCPSecret()
+
+	var wg sync.WaitGroup
+	for _, c := range connectors {
+		c := c
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			var apiKey string
+			if c.APIKeyEncrypted != "" {
+				decrypted, decErr := crypto.DecryptStringAES256GCM(c.APIKeyEncrypted, secret)
+				if decErr != nil {
+					log.Printf("[Startup] Failed to decrypt API key for remote MCP %s: %v", c.ID, decErr)
+				} else {
+					apiKey = decrypted
+				}
+			}
+
+			connCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			defer cancel()
+
+			cfg := mcp.ServerConfig{
+				ID:          c.ID,
+				Name:        c.Name,
+				Description: c.Description,
+				BaseURL:     c.BaseURL,
+				Transport:   mcp.TransportType(c.Transport),
+				APIKey:      apiKey,
+				Enabled:     c.Enabled,
+				Timeout:     5 * time.Second,
+			}
+			if _, _, restoreErr := reg.RestoreRemoteMCP(connCtx, cfg); restoreErr != nil {
+				log.Printf("[Startup] Remote MCP %s (%s) unavailable at boot: %v", c.ID, c.BaseURL, restoreErr)
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 // ============================================================================

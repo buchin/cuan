@@ -2,12 +2,15 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/buchin/cuan/internal/config"
+	cuanDB "github.com/buchin/cuan/internal/db"
 	"github.com/buchin/cuan/internal/mcp"
 )
 
@@ -356,5 +359,125 @@ func TestRemoteMCP_StreamableHTTP_Endpoint(t *testing.T) {
 
 	if mcpW.Code != http.StatusOK {
 		t.Fatalf("expected 200 OK from streamable remote MCP connect, got %d: %s", mcpW.Code, mcpW.Body.String())
+	}
+}
+
+func TestRemoteMCP_PersistenceAndStartupRecovery(t *testing.T) {
+	var authHeaderSeen atomic.Value
+	remoteMock := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		authHeaderSeen.Store(r.Header.Get("Authorization"))
+		if r.URL.Path == "/mcp/tools" && r.Method == http.MethodGet {
+			_ = json.NewEncoder(rw).Encode(map[string]any{
+				"tools": []mcp.ToolDefinition{
+					{Name: "tebar_post", Description: "Create Tebar post"},
+				},
+			})
+			return
+		}
+		http.NotFound(rw, r)
+	}))
+	defer remoteMock.Close()
+
+	// 1. Register Remote MCP on initial server instance
+	s1 := setupTestServerForAppsSkills(t)
+	sharedRepo := s1.remoteMCPRepo
+
+	payload := []byte(`{
+		"id": "mcp_tebar",
+		"name": "Tebar",
+		"description": "Tebar MCP Connector",
+		"base_url": "` + remoteMock.URL + `",
+		"transport": "http",
+		"api_key": "tb_secret_123"
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/connect-remote", bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s1.router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK from connect-remote, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Verify persisted in repo with encrypted key
+	saved, err := sharedRepo.GetRemoteMCPConnector(context.Background(), "mcp_tebar")
+	if err != nil {
+		t.Fatalf("expected connector to be persisted in repo: %v", err)
+	}
+	if saved.APIKeyEncrypted == "" || saved.APIKeyEncrypted == "tb_secret_123" {
+		t.Fatalf("expected API key to be stored encrypted, got %q", saved.APIKeyEncrypted)
+	}
+
+	// 2. Simulate server restart with fresh in-memory registry and shared repo
+	s2 := setupTestServerForAppsSkills(t)
+	s2.remoteMCPRepo = sharedRepo
+	s2.RestoreRemoteMCPConnectors(context.Background())
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/apps", nil)
+	listW := httptest.NewRecorder()
+	s2.router.ServeHTTP(listW, listReq)
+	if listW.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK from GET /api/v1/apps, got %d", listW.Code)
+	}
+	var appsResp struct {
+		Apps []*mcp.App `json:"apps"`
+	}
+	if err := json.NewDecoder(listW.Body).Decode(&appsResp); err != nil {
+		t.Fatal(err)
+	}
+	var restored *mcp.App
+	for _, a := range appsResp.Apps {
+		if a.ID == "mcp_tebar" {
+			restored = a
+			break
+		}
+	}
+	if restored == nil || restored.Status != "connected" {
+		t.Fatalf("expected mcp_tebar to be restored as connected, got %+v", restored)
+	}
+	if gotAuth, _ := authHeaderSeen.Load().(string); gotAuth != "Bearer tb_secret_123" {
+		t.Fatalf("expected decrypted Bearer token on reconnect, got %q", gotAuth)
+	}
+
+	// 3. Unregister removes from both registry and DB
+	delReq := httptest.NewRequest(http.MethodDelete, "/api/v1/apps/mcp_tebar/custom", nil)
+	delW := httptest.NewRecorder()
+	s2.router.ServeHTTP(delW, delReq)
+	if delW.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK from DELETE /api/v1/apps/mcp_tebar/custom, got %d: %s", delW.Code, delW.Body.String())
+	}
+
+	// Simulate another restart: connector must stay deleted
+	s3 := setupTestServerForAppsSkills(t)
+	s3.remoteMCPRepo = sharedRepo
+	s3.RestoreRemoteMCPConnectors(context.Background())
+	if _, err := s3.MCPRegistry().GetApp("mcp_tebar"); err == nil {
+		t.Fatalf("expected deleted connector not to reappear after restart")
+	}
+
+	// 4. Unreachable endpoint at boot records error status without blocking startup
+	offlineServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	offlineURL := offlineServer.URL
+	offlineServer.Close()
+
+	if err := sharedRepo.UpsertRemoteMCPConnector(context.Background(), &cuanDB.RemoteMCPConnector{
+		ID:        "mcp_offline",
+		Name:      "Offline MCP",
+		BaseURL:   offlineURL,
+		Transport: "http",
+		Enabled:   true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	s4 := setupTestServerForAppsSkills(t)
+	s4.remoteMCPRepo = sharedRepo
+	s4.RestoreRemoteMCPConnectors(context.Background())
+
+	offlineApp, err := s4.MCPRegistry().GetApp("mcp_offline")
+	if err != nil {
+		t.Fatalf("expected unreachable connector to still be registered on boot: %v", err)
+	}
+	if offlineApp.Status != "error" || offlineApp.Error == "" {
+		t.Fatalf("expected status=error with non-empty Error, got %+v", offlineApp)
 	}
 }

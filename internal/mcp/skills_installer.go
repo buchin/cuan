@@ -414,29 +414,28 @@ func (r *Registry) UninstallSkill(ctx context.Context, skillID string) error {
 	return nil
 }
 
-// RegisterRemoteMCP connects to an external MCP server, discovers its tools, and wires them into the registry.
-func (r *Registry) RegisterRemoteMCP(ctx context.Context, cfg ServerConfig) (*App, []ToolDefinition, error) {
-	if strings.TrimSpace(cfg.BaseURL) == "" {
-		return nil, nil, errors.New("base_url is required for remote MCP server")
+func normalizeRemoteMCPConfig(cfg ServerConfig) (ServerConfig, error) {
+	cfg.BaseURL = strings.TrimSpace(cfg.BaseURL)
+	if cfg.BaseURL == "" {
+		return cfg, errors.New("base_url is required for remote MCP server")
 	}
-	if strings.TrimSpace(cfg.Name) == "" {
+	cfg.Name = strings.TrimSpace(cfg.Name)
+	if cfg.Name == "" {
 		cfg.Name = "Custom MCP Server"
 	}
-	if strings.TrimSpace(cfg.ID) == "" {
+	cfg.ID = strings.TrimSpace(cfg.ID)
+	if cfg.ID == "" {
 		cfg.ID = "mcp_" + toSlug(cfg.Name)
 	}
+	cfg.Description = strings.TrimSpace(cfg.Description)
 	if cfg.Transport == "" {
 		cfg.Transport = TransportHTTP
 	}
+	return cfg, nil
+}
 
-	client := NewClient(cfg)
-	tools, err := client.DiscoverTools(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to discover tools from MCP server %s: %w", cfg.BaseURL, err)
-	}
-
+func (r *Registry) storeRemoteMCPAppLocked(cfg ServerConfig, client *Client, tools []ToolDefinition, status, errMsg string) *App {
 	toolNames := make([]string, 0, len(tools))
-	r.mu.Lock()
 	for _, tool := range tools {
 		tName := tool.Name
 		toolNames = append(toolNames, tName)
@@ -447,24 +446,35 @@ func (r *Registry) RegisterRemoteMCP(ctx context.Context, cfg ServerConfig) (*Ap
 	}
 
 	now := time.Now()
+	var connectedAt *time.Time
+	if status == "connected" {
+		connectedAt = &now
+	}
 	app := &App{
 		ID:           cfg.ID,
 		Name:         cfg.Name,
 		Description:  cfg.Description,
 		Icon:         "plug",
 		Category:     "connector",
-		Status:       "connected",
+		Status:       status,
 		BaseURL:      cfg.BaseURL,
 		Transport:    string(cfg.Transport),
 		IsCustom:     true,
-		ConnectedAt:  &now,
+		ConnectedAt:  connectedAt,
 		Capabilities: toolNames,
+		Error:        errMsg,
 	}
 	if app.Description == "" {
-		app.Description = fmt.Sprintf("Konektor MCP eksternal (%s) dengan %d tools aktif.", cfg.BaseURL, len(tools))
+		if status == "connected" {
+			app.Description = fmt.Sprintf("Konektor MCP eksternal (%s) dengan %d tools aktif.", cfg.BaseURL, len(tools))
+		} else {
+			app.Description = fmt.Sprintf("Konektor MCP eksternal (%s).", cfg.BaseURL)
+		}
 	}
 	r.apps[cfg.ID] = app
-	r.remoteClients[cfg.ID] = client
+	if client != nil {
+		r.remoteClients[cfg.ID] = client
+	}
 
 	// Companion Skill for agent prompt awareness
 	companionSkillID := "skill_" + cfg.ID
@@ -475,7 +485,7 @@ func (r *Registry) RegisterRemoteMCP(ctx context.Context, cfg ServerConfig) (*Ap
 		Description: fmt.Sprintf("Alat eksternal dan kapabilitas dari konektor %s (%d tools).", cfg.Name, len(tools)),
 		Icon:        "plug",
 		Category:    "automation",
-		Enabled:     true,
+		Enabled:     status == "connected",
 		IsCustom:    true,
 		Tools:       toolNames,
 		BoundAgents: []string{"agent_cuan", "agent_sm", "agent_dev", "agent_support"},
@@ -489,6 +499,56 @@ func (r *Registry) RegisterRemoteMCP(ctx context.Context, cfg ServerConfig) (*Ap
 		}
 		r.agentSkills[agentID][companionSkillID] = true
 	}
+
+	return app
+}
+
+// RegisterRemoteMCP connects to an external MCP server, discovers its tools, and wires them into the registry.
+func (r *Registry) RegisterRemoteMCP(ctx context.Context, cfg ServerConfig) (*App, []ToolDefinition, error) {
+	cfg, err := normalizeRemoteMCPConfig(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	client := NewClient(cfg)
+	tools, err := client.DiscoverTools(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to discover tools from MCP server %s: %w", cfg.BaseURL, err)
+	}
+
+	r.mu.Lock()
+	app := r.storeRemoteMCPAppLocked(cfg, client, tools, "connected", "")
+	r.mu.Unlock()
+
+	return app, tools, nil
+}
+
+// RestoreRemoteMCP reloads a persisted remote MCP connector at startup.
+// If the remote endpoint is unreachable, it records the connector with status "error" instead of omitting it.
+func (r *Registry) RestoreRemoteMCP(ctx context.Context, cfg ServerConfig) (*App, []ToolDefinition, error) {
+	cfg, err := normalizeRemoteMCPConfig(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !cfg.Enabled {
+		r.mu.Lock()
+		app := r.storeRemoteMCPAppLocked(cfg, nil, nil, "disconnected", "")
+		r.mu.Unlock()
+		return app, nil, nil
+	}
+
+	client := NewClient(cfg)
+	tools, err := client.DiscoverTools(ctx)
+	if err != nil {
+		r.mu.Lock()
+		app := r.storeRemoteMCPAppLocked(cfg, nil, nil, "error", err.Error())
+		r.mu.Unlock()
+		return app, nil, err
+	}
+
+	r.mu.Lock()
+	app := r.storeRemoteMCPAppLocked(cfg, client, tools, "connected", "")
 	r.mu.Unlock()
 
 	return app, tools, nil

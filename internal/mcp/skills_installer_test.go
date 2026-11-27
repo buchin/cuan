@@ -191,3 +191,77 @@ func TestRegisterRemoteMCP(t *testing.T) {
 		t.Fatal("expected remote tool to be unregistered")
 	}
 }
+
+func TestRestoreRemoteMCP(t *testing.T) {
+	ctx := context.Background()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/mcp/tools" && r.Method == http.MethodGet {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"tools": []ToolDefinition{
+					{Name: "tebar_ping", Description: "Ping"},
+				},
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	reg := NewRegistry()
+
+	// 1. Reachable enabled connector restores as connected
+	app, tools, err := reg.RestoreRemoteMCP(ctx, ServerConfig{
+		ID:        "mcp_tebar",
+		Name:      "Tebar",
+		BaseURL:   server.URL,
+		Transport: TransportHTTP,
+		Enabled:   true,
+	})
+	if err != nil {
+		t.Fatalf("expected reachable restore to succeed, got %v", err)
+	}
+	if app.Status != "connected" || len(tools) != 1 {
+		t.Fatalf("unexpected restored app: %+v, tools: %+v", app, tools)
+	}
+
+	// 2. Unreachable enabled connector records error status without omitting app
+	badServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	badURL := badServer.URL
+	badServer.Close()
+
+	errApp, _, restoreErr := reg.RestoreRemoteMCP(ctx, ServerConfig{
+		ID:        "mcp_offline",
+		Name:      "Offline MCP",
+		BaseURL:   badURL,
+		Transport: TransportHTTP,
+		Enabled:   true,
+	})
+	if restoreErr == nil {
+		t.Fatal("expected error for unreachable server")
+	}
+	if errApp == nil || errApp.Status != "error" || errApp.Error == "" {
+		t.Fatalf("expected app with status=error and error message, got %+v", errApp)
+	}
+	if _, err := reg.GetApp("mcp_offline"); err != nil {
+		t.Fatalf("expected offline app to still be listed in registry: %v", err)
+	}
+	if err := reg.UnregisterRemoteMCP(ctx, "mcp_offline"); err != nil {
+		t.Fatalf("expected UnregisterRemoteMCP to remove error app: %v", err)
+	}
+
+	// 3. Disabled connector restores as disconnected without dialing
+	disApp, _, disErr := reg.RestoreRemoteMCP(ctx, ServerConfig{
+		ID:        "mcp_disabled",
+		Name:      "Disabled MCP",
+		BaseURL:   badURL,
+		Transport: TransportHTTP,
+		Enabled:   false,
+	})
+	if disErr != nil {
+		t.Fatalf("expected disabled restore not to fail, got %v", disErr)
+	}
+	if disApp.Status != "disconnected" {
+		t.Fatalf("expected status=disconnected, got %+v", disApp)
+	}
+}
