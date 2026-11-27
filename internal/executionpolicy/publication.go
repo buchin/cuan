@@ -62,12 +62,17 @@ var runnerPushCaution = regexp.MustCompile(`(?i)\b(?:dari\s+(?:dalam\s+)?sesi\s+
 // asserts product correctness, not a prohibition on deployment.
 var falsePositiveAssertion = regexp.MustCompile(`(?i)\b(?:tidak\s+ada|tanpa|no)\s+false\s+positives?\b\s*:?`)
 
+// Describing a mismatch symptom (e.g. "tidak cocok ... skrip deploy",
+// "do not match") is not a prohibition on deployment.
+var mismatchCondition = regexp.MustCompile(`(?i)\b(?:tidak\s+(?:cocok|sesuai|identik|sama)|(?:do|does|did)\s+not\s+match)\b`)
+
 func FromInstructions(instructions string) PublicationPolicy {
 	instructions = publicationScope(instructions)
 	instructions = completedNativeInspection.ReplaceAllString(instructions, "${1}${2}")
 	instructions = historicalAuditReference.ReplaceAllString(instructions, " prior audit ")
 	instructions = deploymentCancellationCaution.ReplaceAllString(instructions, "${1} release")
 	instructions = falsePositiveAssertion.ReplaceAllString(instructions, " ")
+	instructions = mismatchCondition.ReplaceAllString(instructions, " mismatch ")
 	policy := PublicationPolicy{ReadOnlyRepository: readOnlyScope.MatchString(instructions) && repositoryTarget.MatchString(instructions)}
 	if policy.ReadOnlyRepository {
 		policy.DenyPush, policy.DenyDeploy = true, true

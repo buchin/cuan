@@ -248,3 +248,20 @@ func TestRunnerPushCautionDoesNotBlockManagedAutoDeploy(t *testing.T) {
 		}
 	}
 }
+
+func TestMismatchConditionDoesNotProhibitDeployment(t *testing.T) {
+	for _, tc := range []struct {
+		text       string
+		push, deny bool
+	}{
+		{"1. Identifikasi akar masalah mengapa direktori target <digest> bisa ada dalam kondisi tidak cocok dengan payload atau bagaimana skrip deploy memanggil install-runtime-cache-maintenance.py.\n5. Commit dan push perubahan ke branch dev agar pipeline deployment otomatis dapat memproses rilis berikutnya.", false, false},
+		{"Gabungkan dan push perubahan yang sudah terverifikasi ke branch dev agar pipeline deployment otomatis dapat memproses rilis berikutnya, tanpa menjalankan deployment manual.", false, false},
+		{"The pinned tools do not match; fix the deploy script and release.", false, false},
+		{"Jika tools tidak cocok, jangan deploy ke production.", false, true},
+	} {
+		got := FromInstructions(tc.text)
+		if got.DenyPush != tc.push || got.DenyDeploy != tc.deny {
+			t.Errorf("%q: got %+v, want denyPush=%v denyDeploy=%v", tc.text, got, tc.push, tc.deny)
+		}
+	}
+}
