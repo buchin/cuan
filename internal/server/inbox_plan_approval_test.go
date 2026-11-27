@@ -1,8 +1,10 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"mime/multipart"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -246,5 +248,119 @@ printf '%s' '` + string(response) + `'
 	}
 	if tasks[0].AssignedAgent != "agent_lifecycle" {
 		t.Fatalf("expected assigned agent agent_lifecycle, got %q", tasks[0].AssignedAgent)
+	}
+}
+
+func TestInboxPlanApprovalWithPriorAttachmentAndQuote(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping slow plan approval test in short mode")
+	}
+	s, token, call, _ := inboxFixture(t)
+	ctx := context.Background()
+	projects := project.NewMemoryStore()
+	projects.CreateProject(ctx, &project.Project{ID: "plan-project", Name: "Plan project"})
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
+	api := httptest.NewServer(s.Router())
+	defer api.Close()
+	s.taskAgentURL = api.URL
+
+	// Upload a valid attachment for an earlier message in the conversation.
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	f, _ := mw.CreateFormFile("file", "context.txt")
+	f.Write([]byte("prior context"))
+	mw.Close()
+	upReq := httptest.NewRequest("POST", "/api/v1/chat/attachments", &body)
+	upReq.Header.Set("Content-Type", mw.FormDataContentType())
+	upReq.Header.Set("Authorization", "Bearer "+token)
+	upRec := httptest.NewRecorder()
+	s.Router().ServeHTTP(upRec, upReq)
+	if upRec.Code != 201 {
+		t.Fatalf("upload failed: %d %s", upRec.Code, upRec.Body.String())
+	}
+	var att conversationAttachment
+	if err := json.Unmarshal(upRec.Body.Bytes(), &att); err != nil {
+		t.Fatal(err)
+	}
+
+	custRoomID := db.GenerateUUID()
+	if err := s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
+		ID:        custRoomID,
+		ProjectID: "default",
+		Title:     "Customer Room",
+		Topic:     "",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	plan := inboxApprovalPlan{Title: "Check deploy script", Description: "Verify deploy script configuration.", ProjectID: "plan-project"}
+	encoded, _ := json.Marshal(plan)
+	content := "Here is the proposed plan.\n```cuan-approval\n" + string(encoded) + "\n```"
+	response, _ := json.Marshal(map[string]any{"event": "result", "result": map[string]string{"status": "SUCCESS", "response": coordinatorFixtureResponse(content)}})
+	script := `#!/bin/sh
+if [ "$1" = "--dangerously-skip-permissions" ]; then
+ "$CUAN_TASK_EXECUTABLE" task report --state done --summary 'Done' --complete-note 'Verified' >/dev/null || exit 22
+ exit 0
+fi
+printf '%s' '` + string(response) + `'
+`
+	os.WriteFile(filepath.Join(strings.Split(os.Getenv("PATH"), ":")[0], "agy"), []byte(script), 0700)
+
+	post := func(payload map[string]any) (int, string, db.InboxRequest) {
+		t.Helper()
+		raw, _ := json.Marshal(payload)
+		w := call("POST", "/api/v1/chat/conversations/"+custRoomID+"/messages", string(raw))
+		var got struct{ Request db.InboxRequest }
+		_ = json.Unmarshal(w.Body.Bytes(), &got)
+		return w.Code, w.Body.String(), got.Request
+	}
+
+	// 1. User sends a message with an attachment and quote context.
+	code, bodyStr, first := post(map[string]any{
+		"request_id":     db.GenerateUUID(),
+		"message":        "> prior quote\n\n@lifecycle cek script deploy",
+		"attachment_ids": []string{att.ID},
+	})
+	if code != 200 && code != 202 {
+		t.Fatalf("initial message failed: %d %s", code, bodyStr)
+	}
+	waitInboxState(t, s, first.RoomID, first.RequestID, "completed")
+
+	// 2. Approving with a new attachment_ids slice on the approval request itself must be rejected clearly.
+	badCode, badBody, _ := post(map[string]any{
+		"request_id":         db.GenerateUUID(),
+		"message":            "Approve this plan",
+		"approve_message_id": first.ReplyID,
+		"attachment_ids":     []string{att.ID},
+	})
+	if badCode != 400 || !strings.Contains(badBody, "Approve a plan without new attachments") {
+		t.Fatalf("expected 400 without new attachments error, got %d: %s", badCode, badBody)
+	}
+
+	// 3. Approving a non-agent message in a customer room must fail with agent-conversation error, not attachment error.
+	nonAgentCode, nonAgentBody, _ := post(map[string]any{
+		"request_id":         db.GenerateUUID(),
+		"message":            "Approve this plan",
+		"approve_message_id": first.MessageID,
+	})
+	if nonAgentCode != 400 || strings.Contains(nonAgentBody, "attachments") {
+		t.Fatalf("expected 400 agent-conversation error without attachment mention, got %d: %s", nonAgentCode, nonAgentBody)
+	}
+
+	// 4. Approving the agent plan in a room with prior attachments & quote succeeds when attachment_ids is empty.
+	okCode, okBody, approved := post(map[string]any{
+		"request_id":         db.GenerateUUID(),
+		"message":            "Approve this plan",
+		"approve_message_id": first.ReplyID,
+		"attachment_ids":     []string{},
+	})
+	if okCode != 200 && okCode != 202 {
+		t.Fatalf("expected 200/202 on approval, got %d: %s", okCode, okBody)
+	}
+	waitInboxState(t, s, approved.RoomID, approved.RequestID, "completed")
+
+	tasks, _ := s.taskSvc.ListTasks(ctx, task.TaskFilter{})
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task from approval in room with prior attachments, got %d", len(tasks))
 	}
 }
