@@ -1383,11 +1383,17 @@ func (s *Server) processNextQueuedDeployment(projectID, repoDir string, proj *pr
 // 4. Atomic Service Switch (zero-downtime release activation and distribution verification)
 // 5. Health Verification (HTTP probe against publication health URL or canonical domain)
 func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, proj *project.ProjectResponse, branch, commitSHA string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Minute)
 	defer cancel()
 
 	if s.projectDeploymentRepo == nil {
 		return
+	}
+
+	persistDep := func(d *cuanDB.ProjectDeployment) {
+		uCtx, uCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer uCancel()
+		_ = s.projectDeploymentRepo.Update(uCtx, d)
 	}
 
 	dep, err := s.projectDeploymentRepo.GetByID(ctx, depID)
@@ -1402,7 +1408,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	dep.Steps[0].StartedAt = &step1Start
 	dep.Steps[0].Status = cuanDB.StepStatusBuilding
 	dep.Steps[0].Summary = fmt.Sprintf("Fetching and checking out branch %s...", branch)
-	_ = s.projectDeploymentRepo.Update(ctx, dep)
+	persistDep(dep)
 
 	var checkoutLog bytes.Buffer
 	checkoutSuccess := true
@@ -1483,7 +1489,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 		dep.Status = cuanDB.DeploymentStatusFailed
 		dep.ErrorMessage = "Source checkout step failed"
 		dep.DurationSeconds = int(time.Since(startTime).Seconds())
-		_ = s.projectDeploymentRepo.Update(ctx, dep)
+		persistDep(dep)
 		s.processNextQueuedDeployment(projectID, repoDir, proj)
 		return
 	}
@@ -1491,14 +1497,14 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	dep.Steps[0].Status = cuanDB.StepStatusSuccess
 	dep.Steps[0].Summary = fmt.Sprintf("Checked out commit %s", dep.ShortSHA)
 	dep.Steps[0].Log = checkoutLog.String()
-	_ = s.projectDeploymentRepo.Update(ctx, dep)
+	persistDep(dep)
 
 	// Step 2: Compile & Build
 	step2Start := time.Now().UTC()
 	dep.Steps[1].StartedAt = &step2Start
 	dep.Steps[1].Status = cuanDB.StepStatusBuilding
 	dep.Steps[1].Summary = "Compiling application dependencies and assets..."
-	_ = s.projectDeploymentRepo.Update(ctx, dep)
+	persistDep(dep)
 
 	var buildLog bytes.Buffer
 	buildSuccess := true
@@ -1637,7 +1643,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 		dep.Status = cuanDB.DeploymentStatusFailed
 		dep.ErrorMessage = "Build step failed"
 		dep.DurationSeconds = int(time.Since(startTime).Seconds())
-		_ = s.projectDeploymentRepo.Update(ctx, dep)
+		persistDep(dep)
 
 		// Process next queued deployment even if current failed
 		s.processNextQueuedDeployment(projectID, repoDir, proj)
@@ -1647,14 +1653,14 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	dep.Steps[1].Status = cuanDB.StepStatusSuccess
 	dep.Steps[1].Summary = "Application compiled successfully"
 	dep.Steps[1].Log = buildLog.String()
-	_ = s.projectDeploymentRepo.Update(ctx, dep)
+	persistDep(dep)
 
 	// Step 3: Database Migration
 	step3Start := time.Now().UTC()
 	dep.Steps[2].StartedAt = &step3Start
 	dep.Steps[2].Status = cuanDB.StepStatusBuilding
 	dep.Steps[2].Summary = "Verifying database migrations..."
-	_ = s.projectDeploymentRepo.Update(ctx, dep)
+	persistDep(dep)
 
 	var migrationLog bytes.Buffer
 	migrationSuccess := true
@@ -1696,7 +1702,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 		dep.Status = cuanDB.DeploymentStatusFailed
 		dep.ErrorMessage = "Database migration step failed"
 		dep.DurationSeconds = int(time.Since(startTime).Seconds())
-		_ = s.projectDeploymentRepo.Update(ctx, dep)
+		persistDep(dep)
 		s.processNextQueuedDeployment(projectID, repoDir, proj)
 		return
 	}
@@ -1704,14 +1710,14 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	dep.Steps[2].Status = cuanDB.StepStatusSuccess
 	dep.Steps[2].Summary = "Database schema synchronized and up to date"
 	dep.Steps[2].Log = migrationLog.String()
-	_ = s.projectDeploymentRepo.Update(ctx, dep)
+	persistDep(dep)
 
 	// Step 4: Atomic Service Switch
 	step4Start := time.Now().UTC()
 	dep.Steps[3].StartedAt = &step4Start
 	dep.Steps[3].Status = cuanDB.StepStatusBuilding
 	dep.Steps[3].Summary = "Performing atomic service switch..."
-	_ = s.projectDeploymentRepo.Update(ctx, dep)
+	persistDep(dep)
 
 	var switchLog bytes.Buffer
 	if ranDeployScript {
@@ -1739,14 +1745,14 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	dep.Steps[3].Status = cuanDB.StepStatusSuccess
 	dep.Steps[3].Summary = "Service symlink swapped and process reloaded"
 	dep.Steps[3].Log = switchLog.String()
-	_ = s.projectDeploymentRepo.Update(ctx, dep)
+	persistDep(dep)
 
 	// Step 5: Health Verification
 	step5Start := time.Now().UTC()
 	dep.Steps[4].StartedAt = &step5Start
 	dep.Steps[4].Status = cuanDB.StepStatusBuilding
 	dep.Steps[4].Summary = "Probing health check endpoint..."
-	_ = s.projectDeploymentRepo.Update(ctx, dep)
+	persistDep(dep)
 
 	var healthLog bytes.Buffer
 	healthSuccess := true
@@ -1820,7 +1826,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 		dep.Status = cuanDB.DeploymentStatusFailed
 		dep.ErrorMessage = "Health check probe failed"
 		dep.DurationSeconds = int(time.Since(startTime).Seconds())
-		_ = s.projectDeploymentRepo.Update(ctx, dep)
+		persistDep(dep)
 		s.processNextQueuedDeployment(projectID, repoDir, proj)
 		return
 	}
@@ -1828,7 +1834,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	dep.Steps[4].Status = cuanDB.StepStatusSuccess
 	dep.Steps[4].Summary = fmt.Sprintf("Health probe verified (%dms)", probeLatency)
 	dep.Steps[4].Log = healthLog.String()
-	_ = s.projectDeploymentRepo.Update(ctx, dep)
+	persistDep(dep)
 
 	// Finish Deployment
 	dep.Status = cuanDB.DeploymentStatusSuccess
@@ -1837,7 +1843,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	if dep.DurationSeconds <= 0 {
 		dep.DurationSeconds = 1
 	}
-	_ = s.projectDeploymentRepo.Update(ctx, dep)
+	persistDep(dep)
 
 	// Process next queued deployment in this project's lane
 	s.processNextQueuedDeployment(projectID, repoDir, proj)
