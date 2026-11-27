@@ -293,3 +293,68 @@ func TestDynamicSkillsAndRemoteMCP_Endpoints(t *testing.T) {
 		t.Fatalf("expected 200 OK from app delete, got %d: %s", delAppW.Code, delAppW.Body.String())
 	}
 }
+
+func TestRemoteMCP_StreamableHTTP_Endpoint(t *testing.T) {
+	s := setupTestServerForAppsSkills(t)
+
+	remoteMock := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/mcp" || r.Method != http.MethodPost {
+			http.NotFound(rw, r)
+			return
+		}
+		var req struct {
+			ID     json.RawMessage `json:"id"`
+			Method string          `json:"method"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(rw, err.Error(), http.StatusBadRequest)
+			return
+		}
+		switch req.Method {
+		case "initialize":
+			rw.Header().Set("Mcp-Session-Id", "sess-srv-1")
+			rw.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(rw).Encode(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      req.ID,
+				"result":  map[string]any{"protocolVersion": "2025-03-26"},
+			})
+		case "notifications/initialized":
+			rw.WriteHeader(http.StatusAccepted)
+		case "tools/list":
+			if r.Header.Get("Mcp-Session-Id") != "sess-srv-1" {
+				http.Error(rw, "missing session id", http.StatusBadRequest)
+				return
+			}
+			rw.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(rw).Encode(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      req.ID,
+				"result": map[string]any{
+					"tools": []map[string]any{
+						{"name": "tebar_schedule_post", "description": "Schedule social post"},
+					},
+				},
+			})
+		default:
+			http.Error(rw, "unexpected method", http.StatusBadRequest)
+		}
+	}))
+	defer remoteMock.Close()
+
+	remotePayload := []byte(`{
+		"id": "tebar_streamable",
+		"name": "Tebar MCP",
+		"base_url": "` + remoteMock.URL + `/mcp",
+		"transport": "http",
+		"api_key": "tb_live_test"
+	}`)
+	mcpReq := httptest.NewRequest(http.MethodPost, "/api/v1/apps/connect-remote", bytes.NewReader(remotePayload))
+	mcpReq.Header.Set("Content-Type", "application/json")
+	mcpW := httptest.NewRecorder()
+	s.router.ServeHTTP(mcpW, mcpReq)
+
+	if mcpW.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK from streamable remote MCP connect, got %d: %s", mcpW.Code, mcpW.Body.String())
+	}
+}
