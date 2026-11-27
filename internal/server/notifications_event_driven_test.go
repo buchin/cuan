@@ -319,7 +319,8 @@ func TestEventDrivenPush_AgentReplyAndApproval(t *testing.T) {
 // TestPushNotification_SequentialRoomMessages_ConsistentTag verifies:
 // 1. All sequential messages for the same room share the consistent tag "room:<conversation_id>".
 // 2. Both customer messages and agent messages from the same room use the same room tag.
-// 3. Sequential messages are all dispatched to staff devices without server-side deduplication blocks.
+// 3. Sequential messages in the same room within cooldown are throttled (no repeat push spam),
+//    while different rooms dispatch immediately.
 func TestPushNotification_SequentialRoomMessages_ConsistentTag(t *testing.T) {
 	s, ownerID, _, _, _ := setupStaffPushTest(t)
 	ctx := context.Background()
@@ -332,10 +333,10 @@ func TestPushNotification_SequentialRoomMessages_ConsistentTag(t *testing.T) {
 	roomID := "room-inbox-" + db.GenerateUUID()
 	expectedRoomTag := "room:" + roomID
 
-	// 1. Customer sends message 1
+	// 1. Customer sends message 1 -> dispatches immediately (2 calls: owner + member)
 	msgID1 := db.GenerateUUID()
 	s.DispatchCustomerMessagePush(ctx, roomID, msgID1, "Pelanggan A", "Halo, apakah stok ready?")
-	if spy.CallCount() != 2 { // 1 owner + 1 member
+	if spy.CallCount() != 2 {
 		t.Fatalf("expected 2 calls for message 1, got %d", spy.CallCount())
 	}
 	ownerPrefs, _ := readOwnerPreferences(ownerID)
@@ -343,12 +344,15 @@ func TestPushNotification_SequentialRoomMessages_ConsistentTag(t *testing.T) {
 	if payload1["tag"] != expectedRoomTag {
 		t.Fatalf("expected message 1 tag %q, got %q", expectedRoomTag, payload1["tag"])
 	}
+	if payload1["renotify"] != "false" {
+		t.Fatalf("expected renotify 'false', got %q", payload1["renotify"])
+	}
 
-	// 2. Customer sends message 2 in the same room
+	// 2. Customer sends message 2 in the same room within cooldown -> throttled (still 2 calls)
 	msgID2 := db.GenerateUUID()
 	s.DispatchCustomerMessagePush(ctx, roomID, msgID2, "Pelanggan A", "Ukuran 42 warna hitam ya.")
-	if spy.CallCount() != 4 {
-		t.Fatalf("expected 4 total calls after message 2, got %d", spy.CallCount())
+	if spy.CallCount() != 2 {
+		t.Fatalf("expected cooldown to suppress consecutive push (still 2 calls), got %d", spy.CallCount())
 	}
 	ownerPrefs, _ = readOwnerPreferences(ownerID)
 	payload2 := buildPushPayload(ownerPrefs.Items[0])
@@ -356,11 +360,17 @@ func TestPushNotification_SequentialRoomMessages_ConsistentTag(t *testing.T) {
 		t.Fatalf("expected message 2 tag %q, got %q", expectedRoomTag, payload2["tag"])
 	}
 
-	// 3. Agent sends reply in the same room
+	// 3. Simulate cooldown expiry -> agent reply in the same room dispatches again
+	s.pushCooldownMu.Lock()
+	for k, ts := range s.pushRoomLastAt {
+		s.pushRoomLastAt[k] = ts.Add(-roomPushCooldown - time.Second)
+	}
+	s.pushCooldownMu.Unlock()
+
 	agentMsgID := db.GenerateUUID()
 	s.DispatchAgentUpdatePush(ctx, roomID, agentMsgID, "Asisten AI", "Ukuran 42 hitam tersedia kak!", false)
-	if spy.CallCount() != 6 {
-		t.Fatalf("expected 6 total calls after agent reply, got %d", spy.CallCount())
+	if spy.CallCount() != 4 {
+		t.Fatalf("expected 4 total calls after cooldown expiry + agent reply, got %d", spy.CallCount())
 	}
 	ownerPrefs, _ = readOwnerPreferences(ownerID)
 	payload3 := buildPushPayload(ownerPrefs.Items[0])
@@ -368,10 +378,13 @@ func TestPushNotification_SequentialRoomMessages_ConsistentTag(t *testing.T) {
 		t.Fatalf("expected agent reply tag %q, got %q", expectedRoomTag, payload3["tag"])
 	}
 
-	// 4. Different room uses distinct room tag
+	// 4. Different room is NOT blocked by roomID's cooldown and uses distinct room tag
 	otherRoomID := "room-other-" + db.GenerateUUID()
 	otherMsgID := db.GenerateUUID()
 	s.DispatchCustomerMessagePush(ctx, otherRoomID, otherMsgID, "Pelanggan B", "Lokasi toko dimana?")
+	if spy.CallCount() != 6 {
+		t.Fatalf("expected 6 total calls after different room message, got %d", spy.CallCount())
+	}
 	ownerPrefs, _ = readOwnerPreferences(ownerID)
 	payloadOther := buildPushPayload(ownerPrefs.Items[0])
 	if payloadOther["tag"] != "room:"+otherRoomID {
@@ -500,9 +513,9 @@ func TestPushPayload_SanitizationAndMasking(t *testing.T) {
 }
 
 // TestEventDrivenPush_InboxLifecycleEndToEnd verifies that when an inbox goal runs
-// through the full execution loop, FinishInboxRequest triggers instant push.
+// through the full execution loop, FinishInboxRequest triggers instant push ONLY to the room owner.
 func TestEventDrivenPush_InboxLifecycleEndToEnd(t *testing.T) {
-	s, _, ownerToken, _, _ := setupStaffPushTest(t)
+	s, ownerID, ownerToken, memberID, _ := setupStaffPushTest(t)
 
 	spy := &pushPayloadSpyClient{status: 201}
 	prevHTTPClient := notificationHTTPClient
@@ -534,15 +547,22 @@ func TestEventDrivenPush_InboxLifecycleEndToEnd(t *testing.T) {
 
 	waitInboxState(t, s, res.ConversationID, reqID, "completed")
 
-	// Both Owner and Member should receive push instantly.
-	// Wait until push dispatcher finishes sending HTTP requests to all subscribed staff.
+	// Only the room owner (ownerID) should receive the private chat push, NOT memberID.
 	deadline := time.Now().Add(3 * time.Second)
-	for spy.CallCount() < 2 && time.Now().Before(deadline) {
+	for spy.CallCount() < 1 && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	if spy.CallCount() < 2 {
-		t.Fatalf("expected at least 2 push calls on inbox goal completion, got %d", spy.CallCount())
+	if spy.CallCount() != 1 {
+		t.Fatalf("expected exactly 1 push call to room owner on private inbox goal completion, got %d", spy.CallCount())
+	}
+	ownerPrefs, _ := readOwnerPreferences(ownerID)
+	if len(ownerPrefs.Items) == 0 {
+		t.Fatal("expected owner to have recorded notification")
+	}
+	memberPrefs, _ := readOwnerPreferences(memberID)
+	if len(memberPrefs.Items) != 0 {
+		t.Fatalf("expected member NOT to receive private room notification, got %d items", len(memberPrefs.Items))
 	}
 }
 
@@ -1188,5 +1208,164 @@ func TestPushPayload_DynamicActionTitlesAndHumanizedSnippets(t *testing.T) {
 				t.Errorf("icon %s at (%d,%d) has rigid black corner #191919", p, c[0], c[1])
 			}
 		}
+	}
+}
+
+// TestPushNotification_DoneTaskNoDoublePush verifies that a completed (done) task
+// uses the canonical ID/tag "task:<id>:done" across both DispatchTaskCompletedPush
+// and the 30s notificationSnapshot/dispatchOwnerNotifications poller, preventing double push.
+func TestPushNotification_DoneTaskNoDoublePush(t *testing.T) {
+	s, ownerID, _, _, _ := setupStaffPushTest(t)
+	ctx := context.Background()
+
+	spy := &pushPayloadSpyClient{status: 201}
+	prevHTTPClient := notificationHTTPClient
+	notificationHTTPClient = &http.Client{Transport: spy}
+	defer func() { notificationHTTPClient = prevHTTPClient }()
+
+	created, err := s.taskSvc.CreateTask(ctx, "owner", task.CreateTaskRequest{
+		Title:     "Perbaiki Push Notification",
+		ProjectID: "default",
+	})
+	if err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	attempt, err := s.taskSvc.CreateAttempt(ctx, created.ID, "runner", task.CreateAttemptRequest{
+		AgentName: "agent_cuan",
+	})
+	if err != nil {
+		t.Fatalf("CreateAttempt: %v", err)
+	}
+	if _, err := s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "runner", task.UpdateAttemptRequest{
+		Status: "running",
+	}); err != nil {
+		t.Fatalf("UpdateAttemptStatus running: %v", err)
+	}
+	exitZero := 0
+	if _, err := s.taskSvc.UpdateAttemptStatus(ctx, attempt.ID, "runner", task.UpdateAttemptRequest{
+		Status:   "succeeded",
+		ExitCode: &exitZero,
+	}); err != nil {
+		t.Fatalf("UpdateAttemptStatus succeeded: %v", err)
+	}
+	reviewStatus := task.TaskStatusReview
+	if _, err := s.taskSvc.UpdateTask(ctx, created.ID, "system", task.UpdateTaskRequest{
+		Status: &reviewStatus,
+	}); err != nil {
+		t.Fatalf("UpdateTask review: %v", err)
+	}
+	doneStatus := task.TaskStatusDone
+	doneSummary := "Push notification diperbaiki dan terverifikasi."
+	doneNote := "Verified by unit tests."
+	updated, err := s.taskSvc.UpdateTask(ctx, created.ID, "system", task.UpdateTaskRequest{
+		Status:       &doneStatus,
+		Summary:      &doneSummary,
+		CompleteNote: &doneNote,
+	})
+	if err != nil {
+		t.Fatalf("UpdateTask: %v", err)
+	}
+
+	// 1. Instant dispatch
+	s.DispatchTaskCompletedPush(ctx, updated)
+	if spy.CallCount() != 2 {
+		t.Fatalf("expected 2 instant push calls (owner + member), got %d", spy.CallCount())
+	}
+
+	// 2. Verify notificationSnapshot uses canonical "task:<id>:done" without attempt suffix
+	items, _, err := s.notificationSnapshot(ctx, ownerID)
+	if err != nil {
+		t.Fatalf("notificationSnapshot: %v", err)
+	}
+	expectedID := "task:" + created.ID + ":done"
+	foundCanonical := false
+	for _, it := range items {
+		if strings.HasPrefix(it.ID, "task:"+created.ID+":done") {
+			if it.ID != expectedID {
+				t.Fatalf("expected canonical done ID %q (without attempt %q), got %q", expectedID, attempt.ID, it.ID)
+			}
+			foundCanonical = true
+		}
+	}
+	if !foundCanonical {
+		t.Fatalf("expected canonical done item %q in snapshot", expectedID)
+	}
+
+	// 3. Running 30s poller afterward must NOT send a duplicate push
+	s.dispatchAllStaff(ctx)
+	if spy.CallCount() != 2 {
+		t.Fatalf("expected no double push on poller pass (still 2 calls), got %d", spy.CallCount())
+	}
+}
+
+// TestPushNotification_DeployFailureBlockedNotifiesOwner verifies that a deploy/release
+// failure sets the task blocked, dispatches a blocker push ONLY to the room owner,
+// and is not suppressed by the internal-retry :blocked: filter.
+func TestPushNotification_DeployFailureBlockedNotifiesOwner(t *testing.T) {
+	s, ownerID, _, memberID, _ := setupStaffPushTest(t)
+	ctx := context.Background()
+
+	spy := &pushPayloadSpyClient{status: 201}
+	prevHTTPClient := notificationHTTPClient
+	notificationHTTPClient = &http.Client{Transport: spy}
+	defer func() { notificationHTTPClient = prevHTTPClient }()
+
+	roomID := db.GenerateUUID()
+	if err := s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{
+		ID:        roomID,
+		ProjectID: "default",
+		Title:     "Private Deploy Room",
+		Topic:     "agent:agent_cuan",
+	}); err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+	if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
+		msgID := db.GenerateUUID()
+		if _, _, err := store.AcceptInboxRequest(ctx, db.InboxRequest{
+			RoomID:    roomID,
+			RequestID: db.GenerateUUID(),
+			MessageID: msgID,
+			ReplyID:   db.GenerateUUID(),
+			OwnerID:   ownerID,
+			AgentID:   "agent_cuan",
+			State:     "completed",
+			CreatedAt: time.Now().UTC(),
+			Deadline:  time.Now().UTC().Add(time.Hour),
+		}, &db.ProjectMessage{
+			ID:         msgID,
+			RoomID:     roomID,
+			AuthorType: "user",
+			AuthorID:   ownerID,
+			Content:    "Rilis fitur baru",
+			CreatedAt:  time.Now().UTC(),
+		}); err != nil {
+			t.Fatalf("AcceptInboxRequest: %v", err)
+		}
+	}
+
+	created, err := s.taskSvc.CreateTask(ctx, ownerID, task.CreateTaskRequest{
+		Title:        "Rilis Fitur Baru",
+		ProjectID:    "default",
+		SourceRoomID: roomID,
+	})
+	if err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	s.handleDeployCoordinatorFailure(ctx, DeployJob{
+		TaskID:    created.ID,
+		ProjectID: "default",
+	}, os.ErrDeadlineExceeded)
+
+	if spy.CallCount() != 1 {
+		t.Fatalf("expected exactly 1 push notification to room owner on deploy failure, got %d", spy.CallCount())
+	}
+	ownerPrefs, _ := readOwnerPreferences(ownerID)
+	if len(ownerPrefs.Items) == 0 || ownerPrefs.Items[0].Kind != "blocker" {
+		t.Fatalf("expected blocker notification recorded for owner, got %+v", ownerPrefs.Items)
+	}
+	memberPrefs, _ := readOwnerPreferences(memberID)
+	if len(memberPrefs.Items) != 0 {
+		t.Fatalf("expected member NOT to receive owner's private deploy failure notification, got %d items", len(memberPrefs.Items))
 	}
 }

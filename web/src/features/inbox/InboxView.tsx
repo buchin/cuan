@@ -20,6 +20,7 @@ import { updateItemPreference } from '../../hooks/useArchivedItems'
 import { ItemActions, copyItemLink } from '../../components/ui/ItemActions'
 import { useConnectionClock } from '../agents/useConnectionClock'
 import { useLanguage } from '../../context/LanguageContext'
+import { useNotifications } from '../../context/NotificationsContext'
 import {
   AttachmentPicker,
   AttachmentPreviews,
@@ -527,6 +528,30 @@ export function InboxView({
   const activeConvRef = useRef('')
   activeConvRef.current =
     activeContact?.conversation_id || activeContact?.id || ''
+  const { items: notificationItems, markRead: markNotificationsRead } = useNotifications()
+  useEffect(() => {
+    const roomId = activeContact?.conversation_id || activeContact?.id || ''
+    if (!roomId) return
+    const markRoomNotificationsRead = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      const expectedPath = `/inbox/${encodeURIComponent(roomId)}`
+      const unreadIds = notificationItems
+        .filter((item) => {
+          if (item.read) return false
+          const itemPath = (item.href || '').split('?')[0].split('#')[0]
+          return itemPath === expectedPath || itemPath === `/inbox/${roomId}`
+        })
+        .map((item) => item.id)
+      if (unreadIds.length > 0) {
+        void markNotificationsRead(unreadIds).catch(() => {})
+      }
+    }
+    markRoomNotificationsRead()
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', markRoomNotificationsRead)
+      return () => document.removeEventListener('visibilitychange', markRoomNotificationsRead)
+    }
+  }, [activeContact?.conversation_id, activeContact?.id, notificationItems, markNotificationsRead])
   const [hasMoreOlder, setHasMoreOlder] = useState(false)
   const [loadingOlder, setLoadingOlder] = useState(false)
   const olderAnchor = useRef<{ height: number; top: number } | null>(null)

@@ -162,13 +162,21 @@ func (s *Server) notificationSnapshot(ctx context.Context, owner string) ([]owne
 			case "blocked":
 				kind = "blocker"
 				status = "Needs attention"
-				summary = "Pekerjaan tertahan dan memerlukan perhatian Anda."
+				if strings.Contains(t.CompleteNote, "⚠️ Deploy production gagal") {
+					summary = "Deploy production gagal dan memerlukan perhatian Anda."
+				} else {
+					summary = "Pekerjaan tertahan dan memerlukan perhatian Anda."
+				}
 			}
 			if strings.TrimSpace(t.Summary) != "" {
 				summary = cleanNotificationSnippet(t.Summary)
 			}
 			if kind != "" {
-				items = append(items, ownerNotification{ID: "task:" + t.ID + ":" + t.Status + ":" + attempt, Kind: kind, Title: state.Title, Context: state.Context, Summary: summary, Status: status, ActionLabel: action, Href: href, At: t.UpdatedAt})
+				id := "task:" + t.ID + ":" + t.Status
+				if t.Status != "done" && attempt != "" {
+					id += ":" + attempt
+				}
+				items = append(items, ownerNotification{ID: id, Kind: kind, Title: state.Title, Context: state.Context, Summary: summary, Status: status, ActionLabel: action, Href: href, At: t.UpdatedAt})
 			}
 		}
 	}
@@ -204,16 +212,6 @@ func (s *Server) notificationChatCandidatesMemory(ctx context.Context, owner str
 		if err != nil {
 			return nil, err
 		}
-		activeStaff := map[string]bool{owner: true}
-		if s.authSvc != nil {
-			if members, _, err := s.authSvc.ListTeamMembers(ctx); err == nil {
-				for _, m := range members {
-					if m.IsActive {
-						activeStaff[m.ID] = true
-					}
-				}
-			}
-		}
 		for _, room := range rooms {
 			if roomAgentID(room.Topic) == "" {
 				continue
@@ -226,7 +224,7 @@ func (s *Server) notificationChatCandidatesMemory(ctx context.Context, owner str
 			ownedMessages := map[string]bool{}
 			latest := map[string]db.InboxRequest{}
 			for _, q := range requests {
-				if activeStaff[q.OwnerID] {
+				if q.OwnerID == owner {
 					allowed[q.ReplyID] = true
 					ownedMessages[q.MessageID] = true
 					old, ok := latest[q.MessageID]
@@ -236,7 +234,7 @@ func (s *Server) notificationChatCandidatesMemory(ctx context.Context, owner str
 				}
 			}
 			for _, q := range requests {
-				if activeStaff[q.OwnerID] && (q.State == "failed" || q.State == "interrupted") {
+				if q.OwnerID == owner && (q.State == "failed" || q.State == "interrupted") {
 					next := ""
 					if current := latest[q.MessageID]; current.RequestID != q.RequestID {
 						next = current.State
@@ -467,6 +465,91 @@ func (s *Server) activeStaffIDs(ctx context.Context) []string {
 	return nil
 }
 
+var roomPushCooldown = 15 * time.Second
+
+func isRoomCooldownEligible(item ownerNotification) (string, bool) {
+	if strings.HasPrefix(item.ID, "task:") || item.Kind == "approval" || item.Kind == "blocker" {
+		return "", false
+	}
+	roomID := extractRoomID(item)
+	if roomID == "" {
+		return "", false
+	}
+	return roomID, true
+}
+
+func (s *Server) allowRoomPush(staffID, endpoint string, item ownerNotification, now time.Time) bool {
+	roomID, ok := isRoomCooldownEligible(item)
+	if !ok {
+		return true
+	}
+	key := staffID + "\x00" + endpoint + "\x00" + roomID
+	s.pushCooldownMu.Lock()
+	defer s.pushCooldownMu.Unlock()
+	if s.pushRoomLastAt == nil {
+		return true
+	}
+	lastAt, exists := s.pushRoomLastAt[key]
+	if !exists {
+		return true
+	}
+	return now.Sub(lastAt) >= roomPushCooldown
+}
+
+func (s *Server) recordRoomPush(staffID, endpoint string, item ownerNotification, now time.Time) {
+	roomID, ok := isRoomCooldownEligible(item)
+	if !ok {
+		return
+	}
+	key := staffID + "\x00" + endpoint + "\x00" + roomID
+	s.pushCooldownMu.Lock()
+	defer s.pushCooldownMu.Unlock()
+	if s.pushRoomLastAt == nil {
+		s.pushRoomLastAt = map[string]time.Time{}
+	}
+	s.pushRoomLastAt[key] = now
+}
+
+func (s *Server) resolvePrivateRoomOwnerID(ctx context.Context, roomID string) string {
+	roomID = strings.TrimSpace(roomID)
+	if roomID == "" {
+		return ""
+	}
+	if s.db != nil {
+		var isCustomer bool
+		_ = s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM crm_contacts WHERE session_uuid=$1)`, roomID).Scan(&isCustomer)
+		if isCustomer {
+			return ""
+		}
+		var ownerID string
+		if err := s.db.QueryRowContext(ctx, `SELECT owner_id FROM inbox_requests WHERE room_id=$1 AND owner_id<>'' ORDER BY created_at DESC LIMIT 1`, roomID).Scan(&ownerID); err == nil {
+			return strings.TrimSpace(ownerID)
+		}
+		return ""
+	}
+	if s.projectStudioRepo != nil {
+		if room, err := s.projectStudioRepo.GetRoomByID(ctx, roomID); err == nil && room != nil {
+			if roomAgentID(room.Topic) == "" {
+				return ""
+			}
+		}
+		if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
+			if requests, err := store.ListInboxRequests(ctx, roomID); err == nil {
+				var latestAt time.Time
+				var ownerID string
+				for _, q := range requests {
+					if strings.TrimSpace(q.OwnerID) != "" && (ownerID == "" || q.CreatedAt.After(latestAt)) {
+						ownerID = strings.TrimSpace(q.OwnerID)
+						latestAt = q.CreatedAt
+					}
+				}
+				return ownerID
+			}
+		}
+	}
+	return ""
+}
+
 func (s *Server) dispatchItemToStaff(ctx context.Context, staffID string, item ownerNotification) {
 	ownerPreferencesMu.Lock()
 	p, err := readOwnerPreferences(staffID)
@@ -483,31 +566,29 @@ func (s *Server) dispatchItemToStaff(ctx context.Context, staffID string, item o
 	}
 	ownerPreferencesMu.Unlock()
 
-	tag := item.ID
-	if strings.HasPrefix(item.ID, "approval:") {
-		tag = "agent:" + strings.TrimPrefix(item.ID, "approval:")
-	} else if strings.HasPrefix(item.ID, "request:") {
-		tag = "agent:" + strings.TrimPrefix(item.ID, "request:")
+	if shouldSuppressInboxTaskPush(item) {
+		return
 	}
 
+	tag := pushNotificationTag(item)
+
 	for _, sub := range p.Subscriptions {
-		if (sub.Sent != nil && sub.Sent[item.ID]) || (tag != "" && sub.Sent != nil && sub.Sent[tag]) {
+		if (sub.Sent != nil && sub.Sent[item.ID]) || (tag != "" && !strings.HasPrefix(tag, "room:") && sub.Sent != nil && sub.Sent[tag]) {
 			continue
 		}
 		if !sub.Since.IsZero() && item.At.Before(sub.Since.Add(-1*time.Minute)) {
 			continue
 		}
-		// Filter out intermediate/internal runner task progress from push notifications:
-		// Task review is an internal coordinator/verifier check, not a user approval.
-		// Task blocked on an inbox-linked task is internal coordinator retry/recovery.
-		if strings.HasPrefix(item.ID, "task:") && strings.Contains(item.Href, "/inbox/") {
-			if strings.Contains(item.ID, ":review:") || strings.Contains(item.ID, ":blocked:") {
-				continue
-			}
+		now := time.Now()
+		if !s.allowRoomPush(staffID, sub.Subscription.Endpoint, item, now) {
+			continue
 		}
 		code, err := sendOwnerPush(ctx, p, sub.Subscription, item)
 		if err != nil {
 			continue
+		}
+		if code >= 200 && code < 300 {
+			s.recordRoomPush(staffID, sub.Subscription.Endpoint, item, now)
 		}
 		ownerPreferencesMu.Lock()
 		current, err := readOwnerPreferences(staffID)
@@ -643,6 +724,10 @@ func (s *Server) DispatchAgentUpdatePush(ctx context.Context, roomID, messageID,
 	}
 	pushCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	if ownerID := s.resolvePrivateRoomOwnerID(pushCtx, roomID); ownerID != "" {
+		s.dispatchItemToStaff(pushCtx, ownerID, item)
+		return
+	}
 	s.broadcastPushNotification(pushCtx, item)
 }
 
@@ -723,6 +808,65 @@ func (s *Server) DispatchTaskCompletedPush(ctx context.Context, t *task.Task) {
 	}
 	pushCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	if ownerID := s.resolvePrivateRoomOwnerID(pushCtx, resolvedTask.SourceRoomID); ownerID != "" {
+		s.dispatchItemToStaff(pushCtx, ownerID, item)
+		return
+	}
+	s.broadcastPushNotification(pushCtx, item)
+}
+
+// DispatchTaskBlockedPush sends an instant push notification when a task is blocked due to a deploy/release failure.
+func (s *Server) DispatchTaskBlockedPush(ctx context.Context, t *task.Task) {
+	if t == nil || t.Status != task.TaskStatusBlocked {
+		return
+	}
+	resolvedTask := *t
+	if strings.TrimSpace(resolvedTask.SourceRoomID) == "" {
+		if roomID := s.resolveTaskSourceRoomID(ctx, resolvedTask.ID); roomID != "" {
+			resolvedTask.SourceRoomID = roomID
+		}
+	}
+	href, actionLabel := taskNotificationTarget(resolvedTask.ID, resolvedTask.ProjectID, resolvedTask.SourceRoomID, resolvedTask.Status)
+
+	title := "Perhatian Diperlukan"
+	if strings.TrimSpace(resolvedTask.Title) != "" {
+		title = resolvedTask.Title
+	}
+	summary := "Pekerjaan tertahan dan memerlukan perhatian Anda."
+	if strings.Contains(resolvedTask.CompleteNote, "⚠️ Deploy production gagal") {
+		summary = "Deploy production gagal dan memerlukan perhatian Anda."
+	} else if strings.TrimSpace(resolvedTask.Summary) != "" {
+		summary = cleanNotificationSnippet(resolvedTask.Summary)
+	}
+
+	attempt := ""
+	if s.taskSvc != nil {
+		if detail, err := s.taskSvc.GetTaskDetail(ctx, resolvedTask.ID); err == nil && detail != nil && detail.LatestAttempt != nil {
+			attempt = detail.LatestAttempt.ID
+		}
+	}
+	id := "task:" + resolvedTask.ID + ":blocked"
+	if attempt != "" {
+		id += ":" + attempt
+	}
+
+	item := ownerNotification{
+		ID:          id,
+		Kind:        "blocker",
+		Title:       title,
+		Context:     resolvedTask.ProjectID,
+		Summary:     summary,
+		Status:      "Needs attention",
+		ActionLabel: actionLabel,
+		Href:        href,
+		At:          time.Now().UTC(),
+	}
+	pushCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if ownerID := s.resolvePrivateRoomOwnerID(pushCtx, resolvedTask.SourceRoomID); ownerID != "" {
+		s.dispatchItemToStaff(pushCtx, ownerID, item)
+		return
+	}
 	s.broadcastPushNotification(pushCtx, item)
 }
 
@@ -764,22 +908,12 @@ func (s *Server) dispatchOwnerNotifications(ctx context.Context, owner string) {
 			if sent >= 5 {
 				break
 			}
-			tag := item.ID
-			if strings.HasPrefix(item.ID, "approval:") {
-				tag = "agent:" + strings.TrimPrefix(item.ID, "approval:")
-			} else if strings.HasPrefix(item.ID, "request:") {
-				tag = "agent:" + strings.TrimPrefix(item.ID, "request:")
-			}
+			tag := pushNotificationTag(item)
 			if item.Read || item.Resolved || sub.Sent[item.ID] || (tag != "" && sub.Sent[tag]) || !item.At.After(sub.Since) || time.Since(item.At) > 24*time.Hour || !enabledNotification(p.Notifications, item.Kind) {
 				continue
 			}
-			// Filter out intermediate/internal runner task progress from push notifications:
-			// Task review is an internal coordinator/verifier check, not a user approval.
-			// Task blocked on an inbox-linked task is internal coordinator retry/recovery.
-			if strings.HasPrefix(item.ID, "task:") && strings.Contains(item.Href, "/inbox/") {
-				if strings.Contains(item.ID, ":review:") || strings.Contains(item.ID, ":blocked:") {
-					continue
-				}
+			if shouldSuppressInboxTaskPush(item) {
+				continue
 			}
 			code, e := sendOwnerPush(ctx, p, sub.Subscription, item)
 			if e != nil {
@@ -847,10 +981,10 @@ func (s *Server) notificationChatCandidatesSQL(ctx context.Context, owner string
  SELECT c.kind,c.id,c.room_id,c.created_at,c.content,c.state,c.safe_error,c.next_state,COALESCE(NULLIF(c.context,''),NULLIF(r.title,''),p.name,'')
  FROM (
  SELECT 'request' AS kind,q.request_id::text AS id,q.room_id,q.created_at,'' AS content,q.state,q.safe_error,
- COALESCE((SELECT child.state FROM inbox_requests child WHERE (child.owner_id=$1 OR child.owner_id IN (SELECT id FROM owners WHERE is_active=true)) AND child.room_id=q.room_id AND child.message_id=q.message_id AND (child.created_at,child.request_id)>(q.created_at,q.request_id) ORDER BY child.created_at DESC,child.request_id DESC LIMIT 1),'') AS next_state,'' AS context
- FROM inbox_requests q WHERE (q.owner_id=$1 OR q.owner_id IN (SELECT id FROM owners WHERE is_active=true)) AND q.state IN ('failed','interrupted')
+ COALESCE((SELECT child.state FROM inbox_requests child WHERE child.owner_id=$1 AND child.room_id=q.room_id AND child.message_id=q.message_id AND (child.created_at,child.request_id)>(q.created_at,q.request_id) ORDER BY child.created_at DESC,child.request_id DESC LIMIT 1),'') AS next_state,'' AS context
+ FROM inbox_requests q WHERE q.owner_id=$1 AND q.state IN ('failed','interrupted')
  UNION ALL
- SELECT 'approval',m.id::text,m.room_id,m.created_at,m.content,'','','','' FROM project_messages m JOIN inbox_requests q ON q.reply_id=m.id WHERE (q.owner_id=$1 OR q.owner_id IN (SELECT id FROM owners WHERE is_active=true)) AND m.author_type='agent' AND m.content LIKE '%cuan-approval%'
+ SELECT 'approval',m.id::text,m.room_id,m.created_at,m.content,'','','','' FROM project_messages m JOIN inbox_requests q ON q.reply_id=m.id WHERE q.owner_id=$1 AND m.author_type='agent' AND m.content LIKE '%cuan-approval%'
  UNION ALL
  SELECT 'customer',m.id::text,m.room_id,m.created_at,m.content,'','','',c.name FROM project_messages m JOIN crm_contacts c ON c.session_uuid=m.room_id WHERE m.author_type='user' AND COALESCE(m.author_id,'')<>'operator_user'
  ) c LEFT JOIN project_rooms r ON r.id=c.room_id LEFT JOIN projects p ON p.id=r.project_id ORDER BY COALESCE((c.kind||':'||c.room_id::text||':'||c.id)=ANY($2::text[]),false) DESC,c.created_at DESC LIMIT 200`, owner, retainedIDs)
@@ -904,7 +1038,7 @@ func (s *Server) notificationChatCandidatesSQL(ctx context.Context, owner string
 		for room := range approvalRooms {
 			rooms = append(rooms, room)
 		}
-		decisions, err := s.db.QueryContext(ctx, `SELECT m.room_id::text,m.content FROM project_messages m JOIN inbox_requests q ON q.message_id=m.id WHERE (q.owner_id=$1 OR q.owner_id IN (SELECT id FROM owners WHERE is_active=true)) AND m.author_type='user' AND m.room_id::text=ANY($2) AND m.content LIKE $3 AND m.content LIKE '%"approval":%' ORDER BY m.created_at`, owner, rooms, attachmentEnvelope+"%")
+		decisions, err := s.db.QueryContext(ctx, `SELECT m.room_id::text,m.content FROM project_messages m JOIN inbox_requests q ON q.message_id=m.id WHERE q.owner_id=$1 AND m.author_type='user' AND m.room_id::text=ANY($2) AND m.content LIKE $3 AND m.content LIKE '%"approval":%' ORDER BY m.created_at`, owner, rooms, attachmentEnvelope+"%")
 		if err != nil {
 			return nil, err
 		}
