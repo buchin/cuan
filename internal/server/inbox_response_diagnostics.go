@@ -210,11 +210,11 @@ func inboxReviewResponseDiagnostic(raw string) string {
 	if (result.ManagerAction == "wait" || result.ManagerAction == "needs_owner") && result.Decision != "blocked" {
 		return "Review format: wait/needs_owner requires blocked decision."
 	}
-	if result.ManagerAction == "wait" && result.RemainingWork != "external" {
-		return "Review format: wait manager_action requires external remaining_work."
+	if result.ManagerAction == "wait" && result.RemainingWork != "external" && !(result.SourceReview == "pass" && result.RemainingWork == "publication") {
+		return "Review format: wait manager_action requires external remaining_work (or publication when source_review is pass)."
 	}
-	if result.ManagerAction == "needs_owner" && result.RemainingWork != "external" && result.RequestedOutcome != "needs_input" {
-		return "Review format: needs_owner requires external remaining_work or needs_input outcome."
+	if result.ManagerAction == "needs_owner" && result.RemainingWork != "external" && result.RequestedOutcome != "needs_input" && !(result.SourceReview == "pass" && result.RemainingWork == "publication") {
+		return "Review format: needs_owner requires external remaining_work, needs_input outcome, or publication when source_review is pass."
 	}
 	if result.Decision == "revise" && strings.TrimSpace(result.Revision) == "" {
 		return "Review format: revision missing for revise decision."

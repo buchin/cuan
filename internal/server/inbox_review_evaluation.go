@@ -425,13 +425,13 @@ func parseInboxReviewEvaluation(raw string) (inboxReviewEvaluation, error) {
 	if (result.ManagerAction == "continue" || result.ManagerAction == "replan") && (result.Decision != "revise" || result.RemainingWork == "external" || result.RequestedOutcome == "needs_input") {
 		return result, bad
 	}
-	if result.ManagerAction == "needs_owner" && result.RemainingWork != "external" && result.RequestedOutcome != "needs_input" {
+	if result.ManagerAction == "needs_owner" && result.RemainingWork != "external" && result.RequestedOutcome != "needs_input" && !(result.SourceReview == "pass" && result.RemainingWork == "publication") {
 		return result, bad
 	}
 	if (result.ManagerAction == "wait" || result.ManagerAction == "needs_owner") && result.Decision != "blocked" {
 		return result, bad
 	}
-	if result.ManagerAction == "wait" && result.RemainingWork != "external" {
+	if result.ManagerAction == "wait" && result.RemainingWork != "external" && !(result.SourceReview == "pass" && result.RemainingWork == "publication") {
 		return result, bad
 	}
 	return result, nil
