@@ -88,7 +88,7 @@ func (s *Server) handleRunnerVerifyPublication(w http.ResponseWriter, r *http.Re
 	// another project or an older process still needs its registered verifier.
 	currentProcess := s.publicationConnectionState(p) == "current_process" && s.cfg.CommitSHA == input.Commit
 	settings := project.SettingsFromMetadata(p.Metadata)
-	hasDeployScript := strings.TrimSpace(settings.DeployScript) != ""
+	hasDeployScript := project.EffectiveDeployScript(p.Metadata, p.LocalPath) != ""
 	c, err := publication.FromEnvironment(project.ParseEnvironment(settings.Environment))
 	if err != nil && !currentProcess && !hasDeployScript {
 		respondJSONError(w, 503, "Registered publication verifier is unavailable")

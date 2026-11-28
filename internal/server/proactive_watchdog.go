@@ -415,7 +415,18 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 				}
 			}
 		}
-		if !policyConflict && !identicalBlocker && latestAssessment != nil && attemptCount < 3 &&
+		retryAutoDeployScript := false
+		if attemptCount >= 3 && attemptCount < 5 && s.projectSvc != nil && detail.ProjectID != "" {
+			if proj, pErr := s.projectSvc.Get(ctx, detail.ProjectID); pErr == nil && proj != nil && project.EffectiveDeployScript(proj.Metadata, proj.LocalPath) != "" {
+				for _, a := range detail.Attempts {
+					if a != nil && strings.HasPrefix(a.ErrorMessage, "Kepatuhan auto_deploy:") {
+						retryAutoDeployScript = true
+						break
+					}
+				}
+			}
+		}
+		if !policyConflict && (!identicalBlocker || retryAutoDeployScript) && latestAssessment != nil && (attemptCount < 3 || retryAutoDeployScript) &&
 			latestAssessment.RemainingWork != "external" &&
 			!strings.HasPrefix(latestAssessment.Revision, "Native publication reconciliation:") &&
 			(latestAssessment.ManagerAction == "continue" || latestAssessment.ManagerAction == "replan") &&

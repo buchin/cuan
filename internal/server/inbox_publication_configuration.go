@@ -34,7 +34,7 @@ func (s *Server) publicationConnectionState(p *project.ProjectResponse) string {
 		}
 	}
 	settings := project.SettingsFromMetadata(p.Metadata)
-	if strings.TrimSpace(settings.DeployScript) != "" {
+	if project.EffectiveDeployScript(p.Metadata, p.LocalPath) != "" {
 		return "configured"
 	}
 	return publication.ConfigurationState(project.ParseEnvironment(settings.Environment))

@@ -695,7 +695,7 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 				if s.projectSvc != nil && d.ProjectID != "" && (d.ExecutionCategory == "" || d.ExecutionCategory == task.ExecutionCategoryCode) && (d.BranchName != "" || d.PRNumber > 0) && releaseObjectID.MatchString(d.CommitSHA) {
 					if proj, err := s.projectSvc.Get(ctx, d.ProjectID); err == nil && proj != nil && project.SettingsFromMetadata(proj.Metadata).IsAutoDeployEnabled() {
 						observation := s.inboxReviewPublication(ctx, d)
-						hasDeployScript := strings.TrimSpace(project.SettingsFromMetadata(proj.Metadata).DeployScript) != ""
+						hasDeployScript := project.EffectiveDeployScript(proj.Metadata, proj.LocalPath) != ""
 						unmergedDeployScript := hasDeployScript && !strings.Contains(d.CompleteNote, "Perubahan telah berhasil diterapkan") && extractNativeReleaseHandoffCommit(d.Activities) == ""
 						needsMerge := unmergedDeployScript || (observation != nil && observation.Required && !observation.Verified)
 						if needsMerge {

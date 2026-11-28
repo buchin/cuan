@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -75,6 +76,26 @@ func SettingsFromMetadata(raw json.RawMessage) Settings {
 		metadata.Settings.WorkspaceRevision = "initial"
 	}
 	return metadata.Settings
+}
+
+// EffectiveDeployScript returns the configured deploy_script or falls back to
+// a repository-level scripts/deploy.sh or deploy.sh when present on disk.
+func EffectiveDeployScript(metadata json.RawMessage, localPath string) string {
+	settings := SettingsFromMetadata(metadata)
+	if script := strings.TrimSpace(settings.DeployScript); script != "" {
+		return script
+	}
+	root := strings.TrimSpace(localPath)
+	if root == "" {
+		return ""
+	}
+	for _, rel := range []string{filepath.Join("scripts", "deploy.sh"), "deploy.sh"} {
+		info, err := os.Stat(filepath.Join(root, rel))
+		if err == nil && !info.IsDir() {
+			return "./" + filepath.ToSlash(rel)
+		}
+	}
+	return ""
 }
 
 const snapshotMarker = "\n\nProject guidance snapshot:\n```cuan-project-context\n"
