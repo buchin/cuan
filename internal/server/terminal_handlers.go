@@ -2359,7 +2359,7 @@ func (s *Server) projectTerminalGitEnv(r *http.Request, projectID, ownerID strin
 		baseURL = "http://" + r.Host
 	}
 	askpassURL := baseURL + "/api/v1/projects/" + projectID + "/terminal/git-credentials"
-	token := s.signTerminalGitToken(projectID, ownerID, 24*time.Hour)
+	token := s.signTerminalGitToken(projectID, ownerID, 7*24*time.Hour)
 	scriptPath, err := terminal.EnsureGitAskpassScript("", projectID, askpassURL, token)
 	if err != nil || scriptPath == "" {
 		return nil
