@@ -1,0 +1,70 @@
+name: CI Build & Test
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (Build & Test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefix web --no-audit --no-fund
+
+      - name: Build frontend
+        run: npm run build --prefix web
+
+      - name: Run frontend tests
+        run: npm test --prefix web
+
+      - name: Upload web/dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cuan-web-dist-${{ github.sha }}
+          path: web/dist
+          retention-days: 7
+
+  backend:
+    name: Backend (Go Build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build Linux amd64 binaries
+        env:
+          CGO_ENABLED: "0"
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          mkdir -p dist-bin
+          LDFLAGS="-X github.com/buchin/cuan/internal/config.GitCommit=${{ github.sha }} -X github.com/buchin/cuan/internal/config.SourceRepository=${{ github.repository }}"
+          for component in server migrate runner; do
+            go build -trimpath -ldflags "$LDFLAGS" -o "dist-bin/cuan-$component" "./cmd/$component"
+          done
+
+      - name: Upload Linux binaries artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cuan-linux-amd64-${{ github.sha }}
+          path: dist-bin
+          retention-days: 7
