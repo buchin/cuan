@@ -37,7 +37,10 @@ func VerificationRequestID(taskID, commit string, sourceAttempt ...string) strin
 	}
 	return verificationRequestID("verification-only:v1:", taskID, commit)
 }
-func VerificationRecoveryRequestID(taskID, commit string) string {
+func VerificationRecoveryRequestID(taskID, commit string, recoveryAttempt ...string) string {
+	if len(recoveryAttempt) > 0 && recoveryAttempt[0] != "" {
+		return verificationRequestID("verification-runtime-recovery:v2:"+recoveryAttempt[0]+":", taskID, commit)
+	}
 	return verificationRequestID("verification-runtime-recovery:v1:", taskID, commit)
 }
 func VerificationFinalizeRequestID(taskID, commit string) string {
@@ -94,7 +97,7 @@ func VerificationIntentForLaunch(t *Task, j *TaskLaunch) (*VerificationIntent, e
 			}
 		}
 		expected = VerificationRecoveryRequestID(t.ID, proof.SourceCommit)
-		bound = expected
+		bound = VerificationRecoveryRequestID(t.ID, proof.SourceCommit, proof.RecoveryAttemptID)
 	}
 	if proof.FinalizeAttemptID != "" || proof.ArtifactManifestHash != "" || proof.RepositoryBaseline != "" {
 		if proof.FinalizeAttemptID == "" || proof.FinalizeAttemptID == proof.SourceAttemptID || proof.FinalizeAttemptID == proof.RecoveryAttemptID || proof.RecoveryAttemptID == "" || !validVerificationHash(proof.ArtifactManifestHash) || !validVerificationHash(proof.RepositoryBaseline) {

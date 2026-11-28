@@ -66,8 +66,21 @@ func (s *Server) recoverSourceVerifier(ctx context.Context, d *task.TaskDetailRe
 	}
 	requestID := task.VerificationRecoveryRequestID(d.ID, prior.SourceCommit)
 	if saved, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, requestID)); err == nil && saved != nil {
-		proof, err := task.VerificationIntentForLaunch(&d.Task, saved)
-		return err == nil && proof != nil && proof.RecoveryCause == cause && proof.RecoveryAttemptID == d.LatestAttempt.ID && (saved.State == "queued" || saved.State == "claimed" || saved.State == "started")
+		if saved.State == "queued" || saved.State == "claimed" || saved.State == "started" {
+			proof, err := task.VerificationIntentForLaunch(&d.Task, saved)
+			return err == nil && proof != nil && proof.RecoveryCause == cause && proof.RecoveryAttemptID == d.LatestAttempt.ID
+		}
+		if cause == "interrupted" && (saved.State == "stopped" || saved.State == "cancelled") {
+			requestID = task.VerificationRecoveryRequestID(d.ID, prior.SourceCommit, d.LatestAttempt.ID)
+			if saved2, err2 := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, requestID)); err2 == nil && saved2 != nil {
+				proof2, pErr2 := task.VerificationIntentForLaunch(&d.Task, saved2)
+				return pErr2 == nil && proof2 != nil && proof2.RecoveryCause == cause && proof2.RecoveryAttemptID == d.LatestAttempt.ID && (saved2.State == "queued" || saved2.State == "claimed" || saved2.State == "started")
+			} else if err2 != nil && !errors.Is(err2, task.ErrTaskNotFound) {
+				return false
+			}
+		} else {
+			return false
+		}
 	} else if err != nil && !errors.Is(err, task.ErrTaskNotFound) {
 		return false
 	}
