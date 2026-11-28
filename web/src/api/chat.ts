@@ -62,6 +62,9 @@ export interface ApprovalPlan {
   description: string
   project_id?: string
   project_name?: string
+  execution_category?: 'code' | 'ops' | 'readonly' | string
+  approve_label?: string
+  action_note?: string
   continuation?: { task_id: string; attempt_id: string }
 }
 

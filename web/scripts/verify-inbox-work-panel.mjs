@@ -154,9 +154,11 @@ const messages=[message('source','Tolong perbaiki tampilan website.',{author_typ
    approval_title:'Posting Daily Ship Log ke dev-null.sh',
    approval_plan:{
      title:'Posting Daily Ship Log ke dev-null.sh',
-     description:'Shipped Cuan (24h, 47 commits): Merapikan navigasi, mempercepat deploy, dan memperkuat pemulihan otomatis agen.\n\nCoba & ikuti perkembangannya:\nhttps://cuan.work\nhttps://github.com/buchin/cuan',
+     description:'Shipped Cuan (24h, 47 commits): Merapikan navigasi, mempercepat deploy, dan memperkuat pemulihan otomatis agen.\n\nIkuti progres build-nya atau dukung Cuan menuju open-source v1.0: https://cuan.work | https://github.com/buchin/cuan',
      project_name:'cuan',
      execution_category:'ops',
+     approve_label:'Setuju & Posting',
+     action_note:'Menyetujui akan langsung memposting draft di atas ke dev-null.sh.',
      required_stages:[]
    },
    approval_request_id:'plan-approve-devnull',
@@ -1208,7 +1210,9 @@ try{
   const devnullCard = devnullRow.locator('[data-testid="approval-card"]')
   await devnullCard.waitFor({ state: 'visible', timeout: 5000 })
   await devnullCard.getByText('Posting Daily Ship Log ke dev-null.sh').waitFor({ state: 'visible', timeout: 5000 })
-  await devnullCard.getByRole('button', { name: /Setujui dan mulai|Approve and start/i }).waitFor({ state: 'visible', timeout: 5000 })
+  await devnullCard.getByText('Menyetujui akan langsung memposting draft di atas ke dev-null.sh.').waitFor({ state: 'visible', timeout: 5000 })
+  await devnullCard.getByText(/open-source v1\.0/).waitFor({ state: 'visible', timeout: 5000 })
+  await devnullCard.getByRole('button', { name: 'Setuju & Posting' }).waitFor({ state: 'visible', timeout: 5000 })
   await devnullCard.getByRole('button', { name: /Ubah rencana|Change plan/i }).waitFor({ state: 'visible', timeout: 5000 })
   await devnullImg.scrollIntoViewIfNeeded()
   await devnullRow.screenshot({ path: path.join(output, `devnull-proposal-preview-${width}.png`) })

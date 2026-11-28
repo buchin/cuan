@@ -42,3 +42,11 @@ test('Approval Card Status Cleanup: Chat bubble footer and metadata slot precisi
   assert.ok(cssSrc.includes('.wa-markdown-footer'), 'chat-calm.css must style wa-markdown-footer')
   assert.ok(cssSrc.includes('.wa-message-meta'), 'chat-calm.css must style wa-message-meta timestamp')
 })
+
+test('Approval Card Action Clarity: Supports approve_label, action_note, and non-code execution categories', () => {
+  const src = fs.readFileSync(approvalCardPath, 'utf8')
+  assert.ok(src.includes('plan.approve_label'), 'ApprovalCard must support custom approve_label')
+  assert.ok(src.includes('plan.action_note'), 'ApprovalCard must render optional action_note')
+  assert.ok(src.includes("plan.execution_category === 'ops'"), 'ApprovalCard must distinguish ops execution category from code')
+  assert.ok(src.includes("t('Approve and run')"), 'ApprovalCard must use Approve and run fallback for ops actions')
+})

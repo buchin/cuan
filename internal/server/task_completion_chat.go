@@ -166,6 +166,53 @@ func extractDevNullPostDraft(summary string) string {
 	return sanitizeDevNullDraftText(extracted)
 }
 
+const (
+	devNullApproveLabel = "Setuju & Posting"
+	devNullActionNote   = "Menyetujui akan langsung memposting draft di atas ke dev-null.sh."
+	devNullCTAID        = "Ikuti progres build-nya atau dukung Cuan menuju open-source v1.0: https://cuan.work | https://github.com/buchin/cuan"
+	devNullCTAEN        = "Follow the build or back Cuan toward open-source v1.0: https://cuan.work | https://github.com/buchin/cuan"
+)
+
+func ensureDevNullSponsorwareCTA(draft string) string {
+	text := strings.TrimSpace(strings.ReplaceAll(draft, "\r\n", "\n"))
+	if text == "" {
+		return text
+	}
+	lower := strings.ToLower(text)
+	if strings.Contains(lower, "v1.0") ||
+		strings.Contains(lower, "sponsorware") ||
+		strings.Contains(lower, "back cuan") ||
+		strings.Contains(lower, "dukung cuan") {
+		return text
+	}
+
+	cta := devNullCTAEN
+	if strings.Contains(lower, " dan ") || strings.Contains(lower, " yang ") || strings.Contains(lower, " untuk ") || strings.Contains(lower, "perkembangannya") {
+		cta = devNullCTAID
+	}
+
+	lines := strings.Split(text, "\n")
+	cut := len(lines)
+	for cut > 0 {
+		trimmed := strings.TrimSpace(lines[cut-1])
+		l := strings.ToLower(trimmed)
+		if trimmed == "" ||
+			trimmed == "https://cuan.work" ||
+			trimmed == "https://github.com/buchin/cuan" ||
+			trimmed == "https://cuan.work | https://github.com/buchin/cuan" ||
+			strings.HasPrefix(l, "coba & ikuti perkembangannya") {
+			cut--
+			continue
+		}
+		break
+	}
+	body := strings.TrimSpace(strings.Join(lines[:cut], "\n"))
+	if body == "" {
+		return cta
+	}
+	return body + "\n\n" + cta
+}
+
 func formatDevNullProposalForInbox(d *task.TaskDetailResponse, hasImages bool) string {
 	if d == nil {
 		return ""
@@ -174,6 +221,16 @@ func formatDevNullProposalForInbox(d *task.TaskDetailResponse, hasImages bool) s
 	if plan := parseInboxApprovalPlan(summary); plan != nil {
 		prose, _ := splitInboxApproval("agent", summary)
 		prose = sanitizeDevNullDraftText(prose)
+		if plan.ExecutionCategory == "" {
+			plan.ExecutionCategory = task.ExecutionCategoryOps
+		}
+		if strings.TrimSpace(plan.ApproveLabel) == "" {
+			plan.ApproveLabel = devNullApproveLabel
+		}
+		if strings.TrimSpace(plan.ActionNote) == "" {
+			plan.ActionNote = devNullActionNote
+		}
+		plan.Description = ensureDevNullSponsorwareCTA(sanitizeDevNullDraftText(plan.Description))
 		rawPlan, _ := json.Marshal(plan)
 		out := strings.TrimSpace(prose) + "\n\n```cuan-approval\n" + string(rawPlan) + "\n```"
 		if d.ID != "" && !strings.Contains(out, "/tasks/"+d.ID) {
@@ -182,7 +239,7 @@ func formatDevNullProposalForInbox(d *task.TaskDetailResponse, hasImages bool) s
 		return strings.TrimSpace(out)
 	}
 
-	draft := extractDevNullPostDraft(summary)
+	draft := ensureDevNullSponsorwareCTA(extractDevNullPostDraft(summary))
 	if len([]rune(draft)) > 5800 {
 		runes := []rune(draft)
 		draft = string(runes[:5800]) + "..."
@@ -197,6 +254,8 @@ func formatDevNullProposalForInbox(d *task.TaskDetailResponse, hasImages bool) s
 		Title:             "Posting Daily Ship Log ke dev-null.sh",
 		Description:       draft,
 		ExecutionCategory: task.ExecutionCategoryOps,
+		ApproveLabel:      devNullApproveLabel,
+		ActionNote:        devNullActionNote,
 		RequiredStages:    []string{},
 	}
 	if strings.TrimSpace(d.ProjectID) != "" {
