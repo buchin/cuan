@@ -25,6 +25,7 @@ func (s *Server) registerProjectRoutes(pr chi.Router) {
 	pr.Get("/projects/{id}", s.handleGetProject)
 	pr.Patch("/projects/{id}/settings", s.handleProjectSettings)
 	pr.Post("/projects/{id}/sync", s.handleSyncProject)
+	pr.Get("/projects/{id}/export", s.handleExportProject)
 	pr.Delete("/projects/{id}", s.handleDeleteProject)
 	pr.Get("/projects/{id}/branches", s.handleGetProjectBranches)
 	pr.Patch("/projects/{id}/modules", s.handleUpdateProjectModules)
@@ -339,4 +340,37 @@ func (s *Server) handleReconcileProject(w http.ResponseWriter, r *http.Request) 
 		"project_id":        projectID,
 		"interrupted_count": interruptedCount,
 	})
+}
+
+// handleExportProject streams a zip of the project files, a manifest and a
+// deploy guide. Secrets and the stored token are excluded.
+func (s *Server) handleExportProject(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	p, err := s.projectSvc.Get(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, project.ErrProjectNotFound) {
+			respondJSONError(w, http.StatusNotFound, "Project not found")
+			return
+		}
+		respondJSONError(w, http.StatusInternalServerError, fmt.Sprintf("failed to get project: %v", err))
+		return
+	}
+	name := strings.Map(func(r rune) rune {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_' {
+			return r
+		}
+		return '-'
+	}, p.Name)
+	if name == "" {
+		name = "project"
+	}
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s-export.zip"`, name))
+	w.Header().Set("Cache-Control", "no-store")
+	full := &project.Project{ID: p.ID, Name: p.Name, RepoURL: p.RepoURL, DefaultBranch: p.DefaultBranch,
+		LocalPath: p.LocalPath, ProjectType: p.ProjectType, Metadata: p.Metadata}
+	if err := project.WriteExport(w, full, time.Now()); err != nil {
+		// Headers are already sent; the truncated zip signals failure to the client.
+		return
+	}
 }
