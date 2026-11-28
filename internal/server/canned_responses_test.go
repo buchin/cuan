@@ -29,6 +29,9 @@ func TestCannedResponses_CRUD_And_Validation(t *testing.T) {
 	if recList.Code != http.StatusOK {
 		t.Fatalf("expected 200 for canned responses list, got %d: %s", recList.Code, recList.Body.String())
 	}
+	if cc := recList.Header().Get("Cache-Control"); cc != "no-store" {
+		t.Fatalf("expected Cache-Control: no-store, got %q", cc)
+	}
 
 	var listResp struct {
 		CannedResponses []CannedResponse `json:"canned_responses"`
