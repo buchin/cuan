@@ -316,6 +316,8 @@ func (r *Runner) executeWithPTY(
 			idle := task.ProgressIdleTimeout()
 			ticker := time.NewTicker(5 * time.Second)
 			defer ticker.Stop()
+			var prevChildCPU uint64
+			var lastChildCheck time.Time
 			for {
 				select {
 				case <-execCtx.Done():
@@ -327,6 +329,16 @@ func (r *Runner) executeWithPTY(
 						return
 					}
 					silent := time.Since(time.Unix(0, lastProgress.Load()))
+					if silent >= 15*time.Second && time.Since(lastChildCheck) >= 15*time.Second {
+						lastChildCheck = time.Now()
+						childCPU, childCount := descendantCPUTicks(proc.PID())
+						if childCount > 0 && childCPU > prevChildCPU {
+							prevChildCPU = childCPU
+							lastProgressActivity()
+							continue
+						}
+						prevChildCPU = childCPU
+					}
 					if silent < idle {
 						continue
 					}

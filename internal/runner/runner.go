@@ -269,9 +269,21 @@ func (r *Runner) Start(ctx context.Context) error {
 	// Immediate initial heartbeat (reports reconciled workers to renew leases)
 	r.sendHeartbeat(ctx, hostname)
 
-	// Heartbeat ticker (every 3 seconds)
-	heartbeatTicker := time.NewTicker(3 * time.Second)
-	defer heartbeatTicker.Stop()
+	// Heartbeat ticker runs in its own goroutine so long poll/claim operations cannot delay heartbeats.
+	hbDone := make(chan struct{})
+	go func() {
+		defer close(hbDone)
+		heartbeatTicker := time.NewTicker(3 * time.Second)
+		defer heartbeatTicker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-heartbeatTicker.C:
+				r.sendHeartbeat(ctx, hostname)
+			}
+		}
+	}()
 
 	// Queue poll ticker
 	pollTicker := time.NewTicker(r.cfg.RunnerInterval)
@@ -280,6 +292,7 @@ func (r *Runner) Start(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
+			<-hbDone
 			log.Printf("[Runner %s] Shutdown signaled, initiating graceful supervisor stop...", r.cfg.RunnerID)
 			r.RequestDrain("shutdown context canceled")
 
@@ -312,9 +325,6 @@ func (r *Runner) Start(ctx context.Context) error {
 			}
 
 			return nil
-
-		case <-heartbeatTicker.C:
-			r.sendHeartbeat(ctx, hostname)
 
 		case <-pollTicker.C:
 			r.pollAndExecute(ctx)
