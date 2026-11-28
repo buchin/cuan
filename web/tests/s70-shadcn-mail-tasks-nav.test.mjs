@@ -18,14 +18,14 @@ test('1. S70-T1: Main & Manage Navigation Architecture (NAV_GROUPS)', () => {
   const appShellSource = fs.readFileSync(appShellPath, 'utf8')
   const appSource = fs.readFileSync(appPath, 'utf8')
 
-  // Verify Main group contains only Inbox and Tasks
+  // Verify Main group contains New work and Inbox (Tasks removed from primary nav)
   assert.ok(
     appShellSource.includes("id: 'main'"),
     'NAV_GROUPS must define id: main group'
   )
   assert.ok(
-    appShellSource.includes("to: '/inbox'") && appShellSource.includes("to: '/tasks'"),
-    'NAV_GROUPS main group must contain routes for /inbox and /tasks'
+    appShellSource.includes("to: '/studio'") && appShellSource.includes("to: '/inbox'") && !appShellSource.includes("to: '/tasks'"),
+    'NAV_GROUPS main group must contain routes for /studio and /inbox without /tasks'
   )
 
   // Verify Manage group contains Projects, Contacts, and Settings

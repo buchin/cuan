@@ -35,9 +35,10 @@ test('1. S59-T3: Desktop Sidebar 3-Group Information Architecture (NAV_GROUPS)',
     'NAV_GROUPS must define structured navigation groups'
   )
   assert.ok(
-    appShellSource.includes("to: '/inbox'") &&
-      appShellSource.includes("to: '/tasks'"),
-    'Main navigation must contain routes for /inbox and /tasks'
+    appShellSource.includes("to: '/studio'") &&
+      appShellSource.includes("to: '/inbox'") &&
+      !appShellSource.includes("to: '/tasks'"),
+    'Main navigation must contain routes for /studio and /inbox without /tasks'
   )
 
   assert.ok(
