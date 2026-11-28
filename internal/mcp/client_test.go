@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -463,4 +464,79 @@ func TestMCPClient_StreamableHTTP_ErrorsAndSessionRecovery(t *testing.T) {
 			t.Fatalf("unexpected recovered response: %+v", resp)
 		}
 	})
+}
+
+func TestMCPClient_AuthRequiredAndBearerNormalization(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/mcp" {
+			http.NotFound(w, r)
+			return
+		}
+		auth := r.Header.Get("Authorization")
+		if auth != "Bearer tb_live_valid" {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"error":"unauthorized","error_description":"Send Authorization: Bearer <API key or OAuth access token>"}`))
+			return
+		}
+		var req struct {
+			ID     json.RawMessage `json:"id"`
+			Method string          `json:"method"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		w.Header().Set("Content-Type", "application/json")
+		switch req.Method {
+		case "initialize":
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0",
+				"id":      req.ID,
+				"result":  map[string]interface{}{"protocolVersion": "2025-03-26"},
+			})
+		case "notifications/initialized":
+			w.WriteHeader(http.StatusAccepted)
+		case "tools/list":
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0",
+				"id":      req.ID,
+				"result": map[string]interface{}{
+					"tools": []map[string]interface{}{{"name": "tebar_send", "description": "Send"}},
+				},
+			})
+		}
+	}))
+	defer server.Close()
+
+	// 1. Missing API key -> errors.Is(err, ErrAuthRequired)
+	noKeyClient := NewClient(ServerConfig{BaseURL: server.URL + "/mcp"}, server.Client())
+	_, err := noKeyClient.DiscoverTools(context.Background())
+	if !errors.Is(err, ErrAuthRequired) {
+		t.Fatalf("expected ErrAuthRequired for 401 without api_key, got %v", err)
+	}
+
+	// 2. Legacy 403 -> errors.Is(err, ErrAuthRequired)
+	legacyForbidden := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/mcp/tools" {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer legacyForbidden.Close()
+	legacyClient := NewClient(ServerConfig{BaseURL: legacyForbidden.URL}, legacyForbidden.Client())
+	_, err = legacyClient.DiscoverTools(context.Background())
+	if !errors.Is(err, ErrAuthRequired) {
+		t.Fatalf("expected ErrAuthRequired for legacy 403, got %v", err)
+	}
+
+	// 3. API key with accidental "Bearer " prefix is normalized and succeeds
+	prefixedClient := NewClient(ServerConfig{
+		BaseURL: server.URL + "/mcp",
+		APIKey:  "Bearer tb_live_valid",
+	}, server.Client())
+	tools, err := prefixedClient.DiscoverTools(context.Background())
+	if err != nil {
+		t.Fatalf("expected prefixed Bearer token to succeed, got %v", err)
+	}
+	if len(tools) != 1 || tools[0].Name != "tebar_send" {
+		t.Fatalf("unexpected tools: %+v", tools)
+	}
 }

@@ -48,6 +48,11 @@ test('Dynamic Skills & Remote MCP: Settings UI Modals & Actions', () => {
   // Mode switcher for Skill installer
   assert.ok(viewSrc.includes("setInstallSkillMode('url')"), 'Must support URL installation mode')
   assert.ok(viewSrc.includes("setInstallSkillMode('content')"), 'Must support Direct Content mode')
+
+  // Remote MCP auth_required error handling inside modal
+  assert.ok(viewSrc.includes('err.data?.auth_required'), 'Must detect auth_required from ApiError data')
+  assert.ok(viewSrc.includes('data-testid="remote-mcp-error"'), 'Must render remote MCP error alert inside modal')
+  assert.ok(viewSrc.includes("t('API Key / Bearer Token')"), 'Must prompt for API Key / Bearer Token when auth is required')
 })
 
 test('Dynamic Skills & Remote MCP: Indonesian Localization Completeness', () => {
@@ -74,6 +79,7 @@ test('Dynamic Skills & Remote MCP: Indonesian Localization Completeness', () => 
     'Uninstall Skill?',
     'Custom MCP',
     'Custom Skill',
+    'API Key / Bearer Token',
   ]
 
   for (const key of requiredKeys) {

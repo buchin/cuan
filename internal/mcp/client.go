@@ -89,6 +89,9 @@ type jsonRPCResponse struct {
 	Error   *jsonRPCError   `json:"error,omitempty"`
 }
 
+// ErrAuthRequired indicates the remote MCP server rejected the request due to missing or invalid authentication (HTTP 401/403).
+var ErrAuthRequired = errors.New("mcp server requires authentication (API key or Bearer token)")
+
 type httpStatusError struct {
 	StatusCode int
 	Body       string
@@ -99,6 +102,13 @@ func (e *httpStatusError) Error() string {
 		return fmt.Sprintf("mcp server returned status %d: %s", e.StatusCode, e.Body)
 	}
 	return fmt.Sprintf("mcp server returned status %d", e.StatusCode)
+}
+
+func (e *httpStatusError) Is(target error) bool {
+	if target == ErrAuthRequired {
+		return e.StatusCode == http.StatusUnauthorized || e.StatusCode == http.StatusForbidden
+	}
+	return false
 }
 
 // Client interacts with an external MCP server according to the Model Context Protocol.
@@ -157,6 +167,9 @@ func (c *Client) DiscoverTools(ctx context.Context) ([]ToolDefinition, error) {
 				c.sessionMu.Unlock()
 				return legacyTools, nil
 			}
+			if errors.Is(legacyErr, ErrAuthRequired) {
+				return nil, legacyErr
+			}
 		}
 		return nil, err
 	}
@@ -187,6 +200,9 @@ func (c *Client) ExecuteTool(ctx context.Context, toolName string, args map[stri
 				c.legacyREST = true
 				c.sessionMu.Unlock()
 				return legacyResp, nil
+			}
+			if errors.Is(legacyErr, ErrAuthRequired) {
+				return nil, legacyErr
 			}
 		}
 		return nil, err
@@ -579,7 +595,7 @@ func (c *Client) discoverToolsLegacy(ctx context.Context) ([]ToolDefinition, err
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("mcp server returned status %d", resp.StatusCode)
+		return nil, &httpStatusError{StatusCode: resp.StatusCode, Body: readBodySnippet(resp.Body)}
 	}
 
 	var payload struct {
@@ -620,7 +636,7 @@ func (c *Client) executeToolLegacy(ctx context.Context, toolName string, args ma
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("mcp server returned error status %d", resp.StatusCode)
+		return nil, &httpStatusError{StatusCode: resp.StatusCode, Body: readBodySnippet(resp.Body)}
 	}
 
 	var callResp ToolCallResponse
@@ -642,7 +658,12 @@ func readBodySnippet(r io.Reader) string {
 func (c *Client) setHeaders(req *http.Request) {
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "Cuan-MCP-Client/0.1.0")
-	if c.cfg.APIKey != "" {
-		req.Header.Set("Authorization", "Bearer "+c.cfg.APIKey)
+	if key := strings.TrimSpace(c.cfg.APIKey); key != "" {
+		if len(key) > 7 && strings.EqualFold(key[:7], "bearer ") {
+			key = strings.TrimSpace(key[7:])
+		}
+		if key != "" {
+			req.Header.Set("Authorization", "Bearer "+key)
+		}
 	}
 }

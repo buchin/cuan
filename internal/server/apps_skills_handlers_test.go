@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -479,5 +480,101 @@ func TestRemoteMCP_PersistenceAndStartupRecovery(t *testing.T) {
 	}
 	if offlineApp.Status != "error" || offlineApp.Error == "" {
 		t.Fatalf("expected status=error with non-empty Error, got %+v", offlineApp)
+	}
+}
+
+func TestRemoteMCP_AuthRequired401AndRetryWithKey(t *testing.T) {
+	s := setupTestServerForAppsSkills(t)
+
+	remoteMock := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/mcp" || r.Method != http.MethodPost {
+			http.NotFound(rw, r)
+			return
+		}
+		if r.Header.Get("Authorization") != "Bearer tb_live_secret" {
+			rw.WriteHeader(http.StatusUnauthorized)
+			_, _ = rw.Write([]byte(`{"error":"unauthorized","error_description":"Send Authorization: Bearer <API key or OAuth access token>"}`))
+			return
+		}
+		var req struct {
+			ID     json.RawMessage `json:"id"`
+			Method string          `json:"method"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		rw.Header().Set("Content-Type", "application/json")
+		switch req.Method {
+		case "initialize":
+			_ = json.NewEncoder(rw).Encode(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      req.ID,
+				"result":  map[string]any{"protocolVersion": "2025-03-26"},
+			})
+		case "notifications/initialized":
+			rw.WriteHeader(http.StatusAccepted)
+		case "tools/list":
+			_ = json.NewEncoder(rw).Encode(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      req.ID,
+				"result": map[string]any{
+					"tools": []map[string]any{
+						{"name": "tebar_schedule_post", "description": "Schedule post"},
+					},
+				},
+			})
+		}
+	}))
+	defer remoteMock.Close()
+
+	// 1. Without api_key -> returns 400 with auth_required=true and user-friendly prompt
+	noKeyPayload := []byte(`{
+		"id": "tebar_auth_test",
+		"name": "Tebar MCP",
+		"base_url": "` + remoteMock.URL + `/mcp",
+		"transport": "http"
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/apps/connect-remote", bytes.NewReader(noKeyPayload))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	s.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request (to avoid triggering Cuan session logout), got %d: %s", w.Code, w.Body.String())
+	}
+	var errResp struct {
+		Error        string `json:"error"`
+		AuthRequired bool   `json:"auth_required"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode auth error response: %v", err)
+	}
+	if !errResp.AuthRequired {
+		t.Fatalf("expected auth_required=true, got false (body: %s)", w.Body.String())
+	}
+	if !strings.Contains(errResp.Error, "API key") || strings.Contains(errResp.Error, "mcp initialize failed") {
+		t.Fatalf("expected friendly API key prompt without raw error, got %q", errResp.Error)
+	}
+
+	// 2. Retry with valid api_key -> 200 OK and encrypted persistence in DB
+	withKeyPayload := []byte(`{
+		"id": "tebar_auth_test",
+		"name": "Tebar MCP",
+		"base_url": "` + remoteMock.URL + `/mcp",
+		"transport": "http",
+		"api_key": "tb_live_secret"
+	}`)
+	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/apps/connect-remote", bytes.NewReader(withKeyPayload))
+	req2.Header.Set("Content-Type", "application/json")
+	w2 := httptest.NewRecorder()
+	s.router.ServeHTTP(w2, req2)
+
+	if w2.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK with valid api_key, got %d: %s", w2.Code, w2.Body.String())
+	}
+	saved, err := s.remoteMCPRepo.GetRemoteMCPConnector(context.Background(), "tebar_auth_test")
+	if err != nil {
+		t.Fatalf("expected connector to be persisted: %v", err)
+	}
+	if saved.APIKeyEncrypted == "" || saved.APIKeyEncrypted == "tb_live_secret" {
+		t.Fatalf("expected encrypted api_key in DB, got %q", saved.APIKeyEncrypted)
 	}
 }
