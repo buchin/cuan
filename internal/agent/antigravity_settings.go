@@ -59,6 +59,7 @@ var defaultAllowedPermissions = []string{
 	"mcp(cuan-inspect/update_project_deployment_config)",
 	"mcp(cuan-inspect/list_project_deployments)",
 	"mcp(cuan-inspect/get_project_deployment)",
+	"mcp(cuan-inspect/rotate_terminal_git_token)",
 	"mcp(cuan-inspect/get_github_connection)",
 	"mcp(cuan-inspect/list_provider_accounts)",
 	"mcp(cuan-inspect/get_provider_account_usage)",

@@ -847,6 +847,31 @@ func (c *CuanClient) GetProject(ctx context.Context, projectID string) (map[stri
 	return res, nil
 }
 
+// RotateProjectTerminalGitToken rotates the git askpass token for an active project terminal session.
+func (c *CuanClient) RotateProjectTerminalGitToken(ctx context.Context, projectID string) (map[string]any, error) {
+	projectID = strings.TrimSpace(projectID)
+	if projectID == "" {
+		return nil, fmt.Errorf("project_id is required")
+	}
+	endpoint := fmt.Sprintf("/api/v1/projects/%s/terminal/rotate-git-token", url.PathEscape(projectID))
+	resp, err := c.doRequest(ctx, http.MethodPost, endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("rotate terminal git token: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("rotate terminal git token failed (status %d): %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var res map[string]any
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
+		return nil, fmt.Errorf("unmarshal rotate terminal git token response: %w", err)
+	}
+	return res, nil
+}
+
 // ListProjectDeployments queries recent deployments for a project from the Cuan API.
 func (c *CuanClient) ListProjectDeployments(ctx context.Context, projectID string, limit int) (map[string]any, error) {
 	if limit <= 0 {

@@ -926,6 +926,20 @@ var nativeMCPTools = []mcpToolDefinition{
 		},
 	},
 	{
+		Name:        "rotate_terminal_git_token",
+		Description: "Rotate the git askpass credential token for an existing Project Terminal session without restarting the terminal. Use when git push/pull inside a long-running terminal fails with 401.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"project_id": map[string]any{
+					"type":        "string",
+					"description": "Project ID (e.g. 'proj_4978b0b914eaaf0d588df037977fb652')",
+				},
+			},
+			"required": []string{"project_id"},
+		},
+	},
+	{
 		Name:        "get_project_deployment",
 		Description: "Get detailed status, step logs, and error diagnostics for a single project deployment.",
 		InputSchema: map[string]any{
@@ -1414,6 +1428,9 @@ func handleMCPRequest(req jsonRPCRequest, out io.Writer) {
 			projectID, _ := callParams.Arguments["project_id"].(string)
 			deployID, _ := callParams.Arguments["deployment_id"].(string)
 			toolResult, toolErr = GetCuanClient().GetProjectDeployment(ctx, projectID, deployID)
+		case "rotate_terminal_git_token":
+			projectID, _ := callParams.Arguments["project_id"].(string)
+			toolResult, toolErr = GetCuanClient().RotateProjectTerminalGitToken(ctx, projectID)
 		default:
 			resp.Error = &jsonRPCError{Code: -32601, Message: fmt.Sprintf("Tool not found: %s", callParams.Name)}
 			sendResponse(out, resp)
