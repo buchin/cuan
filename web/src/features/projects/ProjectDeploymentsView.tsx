@@ -460,6 +460,12 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
 
                     <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
                       <span className="font-mono text-[11px]">{dep.branch}</span>
+                      {dep.short_sha && (
+                        <>
+                          <span aria-hidden="true" className="text-muted-foreground/50">·</span>
+                          <span className="font-mono text-[11px]">{dep.short_sha}</span>
+                        </>
+                      )}
                       {dep.trigger_author && (
                         <>
                           <span aria-hidden="true" className="text-muted-foreground/50">·</span>
