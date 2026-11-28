@@ -368,16 +368,22 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			}
 		}
 
-		// Autonomous review queueing for interrupted review tasks BEFORE generic continuation
+		// Autonomous review queueing for interrupted review/blocked tasks BEFORE generic continuation
 		// so interrupted VerificationIntent/LiveInspection attempts hit recoverSourceVerifier/recoverInspectionVerifier
 		// instead of being hijacked by ordinary startAuthorizedLaunch (when attemptCount < 3).
-		if t.Status == task.TaskStatusReview && detail.LatestAttempt != nil && detail.LatestAttempt.Status == task.AttemptStatusInterrupted {
+		if (t.Status == task.TaskStatusReview || t.Status == task.TaskStatusBlocked) && detail.LatestAttempt != nil && detail.LatestAttempt.Status == task.AttemptStatusInterrupted {
 			watchdogAlertMu.Lock()
 			cooldownUntil := watchdogTaskCooldown[detail.ID]
 			watchdogAlertMu.Unlock()
 			if time.Now().After(cooldownUntil) {
-				log.Printf("[Watchdog AI Orchestrator] Autonomously queueing interrupted review task %s (attempt=%s)", detail.ID, detail.LatestAttempt.ID)
-				s.queueInboxTaskReview(ctx, detail)
+				if detail.Launch != nil && detail.Launch.State == "stopped" && detail.Launch.SafeError == "The verification scope could not be validated." {
+					log.Printf("[Watchdog AI Orchestrator] Re-queueing stopped verification recovery task %s (attempt=%s)", detail.ID, detail.LatestAttempt.ID)
+					queued := task.TaskStatusQueued
+					_, _ = s.taskSvc.UpdateTask(ctx, detail.ID, "runner", task.UpdateTaskRequest{Status: &queued})
+				} else {
+					log.Printf("[Watchdog AI Orchestrator] Autonomously queueing interrupted %s task %s (attempt=%s)", t.Status, detail.ID, detail.LatestAttempt.ID)
+					s.queueInboxTaskReview(ctx, detail)
+				}
 				watchdogAlertMu.Lock()
 				watchdogTaskCooldown[detail.ID] = time.Now().Add(2 * time.Minute)
 				watchdogAlertMu.Unlock()

@@ -81,7 +81,7 @@ func VerificationIntentForLaunch(t *Task, j *TaskLaunch) (*VerificationIntent, e
 		if proof.RecoveryAttemptID == "" || proof.RecoveryAttemptID == proof.SourceAttemptID {
 			return nil, ErrInvalidTaskInput
 		}
-		if proof.RecoveryCause == "capacity" || proof.RecoveryCause == "php_preparation" {
+		if proof.RecoveryCause == "capacity" || proof.RecoveryCause == "php_preparation" || proof.RecoveryCause == "interrupted" {
 			if proof.RuntimeFingerprint != "" || proof.FinalizeAttemptID != "" {
 				return nil, ErrInvalidTaskInput
 			}
