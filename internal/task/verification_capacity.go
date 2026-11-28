@@ -77,14 +77,20 @@ func validateVerificationAdmissionRecovery(ctx context.Context, store Store, t *
 		return ErrInvalidTaskInput
 	}
 	original, err := VerificationIntentForAttempt(ctx, store, t, parent.ID)
-	if err != nil || original == nil || original.RecoveryAttemptID != "" || original.RecoveryCause != "" || original.FinalizeAttemptID != "" {
+	if err != nil || original == nil || original.FinalizeAttemptID != "" {
+		return ErrInvalidTaskInput
+	}
+	origScope := *original
+	if cause == "interrupted" && origScope.RecoveryCause == "interrupted" {
+		origScope.RecoveryAttemptID, origScope.RecoveryCause = "", ""
+	} else if origScope.RecoveryAttemptID != "" || origScope.RecoveryCause != "" {
 		return ErrInvalidTaskInput
 	}
 	expected := *proof
 	expected.RecoveryAttemptID, expected.RecoveryCause = "", ""
 	// The original review remains the authority for the missing evidence.
 	left, _ := json.Marshal(expected)
-	right, _ := json.Marshal(original)
+	right, _ := json.Marshal(origScope)
 	if string(left) != string(right) {
 		return ErrInvalidTaskInput
 	}
