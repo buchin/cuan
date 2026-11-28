@@ -242,6 +242,22 @@ if [[ "$KEEP_COUNT" -gt 0 ]]; then
   ) || true
 fi
 
+# 7. Optional off-site upload (S3/R2-compatible). Skipped unless configured.
+if [[ -n "${CUAN_BACKUP_S3_BUCKET:-}" ]]; then
+  echo "==> Uploading to off-site storage (bucket: ${CUAN_BACKUP_S3_BUCKET})..."
+  if command -v go >/dev/null 2>&1; then
+    if (cd "$ROOT_DIR" && go run ./cmd/backup-upload "$OUTPUT_FILE"); then
+      echo "    Off-site copy verified by provider checksum."
+    else
+      echo "    [ERROR] Off-site upload failed. Local backup is intact." >&2
+      exit 3
+    fi
+  else
+    echo "    [ERROR] Go toolchain not found; cannot upload. Local backup is intact." >&2
+    exit 3
+  fi
+fi
+
 echo ""
 echo "================================================================================"
 echo " Backup successfully created and verified!"
