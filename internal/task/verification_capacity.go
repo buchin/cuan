@@ -9,6 +9,7 @@ import (
 
 const ActivityVerificationCapacityRecovery = "verification_capacity_recovery"
 const ActivityVerificationPreparationRecovery = "verification_setup_recovery"
+const ActivityVerificationInterruptionRecovery = "verification_interruption_recovery"
 const PHPPreparationPolicy = "locked-php-owner-cache-v1"
 
 type DependencyPreparationRuntime struct {
@@ -50,6 +51,10 @@ func ValidateVerificationPreparationRecovery(ctx context.Context, store Store, t
 	return validateVerificationAdmissionRecovery(ctx, store, t, proof, activities, "php_preparation")
 }
 
+func ValidateVerificationInterruptionRecovery(ctx context.Context, store Store, t *Task, proof *VerificationIntent, activities []*TaskActivity) error {
+	return validateVerificationAdmissionRecovery(ctx, store, t, proof, activities, "interrupted")
+}
+
 func validateVerificationAdmissionRecovery(ctx context.Context, store Store, t *Task, proof *VerificationIntent, activities []*TaskActivity, cause string) error {
 	if t == nil || proof == nil || proof.RecoveryCause != cause || proof.RecoveryAttemptID == "" || proof.RuntimeFingerprint != "" || proof.FinalizeAttemptID != "" {
 		return ErrInvalidTaskInput
@@ -60,9 +65,13 @@ func validateVerificationAdmissionRecovery(ctx context.Context, store Store, t *
 	}
 	eligible := QuotaStoppedVerification(parent)
 	eventType, eventID := ActivityVerificationCapacityRecovery, "capacity-recovery:"
-	if cause == "php_preparation" {
+	switch cause {
+	case "php_preparation":
 		eligible = PHPPreparationStoppedVerification(parent, activities)
 		eventType, eventID = ActivityVerificationPreparationRecovery, "preparation-recovery:"
+	case "interrupted":
+		eligible = parent != nil && parent.Status == AttemptStatusInterrupted
+		eventType, eventID = ActivityVerificationInterruptionRecovery, "interruption-recovery:"
 	}
 	if !eligible || parent.TaskID != t.ID {
 		return ErrInvalidTaskInput
