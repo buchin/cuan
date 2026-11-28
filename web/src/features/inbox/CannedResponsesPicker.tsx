@@ -1,7 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Zap, Search, Settings2 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 import { chatApi, CannedResponse } from '../../api/chat'
+
+export const CANNED_RESPONSES_CHANGED_EVENT = 'cuan-canned-responses-changed'
 
 interface CannedResponsesPickerProps {
   onSelect: (content: string) => void
@@ -22,27 +24,39 @@ export function CannedResponsesPicker({
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
   const popoverRef = useRef<HTMLDivElement>(null)
+  const mountedRef = useRef(true)
 
-  // Fetch canned responses
-  const fetchResponses = async () => {
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  // Fetch canned responses from server (coalesced via apiFetch GET deduplication)
+  const fetchResponses = useCallback(async () => {
     setLoading(true)
     try {
       const data = await chatApi.listCannedResponses()
-      setItems(data)
+      if (mountedRef.current) {
+        setItems(data)
+      }
     } catch {
       // ignore
     } finally {
-      setLoading(false)
+      if (mountedRef.current) {
+        setLoading(false)
+      }
     }
-  }
+  }, [])
 
   useEffect(() => {
     if (isOpen) {
-      fetchResponses()
+      void fetchResponses()
     }
-  }, [isOpen])
+  }, [isOpen, fetchResponses])
 
-  // Close when clicking outside
+  // Close when clicking outside or pressing Escape
   useEffect(() => {
     if (!isOpen) return
     const handleClickOutside = (e: MouseEvent) => {
@@ -50,8 +64,17 @@ export function CannedResponsesPicker({
         setIsOpen(false)
       }
     }
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsOpen(false)
+      }
+    }
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
   }, [isOpen])
 
   // Autocomplete detection: check if input starts with `/` or ends with `/shortcut`
@@ -59,10 +82,29 @@ export function CannedResponsesPicker({
   const isSlashActive = !isOpen && !!slashMatch
   const slashQuery = slashMatch ? slashMatch[1].toLowerCase() : ''
 
-  // Load items on mount for slash autocomplete
+  // Load items on mount and keep synced across devices/tabs on focus, visibility, and local mutations
   useEffect(() => {
-    chatApi.listCannedResponses().then(setItems).catch(() => {})
-  }, [])
+    void fetchResponses()
+    const handleRefresh = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+      void fetchResponses()
+    }
+    window.addEventListener('focus', handleRefresh)
+    document.addEventListener('visibilitychange', handleRefresh)
+    window.addEventListener(CANNED_RESPONSES_CHANGED_EVENT, handleRefresh)
+    return () => {
+      window.removeEventListener('focus', handleRefresh)
+      document.removeEventListener('visibilitychange', handleRefresh)
+      window.removeEventListener(CANNED_RESPONSES_CHANGED_EVENT, handleRefresh)
+    }
+  }, [fetchResponses])
+
+  // Refetch when slash autocomplete activates so templates added on another device appear immediately
+  useEffect(() => {
+    if (isSlashActive) {
+      void fetchResponses()
+    }
+  }, [isSlashActive, fetchResponses])
 
   const filteredItems = items.filter((item) => {
     const q = (isOpen ? search : slashQuery).toLowerCase()

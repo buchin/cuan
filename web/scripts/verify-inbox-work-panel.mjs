@@ -186,6 +186,9 @@ try{
   })
   let releaseSession,sessionLoading=true,sessionStatus='running'
   const fixtureMessages=messages.map(m=>({...m}))
+  const fixtureCannedResponses=[
+   {id:'canned-halo',shortcut:'halo',title:'Salam Pembuka',content:'Halo! Ada yang bisa kami bantu?',category:'greeting',created_at:now,updated_at:now}
+  ]
   page.on('pageerror',error=>errors.push(error.stack || error.message))
   page.on('console',message=>{if(message.type()==='error')console.log(message.text())})
   await page.route('**/api/**',async route=>{
@@ -276,6 +279,11 @@ try{
    else if(pathname.includes('preferences'))data={items:{}}
    else if(pathname.includes('/chat/attachments/'))return route.fulfill({status:200,contentType:'image/png',body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==','base64')})
    else if(pathname.endsWith('/projects'))data={projects:[]}
+   else if(pathname.endsWith('/canned-responses')){
+    const q=(new URL(route.request().url()).searchParams.get('q')||'').trim().toLowerCase()
+    const filtered=q?fixtureCannedResponses.filter(c=>c.shortcut.toLowerCase().includes(q)||c.title.toLowerCase().includes(q)||c.content.toLowerCase().includes(q)):fixtureCannedResponses
+    return route.fulfill({status:200,contentType:'application/json',headers:{'Cache-Control':'no-store'},body:JSON.stringify({canned_responses:filtered,total:filtered.length})})
+   }
    else if(pathname.includes('/email')&&route.request().method()==='POST')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'success',email_id:'re_mock_fixture_123',delivery_status:'sent',recipient:'customer@example.test',message:'Email balasan berhasil dikirim'})})
    else if(pathname.endsWith('/cancel')&&route.request().method()==='POST')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'cancelled'})})
    else if(pathname.endsWith('/files')&&route.request().method()==='POST')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({files:[{filename:'screenshot.png',path:'./screenshot.png',size:2048}]})})
@@ -1089,7 +1097,50 @@ try{
   await page.locator('[data-message-id="proposal-pending"]').waitFor({ state: 'visible', timeout: 10000 })
   assert.equal(await page.locator('[data-message-id="reply-out"]').count(), 0, 'Deleted message must remain deleted after reload')
 
-  checks.push({width,composer_task_disclosure:true,composer_task_autoscroll:true,last_task_visible:true,no_chat_task_card:true,session_loading_running_completed:true,back_preserves_draft_and_scroll:true,full_terminal_height:terminalBox.height,panel_width:box.width,composer_alignment:true,multiline_autoexpand:true,studio_autoexpand:true,typing_dots_circular:true,message_context_menu_ui:menuMetrics,message_edit_and_delete:true})
+  // Verify Quick Reply (Canned Responses) Zap picker & cross-device slash autocomplete sync on mobile & desktop
+  const cannedTrigger = page.locator('#compose-panel button[aria-haspopup="dialog"]')
+  await cannedTrigger.waitFor({ state: 'visible', timeout: 5000 })
+  await cannedTrigger.click()
+  await page.getByText('/halo').waitFor({ state: 'visible', timeout: 5000 })
+  await page.screenshot({ path: path.join(output, `quick-reply-popover-${width}.png`) })
+  await page.keyboard.press('Escape')
+  await page.getByText('/halo').waitFor({ state: 'hidden', timeout: 5000 })
+
+  // Simulate adding a template from another device (e.g. phone) while this tab stays open
+  fixtureCannedResponses.unshift({
+    id: 'canned-promo-hp',
+    shortcut: 'promo-hp',
+    title: 'Promo dari HP',
+    content: 'Halo! Ini promo terbaru dari HP.',
+    category: 'sales',
+    created_at: now,
+    updated_at: new Date(Date.parse(now) + 120000).toISOString(),
+  })
+  const quickReplyComposer = page.locator('[data-primary-composer]')
+  await quickReplyComposer.fill('/promo')
+  const slashMatchBtn = page.locator('#compose-panel button', { hasText: '/promo-hp' })
+  await slashMatchBtn.waitFor({ state: 'visible', timeout: 5000 })
+  await page.screenshot({ path: path.join(output, `quick-reply-slash-${width}.png`) })
+  await slashMatchBtn.click()
+  assert.equal(await quickReplyComposer.inputValue(), 'Halo! Ini promo terbaru dari HP.', 'Selecting synced slash template must fill composer')
+  await quickReplyComposer.fill('')
+
+  // Simulate another template added while tab was unfocused, then tab regains focus
+  fixtureCannedResponses.unshift({
+    id: 'canned-followup',
+    shortcut: 'followup',
+    title: 'Follow Up Pelanggan',
+    content: 'Apakah ada kendala lain yang bisa kami bantu?',
+    category: 'support',
+    created_at: now,
+    updated_at: new Date(Date.parse(now) + 180000).toISOString(),
+  })
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await cannedTrigger.click()
+  await page.getByText('/followup').waitFor({ state: 'visible', timeout: 5000 })
+  await page.keyboard.press('Escape')
+
+  checks.push({width,composer_task_disclosure:true,composer_task_autoscroll:true,last_task_visible:true,no_chat_task_card:true,session_loading_running_completed:true,back_preserves_draft_and_scroll:true,full_terminal_height:terminalBox.height,panel_width:box.width,composer_alignment:true,multiline_autoexpand:true,studio_autoexpand:true,typing_dots_circular:true,message_context_menu_ui:menuMetrics,message_edit_and_delete:true,canned_responses_cross_device_sync:true})
   await context.close()
   await browser.close()
   browser=null
