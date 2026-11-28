@@ -1503,6 +1503,7 @@
   "Base URL": "Base URL",
   "Transport Protocol": "Protokol Transport",
   "API Key / Auth Token (Optional)": "API Key / Token Autentikasi (Opsional)",
+  "API Key / Bearer Token": "API Key / Bearer Token",
   "Connect MCP Server": "Hubungkan Server MCP",
   "Connecting MCP Server...": "Menghubungkan Server MCP...",
   "Remote MCP connected successfully! Tools registered.": "Server MCP berhasil terhubung! Tool telah didaftarkan.",

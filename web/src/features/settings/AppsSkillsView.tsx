@@ -20,6 +20,7 @@ import {
   Globe,
 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
+import { ApiError } from '../../api/client'
 import {
   appsSkillsApi,
   type App,
@@ -62,6 +63,8 @@ export function AppsSkillsView({ initialTab = 'apps', showHeading = true }: Apps
   const [remoteMCPBaseURL, setRemoteMCPBaseURL] = useState('')
   const [remoteMCPTransport, setRemoteMCPTransport] = useState<'http' | 'sse'>('http')
   const [remoteMCPAPIKey, setRemoteMCPAPIKey] = useState('')
+  const [remoteMCPError, setRemoteMCPError] = useState<string | null>(null)
+  const [remoteMCPAuthRequired, setRemoteMCPAuthRequired] = useState(false)
   const [connectingRemoteMCP, setConnectingRemoteMCP] = useState(false)
   const [unregisteringAppId, setUnregisteringAppId] = useState<string | null>(null)
   const [unregistering, setUnregistering] = useState(false)
@@ -161,6 +164,8 @@ export function AppsSkillsView({ initialTab = 'apps', showHeading = true }: Apps
     setRemoteMCPBaseURL('')
     setRemoteMCPTransport('http')
     setRemoteMCPAPIKey('')
+    setRemoteMCPError(null)
+    setRemoteMCPAuthRequired(false)
     setIsRemoteMCPModalOpen(true)
   }
 
@@ -168,6 +173,8 @@ export function AppsSkillsView({ initialTab = 'apps', showHeading = true }: Apps
     if (!remoteMCPName.trim() || !remoteMCPBaseURL.trim()) return
     setConnectingRemoteMCP(true)
     setActionFeedback(null)
+    setRemoteMCPError(null)
+    setRemoteMCPAuthRequired(false)
 
     try {
       const res = await appsSkillsApi.connectRemoteApp({
@@ -185,7 +192,9 @@ export function AppsSkillsView({ initialTab = 'apps', showHeading = true }: Apps
       loadData(true)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : t('Failed to connect remote MCP server')
-      setActionFeedback({ type: 'error', message: msg })
+      const authRequired = err instanceof ApiError && Boolean(err.data?.auth_required)
+      setRemoteMCPError(msg)
+      setRemoteMCPAuthRequired(authRequired)
     } finally {
       setConnectingRemoteMCP(false)
     }
@@ -967,18 +976,36 @@ export function AppsSkillsView({ initialTab = 'apps', showHeading = true }: Apps
                   htmlFor="remote-mcp-apikey"
                   className="block text-xs font-semibold text-foreground"
                 >
-                  {t('API Key / Auth Token (Optional)')}
+                  {remoteMCPAuthRequired
+                    ? t('API Key / Bearer Token')
+                    : t('API Key / Auth Token (Optional)')}
                 </label>
                 <input
                   id="remote-mcp-apikey"
                   type="password"
                   value={remoteMCPAPIKey}
-                  onChange={(e) => setRemoteMCPAPIKey(e.target.value)}
+                  onChange={(e) => {
+                    setRemoteMCPAPIKey(e.target.value)
+                    if (remoteMCPError) setRemoteMCPError(null)
+                  }}
                   placeholder="Bearer token or secret..."
                   disabled={connectingRemoteMCP}
-                  className="w-full min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50"
+                  className={`w-full min-h-11 rounded-lg border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50 ${
+                    remoteMCPAuthRequired ? 'border-amber-500/70' : 'border-border'
+                  }`}
                 />
               </div>
+
+              {remoteMCPError && (
+                <div
+                  role="alert"
+                  data-testid="remote-mcp-error"
+                  className="flex items-start gap-2 rounded-lg bg-destructive/10 px-3 py-2.5 text-xs text-destructive"
+                >
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>{remoteMCPError}</span>
+                </div>
+              )}
             </div>
 
             <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2 pt-2 border-t border-border/60">

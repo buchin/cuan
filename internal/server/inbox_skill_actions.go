@@ -135,6 +135,12 @@ func (s *Server) applyInboxSkill(ctx context.Context, q db.InboxRequest, content
 		}
 		app, tools, connectErr := s.mcpRegistry.RegisterRemoteMCP(ctx, cfg)
 		if connectErr != nil {
+			if errors.Is(connectErr, mcp.ErrAuthRequired) {
+				if cfg.APIKey == "" {
+					return cleanText + fmt.Sprintf("\n\n🔐 **Konektor MCP %s memerlukan autentikasi.**\nSilakan masukkan **API key** atau **Bearer token** untuk `%s` agar Cuan dapat menyambungkannya.", name, cfg.BaseURL)
+				}
+				return cleanText + fmt.Sprintf("\n\n🔐 **Autentikasi ke konektor MCP %s ditolak.**\nAPI key atau Bearer token untuk `%s` tidak valid atau sudah kedaluwarsa. Silakan periksa dan kirim ulang API key yang benar.", name, cfg.BaseURL)
+			}
 			return cleanText + fmt.Sprintf("\n\n⚠️ Gagal menghubungkan MCP server %s: %v", action.URL, connectErr)
 		}
 		if err := s.persistRemoteMCP(ctx, cfg, app); err != nil {

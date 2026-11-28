@@ -113,3 +113,79 @@ func TestApplyInboxSkill(t *testing.T) {
 		t.Fatalf("unexpected uninstall reply: %s", replyUninstall)
 	}
 }
+
+func TestApplyInboxSkill_ConnectMCPAuthRequiredAndSuccess(t *testing.T) {
+	ctx := context.Background()
+	s, _ := setupTestChatServer(t)
+	s.mcpRegistry = mcp.NewRegistry()
+	s.mcpRegistry.SetSkillsDir(t.TempDir())
+
+	q := db.InboxRequest{
+		RoomID:    "room-test-auth",
+		OwnerID:   "owner-1",
+		MessageID: "msg-auth-1",
+	}
+
+	tebarMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/mcp" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Header.Get("Authorization") != "Bearer tb_live_ok" {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"error":"unauthorized","error_description":"Send Authorization: Bearer <API key or OAuth access token>"}`))
+			return
+		}
+		var req struct {
+			ID     json.RawMessage `json:"id"`
+			Method string          `json:"method"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		w.Header().Set("Content-Type", "application/json")
+		switch req.Method {
+		case "initialize":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      req.ID,
+				"result":  map[string]any{"protocolVersion": "2025-03-26"},
+			})
+		case "notifications/initialized":
+			w.WriteHeader(http.StatusAccepted)
+		case "tools/list":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      req.ID,
+				"result": map[string]any{
+					"tools": []map[string]any{
+						{"name": "tebar_post", "description": "Create Tebar post"},
+					},
+				},
+			})
+		}
+	}))
+	defer tebarMock.Close()
+
+	// 1. Missing api_key -> user-friendly prompt asking for API key / Bearer token (no raw 401 dump)
+	noKeyContent := "Sambungkan Tebar MCP.\n```cuan-skill\n{\"action\":\"connect_mcp\",\"name\":\"Tebar MCP\",\"url\":\"" + tebarMock.URL + "/mcp\"}\n```"
+	noKeyReply := s.applyInboxSkill(ctx, q, noKeyContent)
+	if !strings.Contains(noKeyReply, "memerlukan autentikasi") || !strings.Contains(noKeyReply, "API key") || !strings.Contains(noKeyReply, "Bearer token") {
+		t.Fatalf("expected user-friendly auth prompt, got: %s", noKeyReply)
+	}
+	if strings.Contains(noKeyReply, "mcp initialize failed") || strings.Contains(noKeyReply, "status 401") {
+		t.Fatalf("expected raw 401 error to be hidden from user reply, got: %s", noKeyReply)
+	}
+
+	// 2. Wrong api_key -> user-friendly invalid/expired token prompt
+	badKeyContent := "Sambungkan Tebar MCP.\n```cuan-skill\n{\"action\":\"connect_mcp\",\"name\":\"Tebar MCP\",\"url\":\"" + tebarMock.URL + "/mcp\",\"api_key\":\"tb_wrong\"}\n```"
+	badKeyReply := s.applyInboxSkill(ctx, q, badKeyContent)
+	if !strings.Contains(badKeyReply, "tidak valid") || !strings.Contains(badKeyReply, "API key") {
+		t.Fatalf("expected invalid key prompt, got: %s", badKeyReply)
+	}
+
+	// 3. Valid api_key -> connects and persists encrypted in DB
+	okContent := "Sambungkan Tebar MCP.\n```cuan-skill\n{\"action\":\"connect_mcp\",\"name\":\"Tebar MCP\",\"url\":\"" + tebarMock.URL + "/mcp\",\"api_key\":\"tb_live_ok\"}\n```"
+	okReply := s.applyInboxSkill(ctx, q, okContent)
+	if !strings.Contains(okReply, "Konektor MCP Terhubung") || !strings.Contains(okReply, "Tebar MCP") {
+		t.Fatalf("expected connected reply, got: %s", okReply)
+	}
+}

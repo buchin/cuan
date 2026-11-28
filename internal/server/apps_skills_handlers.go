@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strings"
@@ -139,6 +140,17 @@ func (s *Server) handleConnectRemoteApp(w http.ResponseWriter, r *http.Request) 
 
 	app, tools, err := reg.RegisterRemoteMCP(r.Context(), cfg)
 	if err != nil {
+		if errors.Is(err, mcp.ErrAuthRequired) {
+			msg := "Server MCP ini memerlukan autentikasi. Silakan masukkan API key atau Bearer token."
+			if cfg.APIKey != "" {
+				msg = "Autentikasi ditolak oleh server MCP. Periksa kembali API key atau Bearer token Anda."
+			}
+			respondJSON(w, http.StatusBadRequest, map[string]any{
+				"error":         msg,
+				"auth_required": true,
+			})
+			return
+		}
 		respondJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
