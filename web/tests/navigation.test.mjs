@@ -47,10 +47,14 @@ test('Navigation menu order: New work, Inbox, Project, Account (Tasks removed fr
     'Contacts must no longer be in the top-level main NAV_ITEMS',
   )
 
-  // Verify NavUser handles Account and sits as 5th destination in navigation
+  // Verify Settings sits in the bottom-left desktop sidebar footer instead of NavUser profile card
   assert.ok(
-    appShellContent.includes('<NavUser'),
-    'AppShell must render NavUser for Account navigation',
+    !appShellContent.includes('<NavUser'),
+    'AppShell must not render NavUser profile card in desktop sidebar footer',
+  )
+  assert.ok(
+    appShellContent.includes("navButton('settings', 'Settings', Settings)"),
+    'AppShell must render Settings navButton in desktop sidebar footer',
   )
   assert.ok(
     appShellContent.includes("currentTab === 'account'"),

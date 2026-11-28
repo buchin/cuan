@@ -10,7 +10,6 @@ import { useEffect, useRef, useState, type ComponentType } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { CuanMark } from '../brand/CuanMark'
-import { NavUser } from './NavUser'
 import { CreateAction } from './CreateAction'
 import { SlideDrawer } from './SlideDrawer'
 import {
@@ -85,7 +84,6 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       { id: 'inbox', label: 'Inbox', icon: Inbox, to: '/inbox', description: 'Chat & pesan masuk' },
       { id: 'projects', label: 'Projects', icon: FolderGit2, to: '/projects', description: 'Workspaces & repo' },
       { id: 'contacts', label: 'Contacts', icon: Users, to: '/contacts', description: 'CRM & memori pelanggan' },
-      { id: 'settings', label: 'Settings', icon: Settings, to: '/settings', description: 'Pengaturan & preferensi' },
     ],
   },
 ]
@@ -195,7 +193,7 @@ export function AppShell({
       )
     }
     if (id === 'settings') {
-      return currentTab === 'settings'
+      return currentTab === 'settings' || currentTab === 'account'
     }
     return currentTab === id
   }
@@ -347,13 +345,7 @@ export function AppShell({
           ))}
         </div>
         <div className="border-t border-border p-2">
-          <NavUser
-            sidebar
-            collapsed={effectiveCollapsed}
-            active={currentTab === 'account'}
-            onWork={() => navigate('tasks')}
-            onSettings={() => navigate('settings')}
-          />
+          {navButton('settings', 'Settings', Settings)}
         </div>
       </nav>
       {(currentTab === 'inbox' || currentTab === 'chat') && listOpen && (
