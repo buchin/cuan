@@ -319,11 +319,12 @@ try{
     const activeInbox = desktopNav.locator('.nav-action[aria-current="page"]')
     await activeInbox.waitFor({ state: 'visible' })
     assert.equal(await activeInbox.getAttribute('data-nav-tone'), 'inbox', 'Active nav item must be inbox')
-    const inactiveTasks = desktopNav.locator('.nav-action[data-nav-tone="tasks"]')
-    await inactiveTasks.waitFor({ state: 'visible' })
-    assert.equal(await inactiveTasks.getAttribute('aria-current'), null, 'Tasks must be inactive')
+    assert.equal(await desktopNav.locator('.nav-action[data-nav-tone="tasks"]').count(), 0, 'Tasks must be removed from desktop primary navigation')
+    const inactiveProjects = desktopNav.locator('.nav-action[data-nav-tone="projects"]')
+    await inactiveProjects.waitFor({ state: 'visible' })
+    assert.equal(await inactiveProjects.getAttribute('aria-current'), null, 'Projects must be inactive')
     await desktopNav.screenshot({ path: path.join(output, 'desktop-navigation-active-inbox.png') })
-    await inactiveTasks.hover()
+    await inactiveProjects.hover()
     await page.waitForTimeout(100)
     await desktopNav.screenshot({ path: path.join(output, 'desktop-navigation-hover.png') })
   }
@@ -381,9 +382,11 @@ try{
     }
     const bottomNav = page.locator('.bottom-navigation')
     await bottomNav.waitFor({ state: 'visible' })
+    assert.equal(await bottomNav.locator('[data-testid="bottom-nav-tasks"]').count(), 0, 'Tasks must be removed from mobile bottom navigation')
     const navItems = await page.$$eval('.bottom-navigation > button, .bottom-navigation > div', els =>
       els.map(el => ({
         testId: el.getAttribute('data-testid'),
+        label: (el.textContent || '').trim(),
         x: el.getBoundingClientRect().x,
         width: el.getBoundingClientRect().width,
         height: el.getBoundingClientRect().height,
@@ -395,6 +398,7 @@ try{
     assert.equal(navItems[2].testId, 'bottom-nav-studio', 'Slot 3 must be New work (+)')
     assert.equal(navItems[3].testId, 'bottom-nav-contacts', 'Slot 4 must be Contacts')
     assert.equal(navItems[4].testId, 'bottom-nav-settings', 'Slot 5 must be Settings')
+    assert.deepEqual(navItems.map(i => i.label), ['Inbox', 'Project', 'New work', 'Kontak', 'Pengaturan'], 'Mobile bottom nav labels must be consistent in Indonesian')
     assert.ok(navItems[0].x < navItems[1].x, 'Inbox must be before Projects')
     assert.ok(navItems[1].x < navItems[2].x, 'Projects must be before New work (+)')
     assert.ok(navItems[2].x < navItems[3].x, 'New work (+) must be before Contacts')

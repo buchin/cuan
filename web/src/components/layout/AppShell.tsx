@@ -15,7 +15,6 @@ import { CreateAction } from './CreateAction'
 import { SlideDrawer } from './SlideDrawer'
 import {
   Inbox,
-  CheckSquare,
   FolderGit2,
   PanelLeft,
   Users,
@@ -60,7 +59,6 @@ interface AppShellProps {
 const NAV_ITEMS = [
   { id: 'studio', label: 'New work', icon: Plus },
   { id: 'inbox', label: 'Inbox', icon: Inbox },
-  { id: 'tasks', label: 'Tasks', icon: CheckSquare },
   { id: 'projects', label: 'Projects', icon: FolderGit2 },
 ] as const
 
@@ -85,7 +83,6 @@ export const NAV_GROUPS: NavGroupConfig[] = [
     items: [
       { id: 'studio', label: 'New work', icon: Plus, to: '/studio' },
       { id: 'inbox', label: 'Inbox', icon: Inbox, to: '/inbox', description: 'Chat & pesan masuk' },
-      { id: 'tasks', label: 'Tasks', icon: CheckSquare, to: '/tasks', description: 'Papan tiket agen' },
     ],
   },
   {
@@ -493,7 +490,7 @@ export function AppShell({
               type="button"
               data-nav-tone="inbox"
               data-testid="bottom-nav-inbox"
-              aria-label="Inbox"
+              aria-label={t('Inbox')}
               aria-current={isTabActive('inbox') ? 'page' : undefined}
               onClick={() => {
                 setMobileMenuOpen(false)
@@ -518,7 +515,7 @@ export function AppShell({
                   </span>
                 )}
               </span>
-              <span className="truncate max-w-full px-0.5">Inbox</span>
+              <span className="truncate max-w-full px-0.5">{t('Inbox')}</span>
             </button>
 
             {/* Pillar 2: Projects */}
@@ -527,7 +524,7 @@ export function AppShell({
               type="button"
               data-nav-tone="projects"
               data-testid="bottom-nav-projects"
-              aria-label="Projects"
+              aria-label={t('Projects')}
               aria-current={isTabActive('projects') ? 'page' : undefined}
               onClick={() => {
                 setMobileMenuOpen(false)
@@ -543,7 +540,7 @@ export function AppShell({
               <span className="flex h-7 w-7 items-center justify-center">
                 <FolderGit2 className="h-5 w-5 text-inherit" />
               </span>
-              <span className="truncate max-w-full px-0.5">Projects</span>
+              <span className="truncate max-w-full px-0.5">{t('Projects')}</span>
             </button>
 
             {/* Pillar 3: New work (+) */}
@@ -552,7 +549,7 @@ export function AppShell({
               type="button"
               data-nav-tone="studio"
               data-testid="bottom-nav-studio"
-              aria-label="New work"
+              aria-label={t('New work')}
               aria-current={currentTab === 'studio' ? 'page' : undefined}
               onClick={() => {
                 setMobileMenuOpen(false)
@@ -577,7 +574,7 @@ export function AppShell({
               >
                 <Plus aria-hidden="true" className="h-4.5 w-4.5 text-inherit" />
               </span>
-              <span className="truncate max-w-full px-0.5">New work</span>
+              <span className="truncate max-w-full px-0.5">{t('New work')}</span>
             </button>
 
             {/* Pillar 4: Contacts */}
@@ -586,7 +583,7 @@ export function AppShell({
               type="button"
               data-nav-tone="contacts"
               data-testid="bottom-nav-contacts"
-              aria-label="Contacts"
+              aria-label={t('Contacts')}
               aria-current={isTabActive('contacts') ? 'page' : undefined}
               onClick={() => {
                 setMobileMenuOpen(false)
@@ -602,7 +599,7 @@ export function AppShell({
               <span className="flex h-7 w-7 items-center justify-center">
                 <Users className="h-5 w-5 text-inherit" />
               </span>
-              <span className="truncate max-w-full px-0.5">Contacts</span>
+              <span className="truncate max-w-full px-0.5">{t('Contacts')}</span>
             </button>
 
             {/* Pillar 5: Settings */}
@@ -611,7 +608,7 @@ export function AppShell({
               type="button"
               data-nav-tone="settings"
               data-testid="bottom-nav-settings"
-              aria-label="Settings"
+              aria-label={t('Settings')}
               aria-current={isTabActive('settings') ? 'page' : undefined}
               onClick={() => {
                 setMobileMenuOpen(false)
@@ -627,7 +624,7 @@ export function AppShell({
               <span className="flex h-7 w-7 items-center justify-center">
                 <Settings className="h-5 w-5 text-inherit" />
               </span>
-              <span className="truncate max-w-full px-0.5">Settings</span>
+              <span className="truncate max-w-full px-0.5">{t('Settings')}</span>
             </button>
           </nav>
 
