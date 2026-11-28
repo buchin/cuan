@@ -138,6 +138,16 @@ test('2. Categorization: 4 semantic categories with Lucide icons, active state, 
     'Active navigation item must use a quiet accent surface and readable foreground',
   )
 
+  // Verify Personal Account sits at the top of SettingsMasterNav with Sign out action
+  assert.ok(
+    masterNavSrc.includes('[...personalAccountCategories, ...categories]'),
+    'Personal Account category must be placed first at the top of SettingsMasterNav',
+  )
+  assert.ok(
+    masterNavSrc.includes('data-testid="settings-sign-out"') && masterNavSrc.includes('logout()'),
+    'SettingsMasterNav must render Sign out button in the top Personal Account section',
+  )
+
   // Verify Touch Accessibility (min-h-11 for WCAG 2.1 AA)
   assert.ok(
     masterNavSrc.includes('min-h-11'),

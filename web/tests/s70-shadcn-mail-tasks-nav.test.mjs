@@ -32,9 +32,10 @@ test('1. S70-T1: Main & Manage Navigation Architecture (NAV_GROUPS)', () => {
     appShellSource.includes("to: '/inbox'") &&
     appShellSource.includes("to: '/projects'") &&
     appShellSource.includes("to: '/contacts'") &&
-    appShellSource.includes("to: '/settings'") &&
-    !appShellSource.includes("to: '/tasks'"),
-    'NAV_GROUPS main group must unify routes for /studio, /inbox, /projects, /contacts, and /settings without /tasks'
+    !appShellSource.includes("to: '/settings'") &&
+    !appShellSource.includes("to: '/tasks'") &&
+    appShellSource.includes("navButton('settings', 'Settings', Settings)"),
+    'NAV_GROUPS main group must unify daily work routes (/studio, /inbox, /projects, /contacts) while Settings sits in the bottom-left footer'
   )
 
   // Verify AppTab includes agents, team, skills

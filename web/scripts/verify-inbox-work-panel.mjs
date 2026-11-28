@@ -321,7 +321,10 @@ try{
     assert.equal(await activeInbox.getAttribute('data-nav-tone'), 'inbox', 'Active nav item must be inbox')
     assert.equal(await desktopNav.locator('.nav-action[data-nav-tone="tasks"]').count(), 0, 'Tasks must be removed from desktop primary navigation')
     assert.equal(await desktopNav.locator('[data-testid="nav-group-manage"]').count(), 0, 'Manage/KELOLA group must be removed from desktop sidebar')
-    assert.equal(await desktopNav.locator('[data-testid="nav-group-main"] .nav-action').count(), 5, 'Desktop main nav group must unify all 5 primary items')
+    assert.equal(await desktopNav.locator('[data-testid="nav-group-main"] .nav-action').count(), 4, 'Desktop main nav group must focus on 4 daily work items (New work, Inbox, Projects, Contacts)')
+    assert.equal(await desktopNav.locator('.sidebar-account').count(), 0, 'Desktop sidebar must not render NavUser profile card')
+    const footerSettings = desktopNav.locator('> .border-t .nav-action[data-nav-tone="settings"]')
+    await footerSettings.waitFor({ state: 'visible' })
     const navText = (await desktopNav.innerText()).toUpperCase()
     assert.ok(!navText.includes('KELOLA') && !navText.includes('MANAGE'), 'Desktop sidebar must not render KELOLA/Manage label')
     const inactiveProjects = desktopNav.locator('.nav-action[data-nav-tone="projects"]')
@@ -982,6 +985,21 @@ try{
   const expandedStudioHeight = await studioGoal.evaluate(el => el.getBoundingClientRect().height)
   assert.ok(expandedStudioHeight > initialStudioHeight, 'Studio goal textarea must smoothly auto-expand when typing multiple lines')
   await page.screenshot({ path: path.join(output, `studio-expanded-${width}.png`) })
+
+  // Verify Settings page: Personal Account & Sign out at top of SettingsMasterNav, plus clean desktop/mobile layout
+  await page.goto(new URL('/settings', origin).href, { waitUntil: 'domcontentloaded' })
+  const settingsNav = page.locator('nav[aria-label="Navigasi pengaturan"], nav[aria-label="Settings navigation"]')
+  await settingsNav.waitFor({ state: 'visible', timeout: 10000 })
+  const settingsSignOut = settingsNav.getByTestId('settings-sign-out')
+  await settingsSignOut.waitFor({ state: 'visible', timeout: 5000 })
+  const firstCategoryTitle = await settingsNav.locator('h3').first().innerText()
+  assert.ok(/AKUN|ACCOUNT/i.test(firstCategoryTitle), `First Settings category must be Personal Account, got "${firstCategoryTitle}"`)
+  if (width >= 1200) {
+    const desktopNav = page.locator('nav.primary-navigation')
+    const activeSettings = desktopNav.locator('> .border-t .nav-action[data-nav-tone="settings"][aria-current="page"]')
+    await activeSettings.waitFor({ state: 'visible', timeout: 5000 })
+  }
+  await page.screenshot({ path: path.join(output, `settings-${width}.png`) })
 
   // Verify circular TypingDots & bubble-contained InboxActivity (light & dark mode)
   await page.goto(new URL('/inbox/c-agent', origin).href, { waitUntil: 'domcontentloaded' })

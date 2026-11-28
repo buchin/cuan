@@ -43,8 +43,9 @@ test('1. S59-T3: Desktop Sidebar 3-Group Information Architecture (NAV_GROUPS)',
   assert.ok(
     appShellSource.includes("to: '/projects'") &&
       appShellSource.includes("to: '/contacts'") &&
-      appShellSource.includes("to: '/settings'"),
-    'Unified navigation must contain routes for /projects, /contacts, and /settings'
+      !appShellSource.includes("to: '/settings'") &&
+      appShellSource.includes("navButton('settings', 'Settings', Settings)"),
+    'Unified top navigation must contain /projects and /contacts, while Settings sits in the bottom-left footer'
   )
 
   // Verify desktop sidebar renders testids for all 3 groups

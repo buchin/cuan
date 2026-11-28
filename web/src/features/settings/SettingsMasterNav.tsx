@@ -14,6 +14,7 @@ import {
   Palette,
   Bell,
   ChevronRight,
+  LogOut,
 } from 'lucide-react'
 import { useLanguage } from '../../context/LanguageContext'
 
@@ -160,12 +161,12 @@ export function getSettingsNavCategories(isAccount = false, _userRole?: string):
     },
   ]
 
-  // Personal preferences are reachable from Settings as well as the account page.
-  categories.push(...getSettingsNavCategories(true).map((category) => ({
+  // Personal preferences & account sit at the top of Settings for quick access.
+  const personalAccountCategories = getSettingsNavCategories(true).map((category) => ({
     ...category,
     items: category.items.map((item) => ({ ...item, to: item.to.replace('/account/', '/settings/') })),
-  })))
-  return categories
+  }))
+  return [...personalAccountCategories, ...categories]
 }
 
 export interface SettingsMasterNavProps {
@@ -182,7 +183,7 @@ export function SettingsMasterNav({
   onSelectSection,
 }: SettingsMasterNavProps) {
   const { t } = useLanguage()
-  const { role } = useAuth()
+  const { role, logout } = useAuth()
   const location = useLocation()
   const categories = getSettingsNavCategories(isAccount, role)
 
@@ -249,6 +250,23 @@ export function SettingsMasterNav({
                 </Link>
               )
             })}
+            {category.id === 'personal-account' && (
+              <button
+                type="button"
+                data-testid="settings-sign-out"
+                onClick={() => {
+                  void logout()
+                }}
+                className="group flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors group-hover:text-destructive">
+                  <LogOut className="h-4 w-4 text-inherit" />
+                </div>
+                <span className="text-sm font-medium leading-none">
+                  {t('Sign out')}
+                </span>
+              </button>
+            )}
           </div>
         </div>
       ))}
