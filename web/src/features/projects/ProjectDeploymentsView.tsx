@@ -258,36 +258,58 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
   }
 
   const renderStatusIcon = (status: string, size = 'md') => {
-    const dim = size === 'sm' ? 'h-4 w-4' : 'h-4.5 w-4.5 sm:h-5 sm:w-5'
+    const dim = size === 'sm' ? 'h-4 w-4' : 'h-4 w-4 sm:h-5 sm:w-5'
     const dotSize = size === 'sm' ? 'sm' : 'md'
+    let icon: React.ReactNode
     switch (status) {
       case 'success':
-        return <CheckCircle2 className={`${dim} text-[color:var(--status-success)] shrink-0`} />
+        icon = <CheckCircle2 className={`${dim} text-[color:var(--status-success)] shrink-0`} />
+        break
       case 'building':
-        return <StatusDot size={dotSize} status="working" pulse aria-label={t('Sedang berjalan')} />
+        icon = <StatusDot size={dotSize} status="working" pulse aria-label={t('Sedang berjalan')} />
+        break
       case 'failed':
-        return <StatusDot size={dotSize} status="danger" aria-label={t('Gagal')} />
+        icon = <StatusDot size={dotSize} status="danger" aria-label={t('Gagal')} />
+        break
       case 'queued':
-        return <StatusDot size={dotSize} status="idle" aria-label={t('Queued in lane')} />
+        icon = <StatusDot size={dotSize} status="idle" aria-label={t('Queued in lane')} />
+        break
       case 'canceled':
       default:
-        return <StatusDot size={dotSize} status="neutral" aria-label={t('Dibatalkan')} />
+        icon = <StatusDot size={dotSize} status="neutral" aria-label={t('Dibatalkan')} />
+        break
     }
+    return (
+      <span
+        data-status-icon-slot="true"
+        className={`inline-flex ${dim} shrink-0 items-center justify-center`}
+      >
+        {icon}
+      </span>
+    )
   }
 
   const timelineItems: AccordionTimelineItem[] = useMemo(() => {
     if (!selectedDeployment?.steps) return []
     return selectedDeployment.steps.map((step) => {
-      let indicator: React.ReactNode = <StatusDot size="md" status="neutral" aria-hidden />
+      let indicatorIcon: React.ReactNode = <StatusDot size="md" status="neutral" aria-hidden />
       if (step.status === 'success') {
-        indicator = <CheckCircle2 className="h-4 w-4 text-[color:var(--status-success)]" aria-hidden />
+        indicatorIcon = <CheckCircle2 className="h-4 w-4 text-[color:var(--status-success)]" aria-hidden />
       } else if (step.status === 'building') {
-        indicator = <StatusDot size="md" status="working" pulse aria-hidden />
+        indicatorIcon = <StatusDot size="md" status="working" pulse aria-hidden />
       } else if (step.status === 'failed') {
-        indicator = <StatusDot size="md" status="danger" aria-hidden />
+        indicatorIcon = <StatusDot size="md" status="danger" aria-hidden />
       } else if (step.status === 'pending') {
-        indicator = <StatusDot size="md" status="idle" aria-hidden />
+        indicatorIcon = <StatusDot size="md" status="idle" aria-hidden />
       }
+      const indicator = (
+        <span
+          data-timeline-status-slot="true"
+          className="inline-flex h-4 w-4 shrink-0 items-center justify-center"
+        >
+          {indicatorIcon}
+        </span>
+      )
 
       // Defensive UI sanitization: ensure success steps never display pending or compiling placeholder strings
       let displaySummary = step.summary
@@ -451,7 +473,7 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
               >
                 {/* Left: Status Icon + 2-Line Hierarchy */}
                 <div className="flex min-w-0 flex-1 items-start gap-3">
-                  <div className="mt-0.5 shrink-0">{renderStatusIcon(dep.status)}</div>
+                  <div className="mt-0.5 flex shrink-0">{renderStatusIcon(dep.status)}</div>
 
                   <div className="min-w-0 flex-1 space-y-1">
                     <p className="text-sm font-medium leading-snug text-foreground group-hover:text-primary transition-colors line-clamp-2 sm:line-clamp-1">
