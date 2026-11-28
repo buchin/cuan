@@ -139,6 +139,15 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
   python3 scripts/test-runtime-cache-maintenance.py
 fi
 
+persistent_cache_base=""
+if [[ -d "/opt/cuan/data" && -w "/opt/cuan/data" ]]; then
+  persistent_cache_base="/opt/cuan/data/.cache"
+elif [[ -n "${HOME:-}" ]]; then
+  persistent_cache_base="${HOME}/.cache"
+else
+  persistent_cache_base="/home/ubuntu/.cache"
+fi
+
 skip_frontend_build=0
 if [[ "$frontend_only" == 0 && -z "${CUAN_FORCE_FRONTEND_BUILD:-}" && -f "/opt/cuan/current/REVISION" && -d "/opt/cuan/current/web/dist" ]]; then
   live_rev="$(tr -d '[:space:]' < /opt/cuan/current/REVISION 2>/dev/null || true)"
@@ -166,15 +175,6 @@ if [[ -f web/package-lock.json ]]; then
     npm_lock_hash="$(shasum -a 256 web/package-lock.json | awk '{print $1}')"
   fi
 fi
-persistent_cache_base=""
-if [[ -d "/opt/cuan/data" && -w "/opt/cuan/data" ]]; then
-  persistent_cache_base="/opt/cuan/data/.cache"
-elif [[ -n "${HOME:-}" ]]; then
-  persistent_cache_base="${HOME}/.cache"
-else
-  persistent_cache_base="/home/ubuntu/.cache"
-fi
-
 npm_cache_root="${CUAN_NPM_CACHE_DIR:-$persistent_cache_base/cuan-web-node-modules}"
 npm_cache_dir=""
 if [[ -n "$npm_lock_hash" && -z "${CUAN_SKIP_NPM_CACHE:-}" ]]; then
