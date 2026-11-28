@@ -68,10 +68,23 @@ func hasOnlySystemLifecycleNotices(messages []db.ProjectMessage) bool {
 	return true
 }
 
+// isTransientSystemUpdateNotice identifies system update / auto-resume notices
+// that belong in transient UI toasts rather than persisted conversation bubbles.
+func isTransientSystemUpdateNotice(m db.ProjectMessage) bool {
+	if m.AuthorType != "system" {
+		return false
+	}
+	content := strings.TrimSpace(m.Content)
+	return strings.HasPrefix(content, "Sistem baru saja diperbarui.") ||
+		strings.HasPrefix(content, "Penyimpanan server sempat penuh.") ||
+		strings.HasPrefix(content, "Kapasitas AI sedang disesuaikan.") ||
+		strings.HasPrefix(content, "Pekerjaan sebelumnya sempat terhenti.")
+}
+
 func visibleInboxMessages(messages []db.ProjectMessage) []db.ProjectMessage {
 	result := make([]db.ProjectMessage, 0, len(messages))
 	for _, m := range messages {
-		if !internalInboxReviewInput(m) {
+		if !internalInboxReviewInput(m) && !isTransientSystemUpdateNotice(m) {
 			result = append(result, m)
 		}
 	}
