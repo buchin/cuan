@@ -517,6 +517,11 @@ func (s *Server) handleProjectTerminalWebSocket(w http.ResponseWriter, r *http.R
 	// 1. If in-memory session already exists, re-attach directly without leasing a new brain or advancing brainCursor!
 	//    Check this FIRST so test harnesses and in-process sessions always win over any stale socket.
 	if existing, ok := s.terminalManager.GetSession(sessionKey); ok && existing != nil && !existing.IsClosed() {
+		// Silently refresh the on-disk git askpass config so a long-running session
+		// always has a valid token without requiring a PTY restart.
+		if ownerID != "" {
+			s.projectTerminalGitEnv(r, proj.ID, ownerID)
+		}
 		q := r.URL.Query()
 		q.Set("task_id", sessionKey)
 		q.Set("session_id", existing.ID())
@@ -529,6 +534,10 @@ func (s *Server) handleProjectTerminalWebSocket(w http.ResponseWriter, r *http.R
 
 	// 2. If detached Unix socket bridge already exists (surviving a deploy), proxy directly!
 	if terminal.ProjectSocketExists(proj.ID) {
+		// Also refresh the git askpass config file for socket-bridged sessions.
+		if ownerID != "" {
+			s.projectTerminalGitEnv(r, proj.ID, ownerID)
+		}
 		q := r.URL.Query()
 		q.Set("task_id", sessionKey)
 		q.Set("attach", "1")
@@ -2370,6 +2379,35 @@ func (s *Server) projectTerminalGitEnv(r *http.Request, projectID, ownerID strin
 		"CUAN_GIT_ASKPASS_URL=" + askpassURL,
 		"CUAN_GIT_ASKPASS_TOKEN=" + token,
 	}
+}
+
+// POST /api/v1/projects/{id}/terminal/rotate-git-token
+// Rotates the git askpass token for an existing terminal session without restarting the PTY.
+// Overwrites the on-disk config file that cuan-git-askpass reads on every git operation,
+// so the very next git push/pull inside the live terminal will use the fresh token.
+func (s *Server) handleProjectTerminalRotateGitToken(w http.ResponseWriter, r *http.Request) {
+	projectID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if projectID == "" || s.projectSvc == nil {
+		respondJSONError(w, http.StatusNotFound, "Project not found")
+		return
+	}
+	owner := auth.GetOwnerFromContext(r.Context())
+	if owner == nil {
+		respondJSONError(w, http.StatusUnauthorized, "Sign in to Cuan to rotate terminal token")
+		return
+	}
+	baseURL := "http://127.0.0.1:8080"
+	if s.cfg != nil && strings.TrimSpace(s.cfg.ServerPort) != "" {
+		baseURL = "http://127.0.0.1:" + strings.TrimPrefix(strings.TrimSpace(s.cfg.ServerPort), ":")
+	}
+	askpassURL := baseURL + "/api/v1/projects/" + projectID + "/terminal/git-credentials"
+	newToken := s.signTerminalGitToken(projectID, owner.ID, 7*24*time.Hour)
+	if _, err := terminal.EnsureGitAskpassScript("", projectID, askpassURL, newToken); err != nil {
+		respondJSONError(w, http.StatusInternalServerError, "Failed to rotate git token: "+err.Error())
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	respondJSON(w, http.StatusOK, map[string]string{"status": "rotated", "project_id": projectID})
 }
 
 // GET /api/v1/projects/{id}/terminal/git-credentials
