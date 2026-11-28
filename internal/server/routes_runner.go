@@ -371,6 +371,9 @@ func (s *Server) handleRunnerComplete(w http.ResponseWriter, r *http.Request) {
 		if s.terminalManager != nil {
 			_ = s.terminalManager.CloseSession(att.TaskID)
 			_ = s.terminalManager.CloseSession(att.ID)
+			// Do NOT call ResetProjectSession here: the interactive Project Terminal
+			// must stay alive when a runner attempt completes. Only the task's own
+			// terminal session (att.TaskID / att.ID) is closed above.
 		}
 		if s.taskSvc != nil {
 			_ = s.taskSvc.FinishTaskLaunches(r.Context(), att.TaskID, "stopped")

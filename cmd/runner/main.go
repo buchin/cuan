@@ -144,6 +144,12 @@ Environment variables:
 
 	r := runner.NewRunner(cfg, adapter)
 
+	releaseLock, lockErr := runner.AcquireRunnerInstanceLock(cfg.RunnerWorkerRegistryDir, cfg.RunnerID)
+	if lockErr != nil {
+		log.Fatalf("Cannot start cuan-runner: %v", lockErr)
+	}
+	defer releaseLock()
+
 	if *drainFile != "" {
 		r.SetDrainCoordinator(runner.NewDrainCoordinator(*drainFile))
 	}

@@ -43,13 +43,13 @@ test('3. ProjectsWorkspace: straight vertical left alignment of project names wi
   )
 })
 
-test('4. ProjectsWorkspace: standardized second line displaying activity and update timestamp', () => {
+test('4. ProjectsWorkspace: standardized second line displaying concise update timestamp', () => {
   const workspacePath = path.join(srcDir, 'features/projects/ProjectsWorkspace.tsx')
   const content = fs.readFileSync(workspacePath, 'utf8')
 
   assert.match(content, /function formatProjectActivity/, 'ProjectsWorkspace must define formatProjectActivity helper')
-  assert.match(content, /description=\{formatProjectActivity\(item,\s*language,\s*t\)\}/, 'ProjectsWorkspace must render standardized activity timestamp on second line')
-  assert.match(content, /t\('Updated'\)/, 'formatProjectActivity must use localized Updated label')
+  assert.match(content, /description=\{formatProjectActivity\(item,\s*language\)\}/, 'ProjectsWorkspace must render standardized activity timestamp on second line')
+  assert.match(content, /'Baru saja'/, 'formatProjectActivity must render concise Indonesian relative timestamp without truncation')
 })
 
 test('5. ProjectsWorkspace: TaskProgress is placed in trailing position on the right of the row', () => {

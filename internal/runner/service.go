@@ -463,7 +463,7 @@ func (s *RunnerService) Claim(ctx context.Context, req ClaimTaskRequest, leaseDu
 		}
 		resp.AutoDeploy = autoDeploy
 		resp.Environment = settings.Environment
-		resp.DeployScript = strings.TrimSpace(settings.DeployScript)
+		resp.DeployScript = project.EffectiveDeployScript(p.Metadata, p.LocalPath)
 		resp.DeployBranch = strings.TrimSpace(settings.DeployBranch)
 		if resp.DeployBranch == "" {
 			resp.DeployBranch = p.DefaultBranch

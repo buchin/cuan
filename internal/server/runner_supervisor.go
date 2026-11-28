@@ -159,6 +159,7 @@ func (rs *RunnerSupervisor) startRunnerLocked(ctx context.Context) {
 
 		cmd := exec.CommandContext(context.Background(), binPath, args...)
 		cmd.Env = os.Environ()
+		configureSupervisorChildProcAttr(cmd)
 
 		// Write runner logs to temp file
 		if logFile, err := os.OpenFile(filepath.Join(os.TempDir(), "cuan-auto-runner.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {

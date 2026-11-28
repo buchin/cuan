@@ -368,6 +368,29 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			}
 		}
 
+		// Autonomous review queueing for interrupted review/blocked tasks BEFORE generic continuation
+		// so interrupted VerificationIntent/LiveInspection attempts hit recoverSourceVerifier/recoverInspectionVerifier
+		// instead of being hijacked by ordinary startAuthorizedLaunch (when attemptCount < 3).
+		if (t.Status == task.TaskStatusReview || t.Status == task.TaskStatusBlocked) && detail.LatestAttempt != nil && detail.LatestAttempt.Status == task.AttemptStatusInterrupted {
+			watchdogAlertMu.Lock()
+			cooldownUntil := watchdogTaskCooldown[detail.ID]
+			watchdogAlertMu.Unlock()
+			if time.Now().After(cooldownUntil) {
+				if detail.Launch != nil && detail.Launch.State == "stopped" && detail.Launch.SafeError == "The verification scope could not be validated." {
+					log.Printf("[Watchdog AI Orchestrator] Re-queueing stopped verification recovery task %s (attempt=%s)", detail.ID, detail.LatestAttempt.ID)
+					queued := task.TaskStatusQueued
+					_, _ = s.taskSvc.UpdateTask(ctx, detail.ID, "runner", task.UpdateTaskRequest{Status: &queued})
+				} else {
+					log.Printf("[Watchdog AI Orchestrator] Autonomously queueing interrupted %s task %s (attempt=%s)", t.Status, detail.ID, detail.LatestAttempt.ID)
+					s.queueInboxTaskReview(ctx, detail)
+				}
+				watchdogAlertMu.Lock()
+				watchdogTaskCooldown[detail.ID] = time.Now().Add(2 * time.Minute)
+				watchdogAlertMu.Unlock()
+			}
+			continue
+		}
+
 		// 2. Autonomous Self-Healing:
 		// When within budget (< 3 attempts), manager indicates continue/replan, actionable revision is available,
 		// and work is internal (not external).
@@ -392,9 +415,20 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 				}
 			}
 		}
-		if !policyConflict && !identicalBlocker && latestAssessment != nil && attemptCount < 3 &&
+		retryAutoDeployScript := false
+		if attemptCount >= 3 && attemptCount < 5 && s.projectSvc != nil && detail.ProjectID != "" {
+			if proj, pErr := s.projectSvc.Get(ctx, detail.ProjectID); pErr == nil && proj != nil && project.EffectiveDeployScript(proj.Metadata, proj.LocalPath) != "" {
+				for _, a := range detail.Attempts {
+					if a != nil && strings.HasPrefix(a.ErrorMessage, "Kepatuhan auto_deploy:") {
+						retryAutoDeployScript = true
+						break
+					}
+				}
+			}
+		}
+		if !policyConflict && (!identicalBlocker || retryAutoDeployScript) && latestAssessment != nil && (attemptCount < 3 || retryAutoDeployScript) &&
 			latestAssessment.RemainingWork != "external" &&
-			!strings.HasPrefix(latestAssessment.Revision, "Native publication reconciliation:") &&
+			(!strings.HasPrefix(latestAssessment.Revision, "Native publication reconciliation:") || retryAutoDeployScript) &&
 			(latestAssessment.ManagerAction == "continue" || latestAssessment.ManagerAction == "replan") &&
 			latestAssessment.Decision == "revise" &&
 			latestAssessment.RequestedOutcome != "needs_input" &&
@@ -447,13 +481,15 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			}
 		}
 
-		// Autonomous review queueing if attempt succeeded but review evaluation is missing
-		if t.Status == task.TaskStatusReview && latestAssessment == nil && detail.LatestAttempt != nil && detail.LatestAttempt.Status == task.AttemptStatusSucceeded {
+		// Autonomous review queueing if attempt succeeded (without assessment) or was interrupted while in review
+		if t.Status == task.TaskStatusReview && detail.LatestAttempt != nil &&
+			((latestAssessment == nil && detail.LatestAttempt.Status == task.AttemptStatusSucceeded) ||
+				detail.LatestAttempt.Status == task.AttemptStatusInterrupted) {
 			watchdogAlertMu.Lock()
 			cooldownUntil := watchdogTaskCooldown[detail.ID]
 			watchdogAlertMu.Unlock()
 			if time.Now().After(cooldownUntil) {
-				log.Printf("[Watchdog AI Orchestrator] Autonomously queueing review evaluation for review task %s", detail.ID)
+				log.Printf("[Watchdog AI Orchestrator] Autonomously queueing review evaluation for review task %s (attempt=%s)", detail.ID, detail.LatestAttempt.Status)
 				s.queueInboxTaskReview(ctx, detail)
 				watchdogAlertMu.Lock()
 				watchdogTaskCooldown[detail.ID] = time.Now().Add(2 * time.Minute)

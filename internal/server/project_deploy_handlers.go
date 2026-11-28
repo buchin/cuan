@@ -1267,17 +1267,38 @@ func (s *Server) enqueueProjectDeployment(ctx context.Context, proj *project.Pro
 	var isBuilding bool
 	if s.projectDeploymentRepo != nil {
 		if b, err := s.projectDeploymentRepo.GetActiveBuilding(ctx, proj.ID); err == nil && b != nil {
-			isBuilding = true
+			// If the active deployment is still in Checkout or Compile & Build (step 3+ hasn't started)
+			// and targets the same branch, supersede it immediately instead of wasting 20m building an obsolete commit.
+			canSupersedeActive := b.Branch == branch && len(b.Steps) >= 3 && b.Steps[2].Status == cuanDB.StepStatusPending
+			if canSupersedeActive {
+				now := time.Now().UTC()
+				b.Status = cuanDB.DeploymentStatusCanceled
+				b.CompletedAt = &now
+				if !b.StartedAt.IsZero() {
+					b.DurationSeconds = int(now.Sub(b.StartedAt).Seconds())
+				}
+				b.ErrorMessage = "Superseded by newer deployment"
+				_ = s.projectDeploymentRepo.Update(ctx, b)
+				if cancelFn, ok := s.deployCancels.LoadAndDelete(b.ID); ok {
+					if fn, ok := cancelFn.(context.CancelFunc); ok && fn != nil {
+						fn()
+					}
+				}
+			} else {
+				isBuilding = true
+			}
 		}
+	}
+
+	// Any prior queued deployments for this project are superseded regardless of
+	// whether the lane was actively building or idle when this deployment arrived.
+	if s.projectDeploymentRepo != nil {
+		_ = s.projectDeploymentRepo.CancelQueuedForProject(ctx, proj.ID, depID)
 	}
 
 	status := cuanDB.DeploymentStatusBuilding
 	if isBuilding {
 		status = cuanDB.DeploymentStatusQueued
-		// Superseded queued deployments for this project are canceled
-		if s.projectDeploymentRepo != nil {
-			_ = s.projectDeploymentRepo.CancelQueuedForProject(ctx, proj.ID, depID)
-		}
 	}
 
 	initialSteps := []cuanDB.ProjectDeploymentStep{
@@ -1399,7 +1420,8 @@ func (w *deployBuildOutputWriter) Bytes() []byte {
 
 // runDeployBuildCommand streams stdout/stderr and terminates only if the build
 // produces no output for idleTimeout (or when ctx hits the hard ceiling).
-func runDeployBuildCommand(ctx context.Context, name string, args []string, dir string, env []string, idleTimeout time.Duration) ([]byte, error) {
+// An optional progress callback is invoked every ~3s when new output arrives.
+func runDeployBuildCommand(ctx context.Context, name string, args []string, dir string, env []string, idleTimeout time.Duration, onProgress ...func([]byte)) ([]byte, error) {
 	cmdCtx, cmdCancel := context.WithCancel(ctx)
 	defer cmdCancel()
 
@@ -1415,16 +1437,25 @@ func runDeployBuildCommand(ctx context.Context, name string, args []string, dir 
 		return nil, err
 	}
 
+	var progressFn func([]byte)
+	if len(onProgress) > 0 {
+		progressFn = onProgress[0]
+	}
+
 	var stalled atomic.Bool
 	done := make(chan struct{})
-	if idleTimeout > 0 {
-		poll := min(idleTimeout/4, 5*time.Second)
-		if poll <= 0 {
-			poll = 20 * time.Millisecond
+	if idleTimeout > 0 || progressFn != nil {
+		poll := 3 * time.Second
+		if idleTimeout > 0 {
+			poll = min(idleTimeout/4, 3*time.Second)
+			if poll <= 0 {
+				poll = 20 * time.Millisecond
+			}
 		}
 		go func() {
 			ticker := time.NewTicker(poll)
 			defer ticker.Stop()
+			lastFlushedLen := 0
 			for {
 				select {
 				case <-done:
@@ -1432,7 +1463,14 @@ func runDeployBuildCommand(ctx context.Context, name string, args []string, dir 
 				case <-cmdCtx.Done():
 					return
 				case <-ticker.C:
-					if time.Since(time.Unix(0, out.lastActivity.Load())) >= idleTimeout {
+					if progressFn != nil {
+						snapshot := out.Bytes()
+						if len(snapshot) != lastFlushedLen {
+							lastFlushedLen = len(snapshot)
+							progressFn(snapshot)
+						}
+					}
+					if idleTimeout > 0 && time.Since(time.Unix(0, out.lastActivity.Load())) >= idleTimeout {
 						stalled.Store(true)
 						cmdCancel()
 						return
@@ -1460,7 +1498,21 @@ const deployBuildIdleTimeout = 20 * time.Minute
 // 5. Health Verification (HTTP probe against publication health URL or canonical domain)
 func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, proj *project.ProjectResponse, branch, commitSHA string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Minute)
-	defer cancel()
+	s.deployCancels.Store(depID, cancel)
+	defer func() {
+		s.deployCancels.Delete(depID)
+		cancel()
+	}()
+
+	isCanceledInDB := func() bool {
+		if ctx.Err() == nil {
+			return false
+		}
+		checkCtx, checkCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer checkCancel()
+		latest, err := s.projectDeploymentRepo.GetByID(checkCtx, depID)
+		return err == nil && latest != nil && latest.Status == cuanDB.DeploymentStatusCanceled
+	}
 
 	if s.projectDeploymentRepo == nil {
 		return
@@ -1559,6 +1611,9 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	dep.Steps[0].Duration = fmt.Sprintf("%ds", max(1, int(step1End.Sub(step1Start).Seconds())))
 
 	if !checkoutSuccess {
+		if isCanceledInDB() {
+			return
+		}
 		dep.Steps[0].Status = cuanDB.StepStatusFailed
 		dep.Steps[0].Summary = "Source checkout failed"
 		dep.Steps[0].Log = checkoutLog.String()
@@ -1567,6 +1622,9 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 		dep.DurationSeconds = int(time.Since(startTime).Seconds())
 		persistDep(dep)
 		s.processNextQueuedDeployment(projectID, repoDir, proj)
+		return
+	}
+	if isCanceledInDB() {
 		return
 	}
 
@@ -1601,10 +1659,34 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 		}
 	}
 
+	flushBuildProgress := func(chunk []byte) {
+		if ctx.Err() != nil {
+			return
+		}
+		header := buildLog.String()
+		full := header + string(chunk)
+		dep.Steps[1].Log = full
+		// Extract latest release stage or status line for live summary
+		summary := ""
+		for _, line := range strings.Split(string(chunk), "\n") {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "::cuan-release-stage::") {
+				stage := strings.TrimPrefix(trimmed, "::cuan-release-stage::")
+				summary = "Running stage: " + stage
+			} else if strings.HasPrefix(trimmed, "==>") {
+				summary = strings.TrimSpace(strings.TrimPrefix(trimmed, "==>"))
+			}
+		}
+		if summary != "" {
+			dep.Steps[1].Summary = summary
+		}
+		persistDep(dep)
+	}
+
 	if strings.TrimSpace(settings.DeployScript) != "" && repoDir != "" {
 		ranDeployScript = true
 		buildLog.WriteString(fmt.Sprintf("Executing project deploy script in %s\n", repoDir))
-		out, err := runDeployBuildCommand(ctx, "bash", []string{"-c", settings.DeployScript}, repoDir, deployEnv, deployBuildIdleTimeout)
+		out, err := runDeployBuildCommand(ctx, "bash", []string{"-c", settings.DeployScript}, repoDir, deployEnv, deployBuildIdleTimeout, flushBuildProgress)
 		buildLog.Write(out)
 		if err != nil {
 			buildSuccess = false
@@ -1624,7 +1706,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 			if dirExists(filepath.Join(repoDir, "cmd", "server")) && dirExists("/opt/cuan/releases") {
 				deployArgs = append(deployArgs, "--local", "--native-sync", "--branch", branch, "--allow-divergent")
 			}
-			out, err := runDeployBuildCommand(ctx, "bash", deployArgs, repoDir, deployEnv, deployBuildIdleTimeout)
+			out, err := runDeployBuildCommand(ctx, "bash", deployArgs, repoDir, deployEnv, deployBuildIdleTimeout, flushBuildProgress)
 			buildLog.Write(out)
 			if err != nil {
 				buildSuccess = false
@@ -1695,6 +1777,9 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	dep.Steps[1].Duration = fmt.Sprintf("%ds", max(1, int(step2End.Sub(step2Start).Seconds())))
 
 	if !buildSuccess {
+		if isCanceledInDB() {
+			return
+		}
 		dep.Steps[1].Status = cuanDB.StepStatusFailed
 		dep.Steps[1].Summary = "Build pipeline failed"
 		dep.Steps[1].Log = buildLog.String()
@@ -1705,6 +1790,9 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 
 		// Process next queued deployment even if current failed
 		s.processNextQueuedDeployment(projectID, repoDir, proj)
+		return
+	}
+	if isCanceledInDB() {
 		return
 	}
 
@@ -1949,8 +2037,13 @@ func (s *Server) handleCancelProjectDeployment(w http.ResponseWriter, r *http.Re
 		_ = s.projectDeploymentRepo.Update(r.Context(), dep)
 	}
 
-	// If canceled deployment was active building, unblock lane by starting next queued
+	// If canceled deployment was active building, terminate its running build and unblock lane
 	if wasBuilding {
+		if cancelFn, ok := s.deployCancels.LoadAndDelete(depID); ok {
+			if fn, ok := cancelFn.(context.CancelFunc); ok && fn != nil {
+				fn()
+			}
+		}
 		proj, repoDir, _ := s.resolveProjectDeployRepoDir(r.Context(), projectID)
 		if proj != nil {
 			s.processNextQueuedDeployment(projectID, repoDir, proj)

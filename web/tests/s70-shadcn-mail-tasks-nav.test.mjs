@@ -18,30 +18,24 @@ test('1. S70-T1: Main & Manage Navigation Architecture (NAV_GROUPS)', () => {
   const appShellSource = fs.readFileSync(appShellPath, 'utf8')
   const appSource = fs.readFileSync(appPath, 'utf8')
 
-  // Verify Main group contains only Inbox and Tasks
+  // Verify unified Main group contains New work, Inbox, Projects, Contacts, and Settings without Manage/KELOLA separator
   assert.ok(
     appShellSource.includes("id: 'main'"),
     'NAV_GROUPS must define id: main group'
   )
   assert.ok(
-    appShellSource.includes("to: '/inbox'") && appShellSource.includes("to: '/tasks'"),
-    'NAV_GROUPS main group must contain routes for /inbox and /tasks'
-  )
-
-  // Verify Manage group contains Projects, Contacts, and Settings
-  assert.ok(
-    appShellSource.includes("id: 'manage'"),
-    'NAV_GROUPS must define id: manage group'
+    !appShellSource.includes("id: 'manage'") && !appShellSource.includes("label: 'Manage'"),
+    'NAV_GROUPS must not define Manage/KELOLA group or label'
   )
   assert.ok(
-    appShellSource.includes("label: 'Manage'"),
-    'NAV_GROUPS manage group must be labeled Manage'
-  )
-  assert.ok(
+    appShellSource.includes("to: '/studio'") &&
+    appShellSource.includes("to: '/inbox'") &&
     appShellSource.includes("to: '/projects'") &&
     appShellSource.includes("to: '/contacts'") &&
-    appShellSource.includes("to: '/settings'"),
-    'NAV_GROUPS manage group must contain routes for projects, contacts, and settings'
+    !appShellSource.includes("to: '/settings'") &&
+    !appShellSource.includes("to: '/tasks'") &&
+    appShellSource.includes("navButton('settings', 'Settings', Settings)"),
+    'NAV_GROUPS main group must unify daily work routes (/studio, /inbox, /projects, /contacts) while Settings sits in the bottom-left footer'
   )
 
   // Verify AppTab includes agents, team, skills

@@ -35,6 +35,9 @@ func validateVerificationRuntimeRecovery(ctx context.Context, store Store, t *Ta
 	if proof.RecoveryCause == "capacity" {
 		return ValidateVerificationCapacityRecovery(ctx, store, t, proof, activities)
 	}
+	if proof.RecoveryCause == "interrupted" {
+		return ValidateVerificationInterruptionRecovery(ctx, store, t, proof, activities)
+	}
 	parent, err := store.GetAttempt(ctx, proof.RecoveryAttemptID)
 	if err != nil {
 		return err

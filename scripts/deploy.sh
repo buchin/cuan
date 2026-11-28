@@ -139,10 +139,68 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
   python3 scripts/test-runtime-cache-maintenance.py
 fi
 
+persistent_cache_base=""
+if [[ -d "/opt/cuan/data" && -w "/opt/cuan/data" ]]; then
+  persistent_cache_base="/opt/cuan/data/.cache"
+elif [[ -n "${HOME:-}" ]]; then
+  persistent_cache_base="${HOME}/.cache"
+else
+  persistent_cache_base="/home/ubuntu/.cache"
+fi
+
+skip_frontend_build=0
+if [[ "$frontend_only" == 0 && -z "${CUAN_FORCE_FRONTEND_BUILD:-}" && -f "/opt/cuan/current/REVISION" && -d "/opt/cuan/current/web/dist" ]]; then
+  live_rev="$(tr -d '[:space:]' < /opt/cuan/current/REVISION 2>/dev/null || true)"
+  if [[ "$live_rev" =~ ^[a-f0-9]{40}$ ]] && git cat-file -e "$live_rev^{commit}" 2>/dev/null; then
+    if git diff --quiet "$live_rev" HEAD -- web/ 2>/dev/null; then
+      skip_frontend_build=1
+    fi
+  fi
+fi
+
+if [[ "$skip_frontend_build" == 1 ]]; then
+  echo '::cuan-release-stage::dependencies'
+  echo "==> No changes under web/ since $live_rev; reusing /opt/cuan/current/web/dist (skipping npm ci, build, and tests)..."
+  rm -rf web/dist
+  cp -aL /opt/cuan/current/web/dist web/dist
+else
 echo '::cuan-release-stage::dependencies'
 echo "==> Installing locked frontend dependencies in this release checkout..."
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=512}"
-npm ci --prefix web --no-audit --no-fund
+npm_lock_hash=""
+if [[ -f web/package-lock.json ]]; then
+  if command -v sha256sum >/dev/null 2>&1; then
+    npm_lock_hash="$(sha256sum web/package-lock.json | awk '{print $1}')"
+  elif command -v shasum >/dev/null 2>&1; then
+    npm_lock_hash="$(shasum -a 256 web/package-lock.json | awk '{print $1}')"
+  fi
+fi
+npm_cache_root="${CUAN_NPM_CACHE_DIR:-$persistent_cache_base/cuan-web-node-modules}"
+npm_cache_dir=""
+if [[ -n "$npm_lock_hash" && -z "${CUAN_SKIP_NPM_CACHE:-}" ]]; then
+  npm_cache_dir="$npm_cache_root/$npm_lock_hash"
+fi
+if [[ -n "$npm_cache_dir" && -d "$npm_cache_dir/node_modules" ]]; then
+  echo "==> Reusing cached web/node_modules for lockfile $npm_lock_hash..."
+  rm -rf web/node_modules
+  cp -a "$npm_cache_dir/node_modules" web/node_modules
+else
+  npm ci --prefix web --no-audit --no-fund
+  if [[ -n "$npm_cache_dir" && -d web/node_modules ]]; then
+    mkdir -p "$npm_cache_root"
+    tmp_npm_cache="${npm_cache_dir}.tmp.$$"
+    rm -rf "$tmp_npm_cache"
+    if cp -a web/node_modules "$tmp_npm_cache" 2>/dev/null; then
+      mkdir -p "$npm_cache_dir"
+      rm -rf "$npm_cache_dir/node_modules"
+      mv "$tmp_npm_cache" "$npm_cache_dir/node_modules"
+      # Keep only the latest 2 lockfile caches to prevent unbounded disk growth
+      find "$npm_cache_root" -mindepth 1 -maxdepth 1 -type d ! -name "$npm_lock_hash" | sort | head -n -2 | xargs -r rm -rf 2>/dev/null || true
+    else
+      rm -rf "$tmp_npm_cache"
+    fi
+  fi
+fi
 # Frontend gates inspect generated chunks; build this exact source once before
 # testing so clean checkouts never depend on assets from an older release.
 echo "==> Building current frontend assets before verification..."
@@ -151,6 +209,7 @@ npm run build --prefix web
 echo '::cuan-release-stage::tests'
 echo "==> Running frontend test gate..."
 npm test --prefix web
+fi
 
 release_sha="$local_sha"
 
@@ -208,8 +267,10 @@ echo '::cuan-release-stage::build'
 echo "==> Compiling Go backend binaries with shared cache reuse for $release_sha..."
 # Export GOCACHE and GOMODCACHE explicitly so maintenance cleanup sees active
 # references in /proc/<pid>/environ and does not prune caches mid-build.
-export GOCACHE="${GOCACHE:-${HOME:-/home/ubuntu}/.cache/go-build}"
-export GOMODCACHE="${GOMODCACHE:-${HOME:-/home/ubuntu}/go/pkg/mod}"
+export GOCACHE="${GOCACHE:-$persistent_cache_base/go-build}"
+export GOMODCACHE="${GOMODCACHE:-$persistent_cache_base/go-mod}"
+export GOPATH="${GOPATH:-$persistent_cache_base/gopath}"
+mkdir -p "$GOCACHE" "$GOMODCACHE" "$GOPATH"
 # Each concurrent go build creates its own temporary dependency graph. On the
 # production host that multiplied peak disk use and exhausted the filesystem.
 # Serial builds reuse Go's completed cache entries and stop at the first failure.

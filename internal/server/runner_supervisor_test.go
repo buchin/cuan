@@ -3,7 +3,9 @@ package server
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -85,5 +87,15 @@ func TestServer_ReconcileStaleRunners_NilDB(t *testing.T) {
 	srv := &Server{}
 	if err := srv.ReconcileStaleRunners(context.Background()); err != nil {
 		t.Fatalf("expected nil error on nil db, got: %v", err)
+	}
+}
+
+func TestConfigureSupervisorChildProcAttr_LinuxPdeathsig(t *testing.T) {
+	cmd := exec.Command("true")
+	configureSupervisorChildProcAttr(cmd)
+	if runtime.GOOS == "linux" {
+		if cmd.SysProcAttr == nil || cmd.SysProcAttr.Pdeathsig == 0 {
+			t.Fatal("expected Pdeathsig to be set on supervised child on linux")
+		}
 	}
 }

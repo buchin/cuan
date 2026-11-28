@@ -7,13 +7,13 @@ import { fileURLToPath } from 'node:url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const webDir = path.resolve(__dirname, '..')
 
-test('Navigation menu order: Chat, Inbox, Tasks, Project, Account', async (t) => {
+test('Navigation menu order: New work, Inbox, Project, Account (Tasks removed from primary nav)', async (t) => {
   const appShellContent = fs.readFileSync(
     path.join(webDir, 'src/components/layout/AppShell.tsx'),
     'utf-8',
   )
 
-  // Verify NAV_ITEMS contains Chat, Inbox, Tasks, Projects
+  // Verify NAV_ITEMS contains New work, Inbox, Projects (no Tasks, no Contacts)
   const navItemsMatch = appShellContent.match(/const NAV_ITEMS = \[([\s\S]*?)\] as const/)
   assert.ok(navItemsMatch, 'NAV_ITEMS must be defined in AppShell.tsx')
 
@@ -22,14 +22,23 @@ test('Navigation menu order: Chat, Inbox, Tasks, Project, Account', async (t) =>
     (m) => ({ id: m[1], label: m[2] }),
   )
 
-  // 1. Chat
+  // 1. New work (studio)
   // 2. Inbox
-  // 3. Tasks
-  // 4. Projects (Project)
+  // 3. Projects (Project)
   assert.deepEqual(
     items.map((i) => i.id),
-    ['studio', 'inbox', 'tasks', 'projects'],
-    'Main rail items must be chat, inbox, tasks, projects in exact order',
+    ['studio', 'inbox', 'projects'],
+    'Main rail items must be studio, inbox, projects in exact order without tasks',
+  )
+
+  // Tasks must NOT be in NAV_ITEMS or NAV_GROUPS
+  assert.ok(
+    !items.some((i) => i.id === 'tasks'),
+    'Tasks must no longer be in NAV_ITEMS',
+  )
+  assert.ok(
+    !appShellContent.includes("to: '/tasks'"),
+    'Tasks must no longer be in NAV_GROUPS',
   )
 
   // Contacts must NOT be in NAV_ITEMS top rail
@@ -38,10 +47,14 @@ test('Navigation menu order: Chat, Inbox, Tasks, Project, Account', async (t) =>
     'Contacts must no longer be in the top-level main NAV_ITEMS',
   )
 
-  // Verify NavUser handles Account and sits as 5th destination in navigation
+  // Verify Settings sits in the bottom-left desktop sidebar footer instead of NavUser profile card
   assert.ok(
-    appShellContent.includes('<NavUser'),
-    'AppShell must render NavUser for Account navigation',
+    !appShellContent.includes('<NavUser'),
+    'AppShell must not render NavUser profile card in desktop sidebar footer',
+  )
+  assert.ok(
+    appShellContent.includes("navButton('settings', 'Settings', Settings)"),
+    'AppShell must render Settings navButton in desktop sidebar footer',
   )
   assert.ok(
     appShellContent.includes("currentTab === 'account'"),
@@ -140,4 +153,31 @@ test('All navigation routes have valid targets and no broken links', async (t) =
     fs.existsSync(distIndexPath),
     'Build dist/index.html must exist after build',
   )
+})
+
+test('Mobile bottom navigation labels use t() and Indonesian translations match desktop sidebar', () => {
+  const appShellContent = fs.readFileSync(
+    path.join(webDir, 'src/components/layout/AppShell.tsx'),
+    'utf-8',
+  )
+  const idJson = JSON.parse(
+    fs.readFileSync(path.join(webDir, 'src/locales/id.json'), 'utf-8'),
+  )
+
+  for (const label of ['Inbox', 'Projects', 'New work', 'Contacts', 'Settings']) {
+    assert.ok(
+      appShellContent.includes(`aria-label={t('${label}')}`),
+      `Mobile bottom nav must localize aria-label for ${label}`,
+    )
+    assert.ok(
+      appShellContent.includes(`{t('${label}')}</span>`),
+      `Mobile bottom nav must localize visible label for ${label}`,
+    )
+  }
+
+  assert.equal(idJson['Projects'], 'Project')
+  assert.equal(idJson['Contacts'], 'Kontak')
+  assert.equal(idJson['Settings'], 'Pengaturan')
+  assert.equal(idJson['New work'], 'New work')
+  assert.equal(idJson['Inbox'], 'Inbox')
 })

@@ -331,6 +331,7 @@ func (s *Server) ensureTaskCompletionDelivered(ctx context.Context, detail *task
 					strings.Contains(m.Content, "Pekerjaan telah selesai") ||
 					strings.Contains(m.Content, "sudah selesai dan diverifikasi") ||
 					strings.Contains(m.Content, "telah selesai dan diverifikasi") ||
+					strings.Contains(m.Content, "cuan-approval") ||
 					strings.Contains(m.Content, "Draf balasan untuk pengunjung") ||
 					strings.Contains(m.Content, "Customer reply draft")) {
 				return
@@ -341,6 +342,7 @@ func (s *Server) ensureTaskCompletionDelivered(ctx context.Context, detail *task
 	if summary == "" {
 		summary = "Pekerjaan telah diselesaikan dan diverifikasi."
 	}
+	imageIDs := s.taskDeliveredImageAttachmentIDs(ctx, &detail.Task, detail)
 	var content string
 	if s.isCustomerRoom(ctx, targetRoom) {
 		draft := extractCustomerReplyDraft(detail.CompleteNote)
@@ -356,6 +358,8 @@ func (s *Server) ensureTaskCompletionDelivered(ctx context.Context, detail *task
 			}
 		}
 		content = fmt.Sprintf("Investigasi dan penanganan tugas selesai diverifikasi.\n\n**Draf balasan untuk pengunjung:**\n> %s\n\n[View work](/tasks/%s)", strings.ReplaceAll(draft, "\n", "\n> "), detail.ID)
+	} else if isDevNullShipLogTask(detail.Title, summary) || parseInboxApprovalPlan(summary) != nil {
+		content = formatTaskCompletionForInbox(detail, len(imageIDs) > 0)
 	} else {
 		title := humanizeTaskTitle(detail.Title)
 		if title == "" {
@@ -363,6 +367,7 @@ func (s *Server) ensureTaskCompletionDelivered(ctx context.Context, detail *task
 		}
 		content = fmt.Sprintf("**%s** sudah selesai dan diverifikasi.\n\n%s\n\n[View work](/tasks/%s)", title, summary, detail.ID)
 	}
+	content = encodeAttachmentMessage(content, imageIDs)
 	authorID := "agent_cuan"
 	authorName := "@cuan"
 	if detail.AssignedAgent != "" {

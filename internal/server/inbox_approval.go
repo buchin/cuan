@@ -19,7 +19,8 @@ func splitInboxApproval(author, content string) (string, string) {
 		return content, ""
 	}
 	const marker = "```cuan-approval\n"
-	text := strings.TrimSpace(strings.ReplaceAll(content, "\r\n", "\n"))
+	unwrapped, _ := decodeAttachmentMessage(content)
+	text := strings.TrimSpace(strings.ReplaceAll(unwrapped, "\r\n", "\n"))
 	index := strings.LastIndex(text, marker)
 	if index < 0 || strings.Count(text, marker) != 1 || strings.Contains(text, "```cuan-delegate") || strings.Contains(text, "```cuan-task") {
 		return content, ""
@@ -80,11 +81,12 @@ type approvedInboxPlan struct {
 }
 
 func parseInboxApprovalPlan(content string) *inboxApprovalPlan {
-	_, title := splitInboxApproval("agent", content)
+	unwrapped, _ := decodeAttachmentMessage(content)
+	_, title := splitInboxApproval("agent", unwrapped)
 	if title == "" {
 		return nil
 	}
-	text := strings.TrimSpace(strings.ReplaceAll(content, "\r\n", "\n"))
+	text := strings.TrimSpace(strings.ReplaceAll(unwrapped, "\r\n", "\n"))
 	start := strings.LastIndex(text, "```cuan-approval\n")
 	if start < 0 {
 		return nil

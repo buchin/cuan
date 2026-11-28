@@ -260,7 +260,7 @@ func (s *Server) triggerAutoDeploy(ctx context.Context, projectID, taskID string
 				ProjectID:    projectID,
 				TaskID:       taskID,
 				LocalPath:    proj.LocalPath,
-				DeployScript: settings.DeployScript,
+				DeployScript: project.EffectiveDeployScript(proj.Metadata, proj.LocalPath),
 				Environment:  settings.Environment,
 				Branch:       branch,
 				CommitSHA:    detail.CommitSHA,

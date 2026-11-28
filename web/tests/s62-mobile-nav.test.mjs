@@ -97,10 +97,10 @@ test('2. S62-T1: Elimination of Duplicated Schedules from Desktop Sidebar NAV_GR
     'NAV_GROUPS must not contain legacy to: /schedules'
   )
 
-  // Verify Manage or Operations contains Contacts
+  // Verify unified Main group contains Contacts without Manage separator
   assert.ok(
-    navGroupsBlock.includes("id: 'manage'") || navGroupsBlock.includes("id: 'operations'"),
-    'NAV_GROUPS must contain manage or operations group'
+    navGroupsBlock.includes("id: 'main'") && !navGroupsBlock.includes("id: 'manage'"),
+    'NAV_GROUPS must unify primary items in main group without manage group'
   )
   assert.ok(
     navGroupsBlock.includes("to: '/contacts'"),

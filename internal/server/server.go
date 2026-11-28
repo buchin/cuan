@@ -50,6 +50,7 @@ type Server struct {
 	publicationObserver         func(context.Context, publication.Config) (string, error)
 	releaseObservations         sync.Map
 	broadcastUnsubscribes       sync.Map
+	deployCancels               sync.Map
 	scopeAuditNext              atomic.Int64
 	inboxDeliveryDiagnosticNext atomic.Int64
 	extensions                  *extensionSDK.Registry
@@ -832,6 +833,7 @@ func (s *Server) routes() {
 	s.router.Post("/api/v1/task-agent/{id}/push", s.handleTaskAgent)
 	s.router.Post("/api/v1/task-agent/{id}/publish", s.handleTaskAgent)
 	s.router.Get("/api/v1/projects/{id}/terminal/git-credentials", s.handleProjectTerminalGitCredentials)
+	s.router.With(auth.Middleware(s.authSvc)).Post("/api/v1/projects/{id}/terminal/rotate-git-token", s.handleProjectTerminalRotateGitToken)
 
 	// Domain route registrations (root router)
 	s.registerSystemRoutes(s.router)

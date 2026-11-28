@@ -277,7 +277,7 @@ func (s *Server) getFormattedMessagesResultPaged(ctx context.Context, roomID, pr
 				isInternal = customerMessageInternal(&m)
 			}
 		}
-		messageContent := m.Content
+		messageContent, attachmentIDs := decodeAttachmentMessage(m.Content)
 		replyDraft := ""
 		if m.AuthorType == "agent" {
 			messageContent, replyDraft = splitCustomerReplyDraft(messageContent)
@@ -295,7 +295,7 @@ func (s *Server) getFormattedMessagesResultPaged(ctx context.Context, roomID, pr
 		var approvalPlan *inboxApprovalPlan
 		approvalRequestID := ""
 		if m.AuthorType == "agent" {
-			approvalPlan = parseInboxApprovalPlan(m.Content)
+			approvalPlan = parseInboxApprovalPlan(messageContent)
 			if approvalPlan != nil {
 				approvalRequestID = delegationMessageID("approve-plan:" + roomID + ":" + m.ID)
 				content = presentContinuationText(content, approvalPlan)
@@ -326,9 +326,7 @@ func (s *Server) getFormattedMessagesResultPaged(ctx context.Context, roomID, pr
 		}
 		var attached []conversationAttachment
 		if m.AuthorType == "user" || m.AuthorType == "agent" {
-			var ids []string
-			content, ids = decodeAttachmentMessage(content)
-			for _, id := range ids {
+			for _, id := range attachmentIDs {
 				// Owner-only APIs share the account context; files remain private.
 				a, _, err := loadAttachmentForMessage(ctx, s, roomID, m.ID, id)
 				if err != nil {

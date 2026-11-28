@@ -135,6 +135,24 @@ const sampleDeployments = [
     ]
   },
   {
+    id: 'dep_building',
+    project_id: sampleProject.id,
+    commit_sha: 'bcc5fbb31234567890abcdef1234567890abcdef',
+    short_sha: 'bcc5fbb',
+    commit_message: 'fix(task,watchdog): allow interrupted verification recovery intent',
+    branch: 'dev',
+    status: 'building',
+    trigger_source: 'webhook',
+    trigger_author: 'buchin',
+    duration_seconds: 9,
+    duration: '9s',
+    started_at: new Date(Date.now() - 9000).toISOString(),
+    completed_at: '',
+    created_at: new Date(Date.now() - 9000).toISOString(),
+    relative_time: 'Baru saja',
+    steps: []
+  },
+  {
     id: 'dep_02',
     project_id: sampleProject.id,
     commit_sha: '057a77a987654321fedcba0987654321fedcba09',
@@ -343,7 +361,39 @@ try {
 
   // Verify list row elements
   const rowCount = await pageDesktop.locator('.group').count()
-  assert.ok(rowCount >= 4, `expected at least 4 deployment rows, got ${rowCount}`)
+  assert.ok(rowCount >= 5, `expected at least 5 deployment rows, got ${rowCount}`)
+
+  const assertListAlignment = async (page, viewportLabel) => {
+    const metrics = await page.evaluate(() => {
+      const rows = Array.from(document.querySelectorAll('[data-deployment-row="true"]'))
+      return rows.map((row) => {
+        const slot = row.querySelector('[data-status-icon-slot="true"]')
+        const icon = slot?.firstElementChild
+        const title = row.querySelector('p')
+        const slotRect = slot?.getBoundingClientRect()
+        const iconRect = icon?.getBoundingClientRect()
+        const titleRect = title?.getBoundingClientRect()
+        return {
+          title: title?.textContent?.trim() || '',
+          slotX: slotRect?.x ?? -1,
+          slotWidth: slotRect?.width ?? -1,
+          iconCenterX: iconRect ? iconRect.x + iconRect.width / 2 : -1,
+          titleX: titleRect?.x ?? -1,
+        }
+      })
+    })
+    assert.ok(metrics.length >= 5, `${viewportLabel}: expected at least 5 rows`)
+    const base = metrics[0]
+    for (const m of metrics) {
+      assert.ok(Math.abs(m.slotWidth - base.slotWidth) <= 0.5, `${viewportLabel}: slotWidth mismatch for "${m.title}": ${m.slotWidth} vs ${base.slotWidth}`)
+      assert.ok(Math.abs(m.slotX - base.slotX) <= 0.5, `${viewportLabel}: slotX mismatch for "${m.title}": ${m.slotX} vs ${base.slotX}`)
+      assert.ok(Math.abs(m.iconCenterX - base.iconCenterX) <= 0.5, `${viewportLabel}: iconCenterX mismatch for "${m.title}": ${m.iconCenterX} vs ${base.iconCenterX}`)
+      assert.ok(Math.abs(m.titleX - base.titleX) <= 0.5, `${viewportLabel}: titleX mismatch for "${m.title}": ${m.titleX} vs ${base.titleX}`)
+    }
+    console.log(`${viewportLabel} alignment verified across ${metrics.length} rows: slotWidth=${base.slotWidth.toFixed(1)}, iconCenterX=${base.iconCenterX.toFixed(1)}, titleX=${base.titleX.toFixed(1)}`)
+  }
+
+  await assertListAlignment(pageDesktop, 'desktop-1440')
 
   // Capture Desktop Deployments List (with queued lane item & webhook badge)
   const listShotPath = path.join(output, 'project-deployments-desktop-1440.png')
@@ -405,6 +455,27 @@ try {
   await pageDesktop.screenshot({ path: failDrawerShotPath, fullPage: true })
   console.log(`Saved failed deployment drawer screenshot to: ${failDrawerShotPath}`)
 
+  const timelineMetrics = await pageDesktop.evaluate(() => {
+    const items = Array.from(document.querySelectorAll('[data-timeline-item]'))
+    return items.map((item) => {
+      const slot = item.querySelector('[data-timeline-status-slot="true"]')
+      const icon = slot?.firstElementChild
+      const slotRect = slot?.getBoundingClientRect()
+      const iconRect = icon?.getBoundingClientRect()
+      return {
+        id: item.getAttribute('data-timeline-item'),
+        slotWidth: slotRect?.width ?? -1,
+        iconCenterX: iconRect ? iconRect.x + iconRect.width / 2 : -1,
+      }
+    })
+  })
+  assert.ok(timelineMetrics.length >= 2, 'expected at least 2 timeline items in failed deployment drawer')
+  for (const tm of timelineMetrics) {
+    assert.ok(Math.abs(tm.slotWidth - timelineMetrics[0].slotWidth) <= 0.5, `timeline slotWidth mismatch on ${tm.id}`)
+    assert.ok(Math.abs(tm.iconCenterX - timelineMetrics[0].iconCenterX) <= 0.5, `timeline iconCenterX mismatch on ${tm.id}: ${tm.iconCenterX} vs ${timelineMetrics[0].iconCenterX}`)
+  }
+  console.log(`drawer timeline alignment verified across ${timelineMetrics.length} steps: slotWidth=${timelineMetrics[0].slotWidth.toFixed(1)}, iconCenterX=${timelineMetrics[0].iconCenterX.toFixed(1)}`)
+
   await pageDesktop.keyboard.press('Escape')
   await pageDesktop.waitForTimeout(400)
 
@@ -422,6 +493,8 @@ try {
   await pageMobile.goto(new URL('/projects/' + sampleProject.id + '/deployments', origin).href, { waitUntil: 'domcontentloaded' })
   await pageMobile.waitForSelector('#deployments-trigger-btn', { timeout: 8000 })
   await pageMobile.waitForTimeout(600)
+
+  await assertListAlignment(pageMobile, 'mobile-390')
 
   const mobileShotPath = path.join(output, 'project-deployments-mobile-390.png')
   await pageMobile.screenshot({ path: mobileShotPath, fullPage: true })

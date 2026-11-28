@@ -2,10 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   CheckCircle2,
-  XCircle,
   Loader2,
-  Slash,
-  GitCommit,
   GitBranch,
   Rocket,
   Globe,
@@ -15,7 +12,6 @@ import {
   RefreshCw,
   AlertCircle,
   Ban,
-  Clock,
   Webhook,
   ShieldCheck,
   Sliders
@@ -231,36 +227,89 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
     return new Date(n).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
 
-  const renderStatusIcon = (status: string, size = 'md') => {
-    const dim = size === 'sm' ? 'h-4 w-4' : 'h-4.5 w-4.5 sm:h-5 sm:w-5'
+  const formatTriggerSource = (source?: string) => {
+    switch (source) {
+      case 'webhook':
+        return 'webhook'
+      case 'git_push':
+        return 'git push'
+      case 'manual':
+        return 'manual'
+      default:
+        return source || ''
+    }
+  }
+
+  const formatDeployStatus = (status: string) => {
     switch (status) {
       case 'success':
-        return <CheckCircle2 className={`${dim} text-emerald-600 dark:text-emerald-400 shrink-0`} />
-      case 'building':
-        return <Loader2 className={`${dim} animate-spin text-sky-600 dark:text-sky-400 shrink-0`} />
+        return t('Berhasil')
       case 'failed':
-        return <XCircle className={`${dim} text-rose-600 dark:text-rose-400 shrink-0`} />
+        return t('Gagal')
+      case 'building':
+        return t('Sedang berjalan')
       case 'queued':
-        return <Clock className={`${dim} text-amber-600 dark:text-amber-400 shrink-0`} aria-label={t('Queued in lane')} />
+        return t('Dalam antrean')
+      case 'canceled':
+        return t('Dibatalkan')
+      default:
+        return status
+    }
+  }
+
+  const renderStatusIcon = (status: string, size = 'md') => {
+    const dim = size === 'sm' ? 'h-4 w-4' : 'h-4 w-4 sm:h-5 sm:w-5'
+    const dotSize = size === 'sm' ? 'sm' : 'md'
+    let icon: React.ReactNode
+    switch (status) {
+      case 'success':
+        icon = <CheckCircle2 className={`${dim} text-[color:var(--status-success)] shrink-0`} />
+        break
+      case 'building':
+        icon = <StatusDot size={dotSize} status="working" pulse aria-label={t('Sedang berjalan')} />
+        break
+      case 'failed':
+        icon = <StatusDot size={dotSize} status="danger" aria-label={t('Gagal')} />
+        break
+      case 'queued':
+        icon = <StatusDot size={dotSize} status="idle" aria-label={t('Queued in lane')} />
+        break
       case 'canceled':
       default:
-        return <Slash className={`${dim} text-muted-foreground shrink-0`} />
+        icon = <StatusDot size={dotSize} status="neutral" aria-label={t('Dibatalkan')} />
+        break
     }
+    return (
+      <span
+        data-status-icon-slot="true"
+        className={`inline-flex ${dim} shrink-0 items-center justify-center`}
+      >
+        {icon}
+      </span>
+    )
   }
 
   const timelineItems: AccordionTimelineItem[] = useMemo(() => {
     if (!selectedDeployment?.steps) return []
     return selectedDeployment.steps.map((step) => {
-      let indicator: React.ReactNode = <StatusDot size="md" status="neutral" aria-hidden />
+      let indicatorIcon: React.ReactNode = <StatusDot size="md" status="neutral" aria-hidden />
       if (step.status === 'success') {
-        indicator = <CheckCircle2 className="h-4 w-4 text-[color:var(--status-success)]" aria-hidden />
+        indicatorIcon = <CheckCircle2 className="h-4 w-4 text-[color:var(--status-success)]" aria-hidden />
       } else if (step.status === 'building') {
-        indicator = <StatusDot size="md" status="working" pulse aria-hidden />
+        indicatorIcon = <StatusDot size="md" status="working" pulse aria-hidden />
       } else if (step.status === 'failed') {
-        indicator = <StatusDot size="md" status="danger" aria-hidden />
+        indicatorIcon = <StatusDot size="md" status="danger" aria-hidden />
       } else if (step.status === 'pending') {
-        indicator = <StatusDot size="md" status="idle" aria-hidden />
+        indicatorIcon = <StatusDot size="md" status="idle" aria-hidden />
       }
+      const indicator = (
+        <span
+          data-timeline-status-slot="true"
+          className="inline-flex h-4 w-4 shrink-0 items-center justify-center"
+        >
+          {indicatorIcon}
+        </span>
+      )
 
       // Defensive UI sanitization: ensure success steps never display pending or compiling placeholder strings
       let displaySummary = step.summary
@@ -337,7 +386,7 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
           )}
         </div>
 
-        {/* Action Buttons: Webhook, Deploy & Visit */}
+        {/* Action Buttons: Deploy Settings, Deploy & Visit */}
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -347,7 +396,7 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
             title={t('Pengaturan Deployment, Script & Webhook')}
           >
             <Sliders className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="hidden sm:inline">{t('Pengaturan')}</span>
+            <span className="hidden sm:inline">{t('Atur Deploy')}</span>
           </button>
 
           <button
@@ -420,64 +469,57 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
                 key={dep.id}
                 data-deployment-row="true"
                 onClick={() => setSelectedDepId(dep.id)}
-                className="group flex min-h-[56px] items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-muted/40 active:bg-muted/60 cursor-pointer select-none"
+                className="group flex items-start justify-between gap-3 px-4 py-3.5 transition-colors hover:bg-muted/40 active:bg-muted/60 cursor-pointer select-none"
               >
-                {/* Left: Status Icon, Short SHA, Commit Message */}
-                <div className="flex min-w-0 flex-1 items-center gap-3">
-                  {renderStatusIcon(dep.status)}
+                {/* Left: Status Icon + 2-Line Hierarchy */}
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                  <div className="mt-0.5 flex shrink-0">{renderStatusIcon(dep.status)}</div>
 
-                  <span className="font-mono text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors shrink-0">
-                    {dep.short_sha}
-                  </span>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p className="text-sm font-medium leading-snug text-foreground group-hover:text-primary transition-colors line-clamp-2 sm:line-clamp-1">
+                      {dep.commit_message || t('Deployment manual')}
+                    </p>
 
-                  <div className="flex min-w-0 items-center gap-2">
-                    <GitCommit className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
-                    <span className="truncate text-sm font-normal text-foreground group-hover:text-primary transition-colors">
-                      {dep.commit_message}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
+                      <span className="font-mono text-[11px]">{dep.branch}</span>
+                      {dep.short_sha && (
+                        <>
+                          <span aria-hidden="true" className="text-muted-foreground/50">·</span>
+                          <span className="font-mono text-[11px]">{dep.short_sha}</span>
+                        </>
+                      )}
+                      {dep.trigger_author && (
+                        <>
+                          <span aria-hidden="true" className="text-muted-foreground/50">·</span>
+                          <span>{dep.trigger_author}</span>
+                        </>
+                      )}
+                      {dep.trigger_source && (
+                        <>
+                          <span aria-hidden="true" className="text-muted-foreground/50">·</span>
+                          <span>{formatTriggerSource(dep.trigger_source)}</span>
+                        </>
+                      )}
+                      {dep.duration && (
+                        <>
+                          <span aria-hidden="true" className="text-muted-foreground/50">·</span>
+                          <span
+                            className="font-mono text-[11px] tabular-nums"
+                            title={t('Durasi eksekusi pipeline')}
+                          >
+                            {dep.duration}
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Right: Deployed from branch relative time by author, duration */}
-                <div className="flex shrink-0 items-center gap-2.5 text-xs text-muted-foreground">
-                  <div className="hidden lg:flex items-center gap-1.5 text-[11px]">
-                    <span className="text-muted-foreground/70">
-                      {dep.status === 'canceled'
-                        ? t('Canceled deploy from')
-                        : dep.status === 'queued'
-                        ? t('Queued deploy from')
-                        : dep.status === 'building'
-                        ? t('Deploying from')
-                        : t('Deployed from')}
-                    </span>
-                    <span className="inline-flex items-center rounded bg-muted/80 px-1.5 py-0.5 font-mono text-[10px] text-foreground border border-border/40">
-                      {dep.branch}
-                    </span>
-                    {dep.trigger_author && (
-                      <span className="text-muted-foreground/80">by {dep.trigger_author}</span>
-                    )}
-                    {dep.trigger_source === 'webhook' && (
-                      <span className="inline-flex items-center gap-1 rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground border border-border/30">
-                        <Webhook className="h-2.5 w-2.5" />
-                        webhook
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Deploy Relative Time - ALWAYS visible across all screen sizes */}
-                  <span className="text-xs text-muted-foreground whitespace-nowrap font-medium">
+                {/* Right: Relative time, Fix button (failed only), Chevron */}
+                <div className="flex shrink-0 items-center gap-2.5 pt-0.5 text-xs text-muted-foreground">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
                     {formatDeploymentTime(dep)}
                   </span>
-
-                  {/* Duration Pill - secondary detail */}
-                  {dep.duration && (
-                    <span
-                      className="hidden sm:inline-flex items-center rounded-md bg-muted/50 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground/80 border border-border/30"
-                      title={t('Durasi eksekusi pipeline')}
-                    >
-                      {dep.duration}
-                    </span>
-                  )}
 
                   {dep.status === 'failed' && (
                     <button
@@ -487,7 +529,7 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
                         void handleEscalateToAgent(dep)
                       }}
                       disabled={escalatingId === dep.id}
-                      className="hidden sm:inline-flex items-center gap-1 rounded-md border border-border/60 bg-background/80 hover:bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-background/80 hover:bg-muted px-2.5 py-1 text-xs font-medium text-foreground/90 hover:text-foreground transition-colors cursor-pointer"
                       title={t('Minta Agent bantu perbaiki kegagalan rilis ini')}
                     >
                       {escalatingId === dep.id && (
@@ -591,14 +633,14 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs text-muted-foreground pt-1 border-t border-border/20">
                 <div>
                   <span className="block text-[11px] text-muted-foreground/80">{t('Status')}</span>
-                  <span className="font-medium text-foreground capitalize mt-0.5 block">
-                    {selectedDeployment.status}
+                  <span className="font-medium text-foreground mt-0.5 block">
+                    {formatDeployStatus(selectedDeployment.status)}
                   </span>
                 </div>
                 <div>
                   <span className="block text-[11px] text-muted-foreground/80">{t('Duration')}</span>
                   <span className="font-medium text-foreground mt-0.5 block">
-                    {selectedDeployment.duration || 'In progress'}
+                    {selectedDeployment.duration || t('In progress')}
                   </span>
                 </div>
                 <div>

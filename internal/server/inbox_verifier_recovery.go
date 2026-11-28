@@ -7,7 +7,7 @@ import (
 )
 
 func (s *Server) recoverInspectionVerifier(ctx context.Context, d *task.TaskDetailResponse, origin db.InboxRequest) bool {
-	if d == nil || d.LatestAttempt == nil || d.LatestAttempt.Status != task.AttemptStatusFailed {
+	if d == nil || d.LatestAttempt == nil || (d.LatestAttempt.Status != task.AttemptStatusFailed && d.LatestAttempt.Status != task.AttemptStatusInterrupted) {
 		return false
 	}
 	previous, err := task.LiveInspectionForAttempt(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)

@@ -326,3 +326,100 @@ func TestInboxReviewPublication_ProjectDeploymentSuccessAppliedTaskCommit(t *tes
 		t.Fatalf("expected observed release %s, got %s", appliedSHA, observed.ObservedRelease)
 	}
 }
+
+func TestRequirePublicationReview_InterruptedVerifierStaysVerification(t *testing.T) {
+	s, d, q := stalledReviewFixture(t, "completed")
+	ctx := context.Background()
+	now := time.Now().UTC()
+	sourceCommit := strings.Repeat("b", 40)
+	runningRelease := strings.Repeat("c", 40)
+
+	projects := project.NewMemoryStore()
+	if err := projects.CreateProject(ctx, &project.Project{
+		ID:       d.ProjectID,
+		Name:     "Test Project",
+		RepoURL:  "https://github.com/buchin/cuan",
+		Metadata: registeredReleaseMetadata(t),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	s.projectSvc = project.NewService(projects, nil, "", t.TempDir())
+	s.cfg = &config.Config{Environment: "production", SourceRepository: "buchin/cuan", CommitSHA: runningRelease}
+
+	// Mark latest attempt as an interrupted read-only verification attempt.
+	reqID := db.GenerateUUID()
+	savedLaunch, err := s.taskSvc.SaveLaunch(ctx, task.TaskLaunch{
+		TaskID:           d.ID,
+		ProjectID:        d.ProjectID,
+		RequestID:        reqID,
+		OwnerID:          q.OwnerID,
+		RoomID:           d.SourceRoomID,
+		SourceRequestID:  q.RequestID,
+		AgentID:          q.AgentID,
+		Revision:         "Scope: read-only repository. Do not push. Do not deploy.",
+		InstructionsHash: task.LaunchInstructionsHash(d.Instructions),
+		CreatedAt:        now,
+		AvailableAt:      now,
+		ExpiresAt:        now.Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.taskSvc.ClaimLaunch(ctx, now, "tok", savedLaunch.ID); err != nil {
+		t.Fatal(err)
+	}
+	verifierAtt := &task.TaskAttempt{
+		ID:            task.AttemptRequestID(d.ID, reqID),
+		TaskID:        d.ID,
+		AttemptNumber: 2,
+		RunnerID:      "cuan-runner",
+		AgentName:     q.AgentID,
+		Status:        task.AttemptStatusSucceeded,
+		CreatedAt:     now,
+	}
+	if err := s.taskSvc.Store().CreateAttempt(ctx, verifierAtt); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.taskSvc.Store().CreateActivity(ctx, &task.TaskActivity{
+		ID:           "act-pub-obs",
+		TaskID:       d.ID,
+		AttemptID:    &verifierAtt.ID,
+		ActivityType: publicationConfigurationActivity,
+		Author:       "coordinator",
+		Message:      `{"project_id":"` + d.ProjectID + `","state":"current_process"}`,
+		CreatedAt:    now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	row, err := s.taskSvc.Store().GetTask(ctx, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	row.CommitSHA = sourceCommit
+	if err := s.taskSvc.Store().UpdateTask(ctx, row); err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := s.taskSvc.GetTaskDetail(ctx, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fresh.ResultKind = "implementation"
+	fresh.LatestAttempt.Status = task.AttemptStatusInterrupted
+	fresh.LatestAttempt.ErrorMessage = "Runner heartbeat lost and lease expired; marked interrupted and recoverable without auto-rerun."
+	if !s.isPriorVerificationAttempt(ctx, fresh) {
+		t.Fatalf("expected isPriorVerificationAttempt=true for interrupted verifier launch")
+	}
+
+	got := s.requirePublicationReview(ctx, fresh, inboxReviewEvaluation{
+		Decision:      "revise",
+		RemainingWork: "implementation",
+		ManagerAction: "continue",
+		Revision:      "Finish independent verification",
+	})
+	if got.RemainingWork != "verification" {
+		t.Fatalf("expected RemainingWork=verification for interrupted verifier, got %q (source_review=%q)", got.RemainingWork, got.SourceReview)
+	}
+	if got.SourceReview == "pass" {
+		t.Fatalf("expected SourceReview != pass when verifier was interrupted, got %q", got.SourceReview)
+	}
+}

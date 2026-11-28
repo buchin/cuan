@@ -364,6 +364,7 @@ func (s *Server) handleListCannedResponses(w http.ResponseWriter, r *http.Reques
 	if items == nil {
 		items = []CannedResponse{}
 	}
+	w.Header().Set("Cache-Control", "no-store")
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"canned_responses": items,
 		"total":            len(items),

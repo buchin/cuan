@@ -10,6 +10,7 @@ const {chromium}=require(process.env.CUAN_BROWSER_MODULE||path.join(os.homedir()
 const output=process.argv[2]
 if(!output)throw Error('Supply a new private evidence directory')
 await fs.mkdir(output,{recursive:true,mode:0o700})
+const devnullPreviewPng=await fs.readFile(path.resolve('screenshots/s70-desktop-inbox-mail.png'))
 const now='2026-11-06T05:00:00Z',room='work-fixture'
 const contact={id:room,conversation_id:room,name:'Website pelanggan',type:'customer',email:'customer@example.test',unread_count:0,status:'online',last_message:'The work is queued waiting for the active project task to complete. [View work](/tasks/work)',updated_at:now,task_count:5,active_tasks:1}
 const extraContacts=[
@@ -143,6 +144,24 @@ const messages=[message('source','Tolong perbaiki tampilan website.',{author_typ
    },
    approval_request_id:'plan-approve-expired',
    approval_accepted:false
+ }),
+ message('devnull-proposal','Berikut preview postingan **Daily Ship Log** untuk **dev-null.sh** beserta gambar lampirannya:',{
+   author_type:'agent',
+   is_internal:true,
+   attachments:[
+     {id:'devnull-img',name:'s70-desktop-inbox-mail.png',type:'image/png',size:devnullPreviewPng.length,url:'/api/v1/chat/attachments/devnull-img'}
+   ],
+   approval_title:'Posting Daily Ship Log ke dev-null.sh',
+   approval_plan:{
+     title:'Posting Daily Ship Log ke dev-null.sh',
+     description:'Shipped Cuan (24h, 47 commits): Merapikan navigasi, mempercepat deploy, dan memperkuat pemulihan otomatis agen.\n\nCoba & ikuti perkembangannya:\nhttps://cuan.work\nhttps://github.com/buchin/cuan',
+     project_name:'cuan',
+     execution_category:'ops',
+     required_stages:[]
+   },
+   approval_request_id:'plan-approve-devnull',
+   plan_defer_request_id:'plan-defer-devnull',
+   approval_accepted:false
  })]
 const entry=`import React from 'react';
 import {createRoot} from 'react-dom/client';
@@ -198,6 +217,9 @@ try{
   })
   let releaseSession,sessionLoading=true,sessionStatus='running'
   const fixtureMessages=messages.map(m=>({...m}))
+  const fixtureCannedResponses=[
+   {id:'canned-halo',shortcut:'halo',title:'Salam Pembuka',content:'Halo! Ada yang bisa kami bantu?',category:'greeting',created_at:now,updated_at:now}
+  ]
   page.on('pageerror',error=>errors.push(error.stack || error.message))
   page.on('console',message=>{if(message.type()==='error')console.log(message.text())})
   await page.route('**/api/**',async route=>{
@@ -205,6 +227,9 @@ try{
    if(!pathname.startsWith('/api/'))return route.continue()
    let data={}
    if(pathname.endsWith('/auth/status'))data={setup_required:false}
+   else if(pathname==='/api/v1/chat/attachments/devnull-img'){
+     return route.fulfill({status:200,contentType:'image/png',body:devnullPreviewPng})
+   }
    else if(pathname.endsWith('/auth/me'))data={user:{id:'owner',email:'owner@example.test',name:'Owner',role:'owner'}}
    else if(pathname.endsWith('/messages')&&route.request().method()==='POST'){
      let body={}
@@ -297,6 +322,11 @@ try{
    else if(pathname.includes('preferences'))data={items:{}}
    else if(pathname.includes('/chat/attachments/'))return route.fulfill({status:200,contentType:'image/png',body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==','base64')})
    else if(pathname.endsWith('/projects'))data={projects:[]}
+   else if(pathname.endsWith('/canned-responses')){
+    const q=(new URL(route.request().url()).searchParams.get('q')||'').trim().toLowerCase()
+    const filtered=q?fixtureCannedResponses.filter(c=>c.shortcut.toLowerCase().includes(q)||c.title.toLowerCase().includes(q)||c.content.toLowerCase().includes(q)):fixtureCannedResponses
+    return route.fulfill({status:200,contentType:'application/json',headers:{'Cache-Control':'no-store'},body:JSON.stringify({canned_responses:filtered,total:filtered.length})})
+   }
    else if(pathname.includes('/email')&&route.request().method()==='POST')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'success',email_id:'re_mock_fixture_123',delivery_status:'sent',recipient:'customer@example.test',message:'Email balasan berhasil dikirim'})})
    else if(pathname.endsWith('/cancel')&&route.request().method()==='POST')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'cancelled'})})
    else if(pathname.endsWith('/files')&&route.request().method()==='POST')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({files:[{filename:'screenshot.png',path:'./screenshot.png',size:2048}]})})
@@ -332,11 +362,19 @@ try{
     const activeInbox = desktopNav.locator('.nav-action[aria-current="page"]')
     await activeInbox.waitFor({ state: 'visible' })
     assert.equal(await activeInbox.getAttribute('data-nav-tone'), 'inbox', 'Active nav item must be inbox')
-    const inactiveTasks = desktopNav.locator('.nav-action[data-nav-tone="tasks"]')
-    await inactiveTasks.waitFor({ state: 'visible' })
-    assert.equal(await inactiveTasks.getAttribute('aria-current'), null, 'Tasks must be inactive')
+    assert.equal(await desktopNav.locator('.nav-action[data-nav-tone="tasks"]').count(), 0, 'Tasks must be removed from desktop primary navigation')
+    assert.equal(await desktopNav.locator('[data-testid="nav-group-manage"]').count(), 0, 'Manage/KELOLA group must be removed from desktop sidebar')
+    assert.equal(await desktopNav.locator('[data-testid="nav-group-main"] .nav-action').count(), 4, 'Desktop main nav group must focus on 4 daily work items (New work, Inbox, Projects, Contacts)')
+    assert.equal(await desktopNav.locator('.sidebar-account').count(), 0, 'Desktop sidebar must not render NavUser profile card')
+    const footerSettings = desktopNav.locator('> .border-t .nav-action[data-nav-tone="settings"]')
+    await footerSettings.waitFor({ state: 'visible' })
+    const navText = (await desktopNav.innerText()).toUpperCase()
+    assert.ok(!navText.includes('KELOLA') && !navText.includes('MANAGE'), 'Desktop sidebar must not render KELOLA/Manage label')
+    const inactiveProjects = desktopNav.locator('.nav-action[data-nav-tone="projects"]')
+    await inactiveProjects.waitFor({ state: 'visible' })
+    assert.equal(await inactiveProjects.getAttribute('aria-current'), null, 'Projects must be inactive')
     await desktopNav.screenshot({ path: path.join(output, 'desktop-navigation-active-inbox.png') })
-    await inactiveTasks.hover()
+    await inactiveProjects.hover()
     await page.waitForTimeout(100)
     await desktopNav.screenshot({ path: path.join(output, 'desktop-navigation-hover.png') })
   }
@@ -394,9 +432,11 @@ try{
     }
     const bottomNav = page.locator('.bottom-navigation')
     await bottomNav.waitFor({ state: 'visible' })
+    assert.equal(await bottomNav.locator('[data-testid="bottom-nav-tasks"]').count(), 0, 'Tasks must be removed from mobile bottom navigation')
     const navItems = await page.$$eval('.bottom-navigation > button, .bottom-navigation > div', els =>
       els.map(el => ({
         testId: el.getAttribute('data-testid'),
+        label: (el.textContent || '').trim(),
         x: el.getBoundingClientRect().x,
         width: el.getBoundingClientRect().width,
         height: el.getBoundingClientRect().height,
@@ -408,6 +448,7 @@ try{
     assert.equal(navItems[2].testId, 'bottom-nav-studio', 'Slot 3 must be New work (+)')
     assert.equal(navItems[3].testId, 'bottom-nav-contacts', 'Slot 4 must be Contacts')
     assert.equal(navItems[4].testId, 'bottom-nav-settings', 'Slot 5 must be Settings')
+    assert.deepEqual(navItems.map(i => i.label), ['Inbox', 'Project', 'New work', 'Kontak', 'Pengaturan'], 'Mobile bottom nav labels must be consistent in Indonesian')
     assert.ok(navItems[0].x < navItems[1].x, 'Inbox must be before Projects')
     assert.ok(navItems[1].x < navItems[2].x, 'Projects must be before New work (+)')
     assert.ok(navItems[2].x < navItems[3].x, 'New work (+) must be before Contacts')
@@ -988,6 +1029,21 @@ try{
   assert.ok(expandedStudioHeight > initialStudioHeight, 'Studio goal textarea must smoothly auto-expand when typing multiple lines')
   await page.screenshot({ path: path.join(output, `studio-expanded-${width}.png`) })
 
+  // Verify Settings page: Personal Account & Sign out at top of SettingsMasterNav, plus clean desktop/mobile layout
+  await page.goto(new URL('/settings', origin).href, { waitUntil: 'domcontentloaded' })
+  const settingsNav = page.locator('nav[aria-label="Navigasi pengaturan"], nav[aria-label="Settings navigation"]')
+  await settingsNav.waitFor({ state: 'visible', timeout: 10000 })
+  const settingsSignOut = settingsNav.getByTestId('settings-sign-out')
+  await settingsSignOut.waitFor({ state: 'visible', timeout: 5000 })
+  const firstCategoryTitle = await settingsNav.locator('h3').first().innerText()
+  assert.ok(/AKUN|ACCOUNT/i.test(firstCategoryTitle), `First Settings category must be Personal Account, got "${firstCategoryTitle}"`)
+  if (width >= 1200) {
+    const desktopNav = page.locator('nav.primary-navigation')
+    const activeSettings = desktopNav.locator('> .border-t .nav-action[data-nav-tone="settings"][aria-current="page"]')
+    await activeSettings.waitFor({ state: 'visible', timeout: 5000 })
+  }
+  await page.screenshot({ path: path.join(output, `settings-${width}.png`) })
+
   // Verify circular TypingDots & bubble-contained InboxActivity (light & dark mode)
   await page.goto(new URL('/inbox/c-agent', origin).href, { waitUntil: 'domcontentloaded' })
   const activityBubble = page.locator('[data-response-state="running"].wa-message-bubble.wa-incoming[data-bubble-tail="incoming"]')
@@ -1141,7 +1197,66 @@ try{
   assert.ok(!bodyTextAfterSecret.includes('sk-tebar-fixture-secret-999'), 'Raw secret must NEVER appear in chat DOM after submit')
   await page.screenshot({ path: path.join(output, `secret-input-submitted-${width}.png`) })
 
-  checks.push({width,composer_task_disclosure:true,composer_task_autoscroll:true,last_task_visible:true,no_chat_task_card:true,session_loading_running_completed:true,back_preserves_draft_and_scroll:true,full_terminal_height:terminalBox.height,panel_width:box.width,composer_alignment:true,multiline_autoexpand:true,studio_autoexpand:true,typing_dots_circular:true,message_context_menu_ui:menuMetrics,message_edit_and_delete:true,secret_input_card:true})
+  // Verify DevNull Daily Ship Log proposal renders inline image preview + 1-click ApprovalCard
+  const devnullRow = page.locator('[data-message-id="devnull-proposal"]')
+  await devnullRow.waitFor({ state: 'visible', timeout: 10000 })
+  await devnullRow.scrollIntoViewIfNeeded()
+  const devnullImg = devnullRow.locator('img[alt="s70-desktop-inbox-mail.png"]')
+  await devnullImg.waitFor({ state: 'visible', timeout: 10000 })
+  const devnullImgReady = await devnullImg.evaluate((el) => el.complete && el.naturalWidth > 0)
+  assert.ok(devnullImgReady, 'DevNull proposal image preview must load with naturalWidth > 0')
+  const devnullCard = devnullRow.locator('[data-testid="approval-card"]')
+  await devnullCard.waitFor({ state: 'visible', timeout: 5000 })
+  await devnullCard.getByText('Posting Daily Ship Log ke dev-null.sh').waitFor({ state: 'visible', timeout: 5000 })
+  await devnullCard.getByRole('button', { name: /Setujui dan mulai|Approve and start/i }).waitFor({ state: 'visible', timeout: 5000 })
+  await devnullCard.getByRole('button', { name: /Ubah rencana|Change plan/i }).waitFor({ state: 'visible', timeout: 5000 })
+  await devnullImg.scrollIntoViewIfNeeded()
+  await devnullRow.screenshot({ path: path.join(output, `devnull-proposal-preview-${width}.png`) })
+
+  // Verify Quick Reply (Canned Responses) Zap picker & cross-device slash autocomplete sync on mobile & desktop
+  const cannedTrigger = page.locator('#compose-panel button[aria-haspopup="dialog"]')
+  await cannedTrigger.waitFor({ state: 'visible', timeout: 5000 })
+  await cannedTrigger.click()
+  await page.getByText('/halo').waitFor({ state: 'visible', timeout: 5000 })
+  await page.screenshot({ path: path.join(output, `quick-reply-popover-${width}.png`) })
+  await page.keyboard.press('Escape')
+  await page.getByText('/halo').waitFor({ state: 'hidden', timeout: 5000 })
+
+  // Simulate adding a template from another device (e.g. phone) while this tab stays open
+  fixtureCannedResponses.unshift({
+    id: 'canned-promo-hp',
+    shortcut: 'promo-hp',
+    title: 'Promo dari HP',
+    content: 'Halo! Ini promo terbaru dari HP.',
+    category: 'sales',
+    created_at: now,
+    updated_at: new Date(Date.parse(now) + 120000).toISOString(),
+  })
+  const quickReplyComposer = page.locator('[data-primary-composer]')
+  await quickReplyComposer.fill('/promo')
+  const slashMatchBtn = page.locator('#compose-panel button', { hasText: '/promo-hp' })
+  await slashMatchBtn.waitFor({ state: 'visible', timeout: 5000 })
+  await page.screenshot({ path: path.join(output, `quick-reply-slash-${width}.png`) })
+  await slashMatchBtn.click()
+  assert.equal(await quickReplyComposer.inputValue(), 'Halo! Ini promo terbaru dari HP.', 'Selecting synced slash template must fill composer')
+  await quickReplyComposer.fill('')
+
+  // Simulate another template added while tab was unfocused, then tab regains focus
+  fixtureCannedResponses.unshift({
+    id: 'canned-followup',
+    shortcut: 'followup',
+    title: 'Follow Up Pelanggan',
+    content: 'Apakah ada kendala lain yang bisa kami bantu?',
+    category: 'support',
+    created_at: now,
+    updated_at: new Date(Date.parse(now) + 180000).toISOString(),
+  })
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await cannedTrigger.click()
+  await page.getByText('/followup').waitFor({ state: 'visible', timeout: 5000 })
+  await page.keyboard.press('Escape')
+
+  checks.push({width,composer_task_disclosure:true,composer_task_autoscroll:true,last_task_visible:true,no_chat_task_card:true,session_loading_running_completed:true,back_preserves_draft_and_scroll:true,full_terminal_height:terminalBox.height,panel_width:box.width,composer_alignment:true,multiline_autoexpand:true,studio_autoexpand:true,typing_dots_circular:true,message_context_menu_ui:menuMetrics,message_edit_and_delete:true,secret_input_card:true,canned_responses_cross_device_sync:true})
   await context.close()
   await browser.close()
   browser=null

@@ -8,6 +8,7 @@ import {
   chatApi,
   CannedResponse,
 } from '../../api/chat'
+import { CANNED_RESPONSES_CHANGED_EVENT } from './CannedResponsesPicker'
 
 interface CannedResponsesDialogProps {
   open: boolean
@@ -59,6 +60,20 @@ export function CannedResponsesDialog({
       setEditingItem(null)
     }
   }, [open, loadResponses])
+
+  useEffect(() => {
+    if (!open || isCreating || editingItem) return
+    const handleRefresh = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+      void loadResponses()
+    }
+    window.addEventListener('focus', handleRefresh)
+    document.addEventListener('visibilitychange', handleRefresh)
+    return () => {
+      window.removeEventListener('focus', handleRefresh)
+      document.removeEventListener('visibilitychange', handleRefresh)
+    }
+  }, [open, isCreating, editingItem, loadResponses])
 
   const handleStartCreate = () => {
     setFormShortcut('')
@@ -119,6 +134,7 @@ export function CannedResponsesDialog({
       }
       setIsCreating(false)
       setEditingItem(null)
+      window.dispatchEvent(new CustomEvent(CANNED_RESPONSES_CHANGED_EVENT))
       await loadResponses()
     } catch (err: any) {
       setError(err?.message || t('Could not save template.'))
@@ -132,6 +148,7 @@ export function CannedResponsesDialog({
     setLoading(true)
     try {
       await chatApi.deleteCannedResponse(id)
+      window.dispatchEvent(new CustomEvent(CANNED_RESPONSES_CHANGED_EVENT))
       await loadResponses()
     } catch (err: any) {
       setError(err?.message || t('Could not delete template.'))

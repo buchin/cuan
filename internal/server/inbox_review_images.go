@@ -58,7 +58,7 @@ func (s *Server) inboxReviewImages(ctx context.Context, d *task.TaskDetailRespon
 	var ids []string
 	seen := map[string]bool{}
 	for _, m := range deliveries {
-		if m.AuthorType != "agent" || m.RoomID != d.SourceRoomID || m.ReplyToID == nil || *m.ReplyToID != d.SourceMessageID {
+		if m.AuthorType != "agent" || m.RoomID != d.SourceRoomID || !matchesTaskSourceMessage(m.ReplyToID, d.SourceMessageID) {
 			continue
 		}
 		_, attached := decodeAttachmentMessage(m.Content)

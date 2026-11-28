@@ -655,21 +655,21 @@ export function TerminalComposer({
         }
       }}
     >
-      <div className="mx-auto max-w-[75ch] bg-transparent space-y-1.5">
+      <div className="relative mx-auto max-w-[75ch] bg-transparent space-y-1.5">
       {/* ── Slash Commands Autocomplete Popup ── */}
       {showSlashPopup && filteredCommands.length > 0 && (
-        <div className="absolute left-2.5 right-2.5 bottom-full mb-1.5 z-40 max-h-56 overflow-y-auto rounded-xl border border-neutral-700 bg-[#1f1f23] p-1 shadow-2xl backdrop-blur-md">
-          <div className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-neutral-400 border-b border-neutral-800">
+        <div className="absolute left-0 right-0 bottom-full mb-2 z-40 max-h-60 overflow-y-auto rounded-2xl border border-neutral-700/70 bg-[#1f1f23]/95 p-1.5 shadow-xl backdrop-blur-md">
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-neutral-400 border-b border-neutral-800/80 mb-1">
             <Sparkles className="h-3 w-3 text-amber-400" />
             <span>Slash Commands</span>
           </div>
-          <div className="py-1">
+          <div className="space-y-0.5">
             {filteredCommands.map((cmd, idx) => (
               <button
                 key={cmd.command}
                 type="button"
                 onClick={() => executeSlashCommand(cmd)}
-                className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-left text-xs font-mono transition-colors ${
+                className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-left text-xs font-mono transition-colors ${
                   idx === activeSlashIndex
                     ? 'bg-primary/25 text-primary-foreground font-medium'
                     : 'text-neutral-300 hover:bg-neutral-800'
@@ -688,7 +688,7 @@ export function TerminalComposer({
 
       {/* ── Loading Overlay ── */}
       {(loadingUsage || loadingDiff) && (
-        <div className="absolute left-2.5 right-2.5 bottom-full mb-2 z-40 rounded-xl border border-neutral-700 bg-[#18181b] p-3 shadow-2xl flex items-center gap-2 text-xs text-neutral-300 font-mono">
+        <div className="absolute left-0 right-0 bottom-full mb-2 z-40 rounded-xl border border-neutral-700 bg-[#18181b] p-3 shadow-2xl flex items-center gap-2 text-xs text-neutral-300 font-mono">
           <Loader2 className="h-4 w-4 animate-spin text-primary" />
           <span>Memuat data {loadingUsage ? 'resource usage' : 'git diff'}...</span>
         </div>
@@ -696,7 +696,7 @@ export function TerminalComposer({
 
       {/* ── Usage Overlay Card ── */}
       {usageData && (
-        <div className="absolute left-2.5 right-2.5 bottom-full mb-2 z-40 rounded-xl border border-neutral-700 bg-[#18181b] p-3 shadow-2xl text-xs space-y-2">
+        <div className="absolute left-0 right-0 bottom-full mb-2 z-40 rounded-xl border border-neutral-700 bg-[#18181b] p-3 shadow-2xl text-xs space-y-2">
           <div className="flex items-center justify-between border-b border-neutral-800 pb-2">
             <div className="flex items-center gap-2 font-semibold text-neutral-200">
               <Clock className="h-4 w-4 text-primary" />
@@ -733,7 +733,7 @@ export function TerminalComposer({
 
       {/* ── Diff Overlay Card ── */}
       {diffData && (
-        <div className="absolute left-2.5 right-2.5 bottom-full mb-2 z-40 rounded-xl border border-neutral-700 bg-[#18181b] p-3 shadow-2xl text-xs space-y-2 max-h-60 overflow-y-auto">
+        <div className="absolute left-0 right-0 bottom-full mb-2 z-40 rounded-xl border border-neutral-700 bg-[#18181b] p-3 shadow-2xl text-xs space-y-2 max-h-60 overflow-y-auto">
           <div className="flex items-center justify-between border-b border-neutral-800 pb-2">
             <div className="flex items-center gap-2 font-semibold text-neutral-200">
               <GitBranch className="h-4 w-4 text-emerald-400" />

@@ -219,7 +219,7 @@ func (s *RunnerService) Complete(ctx context.Context, attemptID string, req Comp
 					required := settings.IsAutoDeployEnabled() && requiresDeploy && !limits.DenyDeploy
 					publicationRequired = &required
 				}
-				hasDeployScript := strings.TrimSpace(settings.DeployScript) != ""
+				hasDeployScript := project.EffectiveDeployScript(p.Metadata, p.LocalPath) != ""
 				if settings.IsAutoDeployEnabled() && requiresDeploy && !limits.DenyDeploy && !hasDeployScript && managedHandoff == nil && nativeDelivery == nil {
 					activities, receiptErr := s.taskStore.ListActivities(ctx, att.TaskID)
 					if receiptErr != nil {
