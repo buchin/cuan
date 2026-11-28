@@ -202,15 +202,15 @@ try {
       )
     }
 
-    // 3. Verify consistent second line: each row displays "Diperbarui" (Indonesian) activity time
+    // 3. Verify consistent second line: concise Indonesian relative timestamp without "Diperbarui" prefix or truncation
     for (let i = 0; i < rowCount; i++) {
       const row = rows.nth(i)
       const descEl = row.locator('.project-list-row [data-list-row-content] span.text-xs.text-muted-foreground').first()
       const descText = await descEl.innerText()
       console.log(`Row ${i} description: "${descText}"`)
       assert.ok(
-        descText.startsWith('Diperbarui'),
-        `Row ${i} description ("${descText}") must start with "Diperbarui"`
+        descText === 'Baru saja' || /\d+\s+(mnt|jam|hari)\s+lalu$/.test(descText),
+        `Row ${i} description ("${descText}") must be a concise Indonesian relative timestamp`
       )
     }
 

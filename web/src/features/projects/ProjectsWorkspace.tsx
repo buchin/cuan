@@ -14,27 +14,24 @@ import { ProjectWorkView } from './ProjectWorkView'
 import { ProjectActivityView } from './ProjectActivityView'
 import { ProjectDeploymentsView } from './ProjectDeploymentsView'
 
-function formatProjectActivity(item: Project, language: string, t: (key: string) => string): string {
+function formatProjectActivity(item: Project, language: string): string {
   const timestamp = item.updated_at || item.created_at
   if (!timestamp) return ''
   const parsed = Date.parse(timestamp)
   if (!Number.isFinite(parsed)) return ''
   const seconds = Math.max(0, Math.round((Date.now() - parsed) / 1000))
-  let timeText = ''
   if (language === 'id') {
-    if (seconds < 60) timeText = 'baru saja'
-    else if (seconds < 3600) timeText = `${Math.floor(seconds / 60)} mnt lalu`
-    else if (seconds < 86400) timeText = `${Math.floor(seconds / 3600)} jam lalu`
-    else if (seconds < 604800) timeText = `${Math.floor(seconds / 86400)} hari lalu`
-    else timeText = new Date(parsed).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
-  } else {
-    if (seconds < 60) timeText = 'just now'
-    else if (seconds < 3600) timeText = `${Math.floor(seconds / 60)}m ago`
-    else if (seconds < 86400) timeText = `${Math.floor(seconds / 3600)}h ago`
-    else if (seconds < 604800) timeText = `${Math.floor(seconds / 86400)}d ago`
-    else timeText = new Date(parsed).toLocaleDateString(language || 'en-US', { day: 'numeric', month: 'short' })
+    if (seconds < 60) return 'Baru saja'
+    if (seconds < 3600) return `${Math.floor(seconds / 60)} mnt lalu`
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)} jam lalu`
+    if (seconds < 604800) return `${Math.floor(seconds / 86400)} hari lalu`
+    return new Date(parsed).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
   }
-  return `${t('Updated')} ${timeText}`
+  if (seconds < 60) return 'Just now'
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`
+  return new Date(parsed).toLocaleDateString(language || 'en-US', { day: 'numeric', month: 'short' })
 }
 
 export function ProjectsWorkspace({
@@ -332,7 +329,7 @@ export function ProjectsWorkspace({
                     <ListRowContent
                       leading={<ProjectIcon repoUrl={item.repo_url} />}
                       title={<span className="block truncate font-medium text-foreground">{item.name}</span>}
-                      description={formatProjectActivity(item, language, t)}
+                      description={formatProjectActivity(item, language)}
                     />
                   </Link>
                   {hasProgress && (
@@ -348,7 +345,7 @@ export function ProjectsWorkspace({
                       e.preventDefault()
                       void handleOpenProjectTerminal(item.id)
                     }}
-                    className="icon-action text-muted-foreground hover:text-foreground shrink-0 transition-colors"
+                    className={`icon-action text-muted-foreground hover:text-foreground shrink-0 transition-colors ${openingTerminalId === item.id ? 'inline-flex' : 'hidden group-hover:inline-flex group-focus-within:inline-flex'}`}
                     title={t('Open terminal for this project')}
                     aria-label={t('Open terminal for this project')}
                   >

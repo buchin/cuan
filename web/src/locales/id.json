@@ -2354,5 +2354,21 @@
   "Primary": "Utama",
   "Versi baru aktif": "Versi baru aktif",
   "Muat Ulang": "Muat ulang",
-  "Memuat ulang...": "Memuat ulang..."
+  "Memuat ulang...": "Memuat ulang...",
+  "Activity": "Aktivitas",
+  "Deployments": "Deployment",
+  "Archived": "Arsip",
+  "Latest deployments": "Deployment terbaru",
+  "deployment(s)": "deployment",
+  "Visit": "Buka Situs",
+  "Cancel queue": "Batalkan antrean",
+  "Cancel deploy": "Batalkan deploy",
+  "Duration": "Durasi",
+  "Triggered by": "Dipicu oleh",
+  "Deployment Timeline": "Linimasa Deployment",
+  "Queued in lane": "Menunggu dalam antrean",
+  "Application compiled successfully": "Aplikasi berhasil dikompilasi",
+  "Database schema verified and up to date": "Skema database terverifikasi dan mutakhir",
+  "Release symlink swapped and process reloaded": "Symlink rilis diperbarui dan layanan dimuat ulang",
+  "Live service health check passed": "Pemeriksaan kesehatan layanan berhasil"
 }
