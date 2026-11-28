@@ -83,12 +83,6 @@ export const NAV_GROUPS: NavGroupConfig[] = [
     items: [
       { id: 'studio', label: 'New work', icon: Plus, to: '/studio' },
       { id: 'inbox', label: 'Inbox', icon: Inbox, to: '/inbox', description: 'Chat & pesan masuk' },
-    ],
-  },
-  {
-    id: 'manage',
-    label: 'Manage',
-    items: [
       { id: 'projects', label: 'Projects', icon: FolderGit2, to: '/projects', description: 'Workspaces & repo' },
       { id: 'contacts', label: 'Contacts', icon: Users, to: '/contacts', description: 'CRM & memori pelanggan' },
       { id: 'settings', label: 'Settings', icon: Settings, to: '/settings', description: 'Pengaturan & preferensi' },

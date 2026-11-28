@@ -28,11 +28,10 @@ test('1. S59-T3: Desktop Sidebar 3-Group Information Architecture (NAV_GROUPS)',
     'AppShell.tsx must define NAV_GROUPS for structured 3-group navigation'
   )
 
-  // Verify groups: Main & Manage architecture (S70) or legacy Workspace/Operations/System (S59)
+  // Verify unified Main navigation group without Manage/KELOLA separator
   assert.ok(
-    (appShellSource.includes("id: 'main'") && appShellSource.includes("id: 'manage'")) ||
-      (appShellSource.includes("id: 'workspace'") && appShellSource.includes("label: 'Workspace'")),
-    'NAV_GROUPS must define structured navigation groups'
+    appShellSource.includes("id: 'main'") && !appShellSource.includes("id: 'manage'"),
+    'NAV_GROUPS must define unified main navigation group without manage separator'
   )
   assert.ok(
     appShellSource.includes("to: '/studio'") &&
@@ -43,8 +42,9 @@ test('1. S59-T3: Desktop Sidebar 3-Group Information Architecture (NAV_GROUPS)',
 
   assert.ok(
     appShellSource.includes("to: '/projects'") &&
-      appShellSource.includes("to: '/contacts'"),
-    'Manage navigation must contain routes for /projects and /contacts'
+      appShellSource.includes("to: '/contacts'") &&
+      appShellSource.includes("to: '/settings'"),
+    'Unified navigation must contain routes for /projects, /contacts, and /settings'
   )
 
   // Verify desktop sidebar renders testids for all 3 groups
