@@ -491,6 +491,18 @@ Balas "Setuju (pakai gambar)", "Setuju (text-only)", atau sertakan revisi sebelu
 	if completionDTO.ApprovalPlan == nil || completionDTO.ApprovalTitle != "Posting Daily Ship Log ke dev-null.sh" {
 		t.Fatalf("expected interactive approval plan on completion message, got plan=%+v title=%q", completionDTO.ApprovalPlan, completionDTO.ApprovalTitle)
 	}
+	if completionDTO.ApprovalPlan.ExecutionCategory != task.ExecutionCategoryOps {
+		t.Fatalf("expected ExecutionCategory=ops on DevNull approval plan, got %q", completionDTO.ApprovalPlan.ExecutionCategory)
+	}
+	if completionDTO.ApprovalPlan.ApproveLabel != devNullApproveLabel {
+		t.Fatalf("expected ApproveLabel=%q, got %q", devNullApproveLabel, completionDTO.ApprovalPlan.ApproveLabel)
+	}
+	if !strings.Contains(completionDTO.ApprovalPlan.ActionNote, "dev-null.sh") {
+		t.Fatalf("expected ActionNote mentioning dev-null.sh, got %q", completionDTO.ApprovalPlan.ActionNote)
+	}
+	if !strings.Contains(completionDTO.ApprovalPlan.Description, "open-source v1.0") || !strings.Contains(completionDTO.ApprovalPlan.Description, "https://cuan.work | https://github.com/buchin/cuan") {
+		t.Fatalf("expected Sponsorware CTA in DevNull description, got: %s", completionDTO.ApprovalPlan.Description)
+	}
 	for _, forbidden := range []string{"--- DRAFT NARASI SIAP POSTING ---", "--- REKOMENDASI GAMBAR ---", "scripts/post-to-devnull.sh", "short_sha", "chained auto-recovery", "Ringkasan Hasil", "Bukti Verifikasi", `Balas "Setuju`} {
 		if strings.Contains(completionDTO.Content, forbidden) || strings.Contains(completionDTO.ApprovalPlan.Description, forbidden) {
 			t.Fatalf("completion content/plan should not contain %q, got content=%s desc=%s", forbidden, completionDTO.Content, completionDTO.ApprovalPlan.Description)

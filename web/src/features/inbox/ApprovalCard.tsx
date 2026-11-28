@@ -11,6 +11,7 @@ import {
   Folder,
   Pencil,
   Play,
+  Send,
   ChevronDown,
   ChevronUp,
 } from 'lucide-react'
@@ -86,6 +87,15 @@ const MemoizedApprovalCard = memo(function MemoizedApprovalCard({
   const { t } = useLanguage()
   const [planExpanded, setPlanExpanded] = useState(false)
   const isLongPlan = !!plan.description && (plan.description.length > 250 || plan.description.split('\n').filter(Boolean).length > 4)
+  const customApproveLabel = plan.approve_label?.trim()
+  const approveLabel = customApproveLabel
+    ? t(customApproveLabel)
+    : plan.execution_category === 'ops'
+      ? t('Approve and run')
+      : plan.execution_category === 'readonly'
+        ? t('Approve and check')
+        : t('Approve and start')
+  const isPublishAction = !!customApproveLabel && /post|publish|kirim/i.test(customApproveLabel)
 
   return (
     <div
@@ -184,6 +194,16 @@ const MemoizedApprovalCard = memo(function MemoizedApprovalCard({
         </div>
       )}
 
+      {/* Action Context Note */}
+      {!accepted && plan.action_note && (
+        <p
+          data-testid="approval-card-action-note"
+          className="text-xs text-muted-foreground leading-relaxed"
+        >
+          {plan.action_note}
+        </p>
+      )}
+
       {/* Action Buttons (Touch target min-h-11, mobile responsive wrap) */}
       {!accepted && (
         <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/30">
@@ -193,8 +213,12 @@ const MemoizedApprovalCard = memo(function MemoizedApprovalCard({
             disabled={disabled}
             onClick={onApprove}
           >
-            <Play className="h-3.5 w-3.5 fill-current" />
-            <span>{t('Approve and start')}</span>
+            {isPublishAction ? (
+              <Send className="h-3.5 w-3.5" />
+            ) : (
+              <Play className="h-3.5 w-3.5 fill-current" />
+            )}
+            <span>{approveLabel}</span>
           </Button>
 
           {onChangePlan && (
