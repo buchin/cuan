@@ -150,7 +150,16 @@ if [[ -f web/package-lock.json ]]; then
     npm_lock_hash="$(shasum -a 256 web/package-lock.json | awk '{print $1}')"
   fi
 fi
-npm_cache_root="${CUAN_NPM_CACHE_DIR:-${HOME:-/home/ubuntu}/.cache/cuan-web-node-modules}"
+persistent_cache_base=""
+if [[ -d "/opt/cuan/data" && -w "/opt/cuan/data" ]]; then
+  persistent_cache_base="/opt/cuan/data/.cache"
+elif [[ -n "${HOME:-}" ]]; then
+  persistent_cache_base="${HOME}/.cache"
+else
+  persistent_cache_base="/home/ubuntu/.cache"
+fi
+
+npm_cache_root="${CUAN_NPM_CACHE_DIR:-$persistent_cache_base/cuan-web-node-modules}"
 npm_cache_dir=""
 if [[ -n "$npm_lock_hash" && -z "${CUAN_SKIP_NPM_CACHE:-}" ]]; then
   npm_cache_dir="$npm_cache_root/$npm_lock_hash"
@@ -241,8 +250,10 @@ echo '::cuan-release-stage::build'
 echo "==> Compiling Go backend binaries with shared cache reuse for $release_sha..."
 # Export GOCACHE and GOMODCACHE explicitly so maintenance cleanup sees active
 # references in /proc/<pid>/environ and does not prune caches mid-build.
-export GOCACHE="${GOCACHE:-${HOME:-/home/ubuntu}/.cache/go-build}"
-export GOMODCACHE="${GOMODCACHE:-${HOME:-/home/ubuntu}/go/pkg/mod}"
+export GOCACHE="${GOCACHE:-$persistent_cache_base/go-build}"
+export GOMODCACHE="${GOMODCACHE:-$persistent_cache_base/go-mod}"
+export GOPATH="${GOPATH:-$persistent_cache_base/gopath}"
+mkdir -p "$GOCACHE" "$GOMODCACHE" "$GOPATH"
 # Each concurrent go build creates its own temporary dependency graph. On the
 # production host that multiplied peak disk use and exhausted the filesystem.
 # Serial builds reuse Go's completed cache entries and stop at the first failure.
