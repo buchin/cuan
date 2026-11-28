@@ -2,9 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   CheckCircle2,
-  XCircle,
   Loader2,
-  Slash,
   GitBranch,
   Rocket,
   Globe,
@@ -14,7 +12,6 @@ import {
   RefreshCw,
   AlertCircle,
   Ban,
-  Clock,
   Webhook,
   ShieldCheck,
   Sliders
@@ -262,18 +259,19 @@ export function ProjectDeploymentsView({ project }: ProjectDeploymentsViewProps)
 
   const renderStatusIcon = (status: string, size = 'md') => {
     const dim = size === 'sm' ? 'h-4 w-4' : 'h-4.5 w-4.5 sm:h-5 sm:w-5'
+    const dotSize = size === 'sm' ? 'sm' : 'md'
     switch (status) {
       case 'success':
-        return <CheckCircle2 className={`${dim} text-emerald-600 dark:text-emerald-400 shrink-0`} />
+        return <CheckCircle2 className={`${dim} text-[color:var(--status-success)] shrink-0`} />
       case 'building':
-        return <Loader2 className={`${dim} animate-spin text-sky-600 dark:text-sky-400 shrink-0`} />
+        return <StatusDot size={dotSize} status="working" pulse aria-label={t('Sedang berjalan')} />
       case 'failed':
-        return <XCircle className={`${dim} text-rose-600 dark:text-rose-400 shrink-0`} />
+        return <StatusDot size={dotSize} status="danger" aria-label={t('Gagal')} />
       case 'queued':
-        return <Clock className={`${dim} text-amber-600 dark:text-amber-400 shrink-0`} aria-label={t('Queued in lane')} />
+        return <StatusDot size={dotSize} status="idle" aria-label={t('Queued in lane')} />
       case 'canceled':
       default:
-        return <Slash className={`${dim} text-muted-foreground shrink-0`} />
+        return <StatusDot size={dotSize} status="neutral" aria-label={t('Dibatalkan')} />
     }
   }
 

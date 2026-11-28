@@ -1290,13 +1290,15 @@ func (s *Server) enqueueProjectDeployment(ctx context.Context, proj *project.Pro
 		}
 	}
 
+	// Any prior queued deployments for this project are superseded regardless of
+	// whether the lane was actively building or idle when this deployment arrived.
+	if s.projectDeploymentRepo != nil {
+		_ = s.projectDeploymentRepo.CancelQueuedForProject(ctx, proj.ID, depID)
+	}
+
 	status := cuanDB.DeploymentStatusBuilding
 	if isBuilding {
 		status = cuanDB.DeploymentStatusQueued
-		// Superseded queued deployments for this project are canceled
-		if s.projectDeploymentRepo != nil {
-			_ = s.projectDeploymentRepo.CancelQueuedForProject(ctx, proj.ID, depID)
-		}
 	}
 
 	initialSteps := []cuanDB.ProjectDeploymentStep{
