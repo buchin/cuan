@@ -58,8 +58,16 @@ func (s *DBStore) ClaimLaunch(ctx context.Context, now time.Time, token string, 
 	if _, e := s.db.ExecContext(ctx, `UPDATE task_launches SET expires_at = $1::timestamptz + INTERVAL '24 hours', updated_at = $1 WHERE state = 'queued' AND expires_at <= $1 AND task_id IN (SELECT id FROM tasks WHERE status = 'queued')`, now); e != nil {
 		return nil, e
 	}
-	// Self-heal orphan ghost-queued tasks: if a task is queued but its launch was stopped (e.g. during restart, runner idle, or expired window), revive it back to queued with refreshed window
-	if _, e := s.db.ExecContext(ctx, `UPDATE task_launches SET state='queued',safe_error='',lease_token='',lease_until=NULL,available_at=$1,expires_at=GREATEST(expires_at, $1::timestamptz + INTERVAL '24 hours'),updated_at=$1 WHERE state='stopped' AND task_id IN (SELECT id FROM tasks WHERE status='queued')`, now); e != nil {
+	// Self-heal orphan ghost-queued tasks: if a task is queued with no active/queued launch or attempt and its latest launch was stopped transiently, revive only that latest launch.
+	if _, e := s.db.ExecContext(ctx, `UPDATE task_launches SET state='queued',safe_error='',lease_token='',lease_until=NULL,available_at=$1,expires_at=GREATEST(expires_at, $1::timestamptz + INTERVAL '24 hours'),updated_at=$1
+		WHERE state='stopped'
+		  AND safe_error NOT ILIKE '%authorization%'
+		  AND safe_error NOT ILIKE '%cancelled%'
+		  AND safe_error NOT ILIKE '%scope has changed%'
+		  AND task_id IN (SELECT id FROM tasks WHERE status='queued')
+		  AND id = (SELECT latest.id FROM task_launches latest WHERE latest.task_id = task_launches.task_id ORDER BY latest.created_at DESC, latest.id DESC LIMIT 1)
+		  AND NOT EXISTS (SELECT 1 FROM task_launches active_l WHERE active_l.task_id = task_launches.task_id AND active_l.state IN ('queued','claimed','started'))
+		  AND NOT EXISTS (SELECT 1 FROM task_attempts active_a WHERE active_a.task_id = task_launches.task_id AND active_a.status IN ('queued','running'))`, now); e != nil {
 		return nil, e
 	}
 	// Expiry is terminal even after a lost worker; a later save cannot resurrect it.
