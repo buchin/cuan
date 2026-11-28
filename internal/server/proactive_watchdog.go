@@ -368,6 +368,23 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			}
 		}
 
+		// Autonomous review queueing for interrupted review tasks BEFORE generic continuation
+		// so interrupted VerificationIntent/LiveInspection attempts hit recoverSourceVerifier/recoverInspectionVerifier
+		// instead of being hijacked by ordinary startAuthorizedLaunch (when attemptCount < 3).
+		if t.Status == task.TaskStatusReview && detail.LatestAttempt != nil && detail.LatestAttempt.Status == task.AttemptStatusInterrupted {
+			watchdogAlertMu.Lock()
+			cooldownUntil := watchdogTaskCooldown[detail.ID]
+			watchdogAlertMu.Unlock()
+			if time.Now().After(cooldownUntil) {
+				log.Printf("[Watchdog AI Orchestrator] Autonomously queueing interrupted review task %s (attempt=%s)", detail.ID, detail.LatestAttempt.ID)
+				s.queueInboxTaskReview(ctx, detail)
+				watchdogAlertMu.Lock()
+				watchdogTaskCooldown[detail.ID] = time.Now().Add(2 * time.Minute)
+				watchdogAlertMu.Unlock()
+			}
+			continue
+		}
+
 		// 2. Autonomous Self-Healing:
 		// When within budget (< 3 attempts), manager indicates continue/replan, actionable revision is available,
 		// and work is internal (not external).

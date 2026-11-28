@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"strings"
 	"time"
 
@@ -36,10 +37,12 @@ func (s *Server) recoverSourceVerifier(ctx context.Context, d *task.TaskDetailRe
 	}
 	prior, err := task.ValidateVerificationSource(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
 	if err != nil || prior == nil || prior.RecoveryAttemptID != "" || prior.FinalizeAttemptID != "" || prior.OwnerID != origin.OwnerID || prior.RoomID != origin.RoomID || prior.SourceRequestID != origin.RequestID {
+		log.Printf("[recoverSourceVerifier] skip task=%s attempt=%s cause=%s: validateSource err=%v priorNil=%v", d.ID, d.LatestAttempt.ID, cause, err, prior == nil)
 		return false
 	}
 	worker, err := s.runnerSvc.GetRunner(ctx, d.LatestAttempt.RunnerID)
 	if err != nil || worker == nil || worker.Status == "offline" || worker.LastHeartbeatAt.After(time.Now().Add(5*time.Second)) || time.Since(worker.LastHeartbeatAt) > 2*time.Minute {
+		log.Printf("[recoverSourceVerifier] skip task=%s attempt=%s cause=%s: runner=%s offline/stale err=%v", d.ID, d.LatestAttempt.ID, cause, d.LatestAttempt.RunnerID, err)
 		return false
 	}
 	requestID := task.VerificationRecoveryRequestID(d.ID, prior.SourceCommit)
