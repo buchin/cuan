@@ -428,7 +428,7 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 		}
 		if !policyConflict && (!identicalBlocker || retryAutoDeployScript) && latestAssessment != nil && (attemptCount < 3 || retryAutoDeployScript) &&
 			latestAssessment.RemainingWork != "external" &&
-			!strings.HasPrefix(latestAssessment.Revision, "Native publication reconciliation:") &&
+			(!strings.HasPrefix(latestAssessment.Revision, "Native publication reconciliation:") || retryAutoDeployScript) &&
 			(latestAssessment.ManagerAction == "continue" || latestAssessment.ManagerAction == "replan") &&
 			latestAssessment.Decision == "revise" &&
 			latestAssessment.RequestedOutcome != "needs_input" &&
