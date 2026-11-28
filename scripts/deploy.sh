@@ -139,6 +139,22 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
   python3 scripts/test-runtime-cache-maintenance.py
 fi
 
+skip_frontend_build=0
+if [[ "$frontend_only" == 0 && -z "${CUAN_FORCE_FRONTEND_BUILD:-}" && -f "/opt/cuan/current/REVISION" && -d "/opt/cuan/current/web/dist" ]]; then
+  live_rev="$(tr -d '[:space:]' < /opt/cuan/current/REVISION 2>/dev/null || true)"
+  if [[ "$live_rev" =~ ^[a-f0-9]{40}$ ]] && git cat-file -e "$live_rev^{commit}" 2>/dev/null; then
+    if git diff --quiet "$live_rev" HEAD -- web/ 2>/dev/null; then
+      skip_frontend_build=1
+    fi
+  fi
+fi
+
+if [[ "$skip_frontend_build" == 1 ]]; then
+  echo '::cuan-release-stage::dependencies'
+  echo "==> No changes under web/ since $live_rev; reusing /opt/cuan/current/web/dist (skipping npm ci, build, and tests)..."
+  rm -rf web/dist
+  cp -aL /opt/cuan/current/web/dist web/dist
+else
 echo '::cuan-release-stage::dependencies'
 echo "==> Installing locked frontend dependencies in this release checkout..."
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=512}"
@@ -193,6 +209,7 @@ npm run build --prefix web
 echo '::cuan-release-stage::tests'
 echo "==> Running frontend test gate..."
 npm test --prefix web
+fi
 
 release_sha="$local_sha"
 

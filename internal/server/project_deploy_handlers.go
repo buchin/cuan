@@ -1420,7 +1420,8 @@ func (w *deployBuildOutputWriter) Bytes() []byte {
 
 // runDeployBuildCommand streams stdout/stderr and terminates only if the build
 // produces no output for idleTimeout (or when ctx hits the hard ceiling).
-func runDeployBuildCommand(ctx context.Context, name string, args []string, dir string, env []string, idleTimeout time.Duration) ([]byte, error) {
+// An optional progress callback is invoked every ~3s when new output arrives.
+func runDeployBuildCommand(ctx context.Context, name string, args []string, dir string, env []string, idleTimeout time.Duration, onProgress ...func([]byte)) ([]byte, error) {
 	cmdCtx, cmdCancel := context.WithCancel(ctx)
 	defer cmdCancel()
 
@@ -1436,16 +1437,25 @@ func runDeployBuildCommand(ctx context.Context, name string, args []string, dir 
 		return nil, err
 	}
 
+	var progressFn func([]byte)
+	if len(onProgress) > 0 {
+		progressFn = onProgress[0]
+	}
+
 	var stalled atomic.Bool
 	done := make(chan struct{})
-	if idleTimeout > 0 {
-		poll := min(idleTimeout/4, 5*time.Second)
-		if poll <= 0 {
-			poll = 20 * time.Millisecond
+	if idleTimeout > 0 || progressFn != nil {
+		poll := 3 * time.Second
+		if idleTimeout > 0 {
+			poll = min(idleTimeout/4, 3*time.Second)
+			if poll <= 0 {
+				poll = 20 * time.Millisecond
+			}
 		}
 		go func() {
 			ticker := time.NewTicker(poll)
 			defer ticker.Stop()
+			lastFlushedLen := 0
 			for {
 				select {
 				case <-done:
@@ -1453,7 +1463,14 @@ func runDeployBuildCommand(ctx context.Context, name string, args []string, dir 
 				case <-cmdCtx.Done():
 					return
 				case <-ticker.C:
-					if time.Since(time.Unix(0, out.lastActivity.Load())) >= idleTimeout {
+					if progressFn != nil {
+						snapshot := out.Bytes()
+						if len(snapshot) != lastFlushedLen {
+							lastFlushedLen = len(snapshot)
+							progressFn(snapshot)
+						}
+					}
+					if idleTimeout > 0 && time.Since(time.Unix(0, out.lastActivity.Load())) >= idleTimeout {
 						stalled.Store(true)
 						cmdCancel()
 						return
@@ -1642,10 +1659,34 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 		}
 	}
 
+	flushBuildProgress := func(chunk []byte) {
+		if ctx.Err() != nil {
+			return
+		}
+		header := buildLog.String()
+		full := header + string(chunk)
+		dep.Steps[1].Log = full
+		// Extract latest release stage or status line for live summary
+		summary := ""
+		for _, line := range strings.Split(string(chunk), "\n") {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "::cuan-release-stage::") {
+				stage := strings.TrimPrefix(trimmed, "::cuan-release-stage::")
+				summary = "Running stage: " + stage
+			} else if strings.HasPrefix(trimmed, "==>") {
+				summary = strings.TrimSpace(strings.TrimPrefix(trimmed, "==>"))
+			}
+		}
+		if summary != "" {
+			dep.Steps[1].Summary = summary
+		}
+		persistDep(dep)
+	}
+
 	if strings.TrimSpace(settings.DeployScript) != "" && repoDir != "" {
 		ranDeployScript = true
 		buildLog.WriteString(fmt.Sprintf("Executing project deploy script in %s\n", repoDir))
-		out, err := runDeployBuildCommand(ctx, "bash", []string{"-c", settings.DeployScript}, repoDir, deployEnv, deployBuildIdleTimeout)
+		out, err := runDeployBuildCommand(ctx, "bash", []string{"-c", settings.DeployScript}, repoDir, deployEnv, deployBuildIdleTimeout, flushBuildProgress)
 		buildLog.Write(out)
 		if err != nil {
 			buildSuccess = false
@@ -1665,7 +1706,7 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 			if dirExists(filepath.Join(repoDir, "cmd", "server")) && dirExists("/opt/cuan/releases") {
 				deployArgs = append(deployArgs, "--local", "--native-sync", "--branch", branch, "--allow-divergent")
 			}
-			out, err := runDeployBuildCommand(ctx, "bash", deployArgs, repoDir, deployEnv, deployBuildIdleTimeout)
+			out, err := runDeployBuildCommand(ctx, "bash", deployArgs, repoDir, deployEnv, deployBuildIdleTimeout, flushBuildProgress)
 			buildLog.Write(out)
 			if err != nil {
 				buildSuccess = false
