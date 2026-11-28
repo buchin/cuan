@@ -10,6 +10,7 @@ const {chromium}=require(process.env.CUAN_BROWSER_MODULE||path.join(os.homedir()
 const output=process.argv[2]
 if(!output)throw Error('Supply a new private evidence directory')
 await fs.mkdir(output,{recursive:true,mode:0o700})
+const devnullPreviewPng=await fs.readFile(path.resolve('screenshots/s70-desktop-inbox-mail.png'))
 const now='2026-11-06T05:00:00Z',room='work-fixture'
 const contact={id:room,conversation_id:room,name:'Website pelanggan',type:'customer',email:'customer@example.test',unread_count:0,status:'online',last_message:'The work is queued waiting for the active project task to complete. [View work](/tasks/work)',updated_at:now,task_count:5,active_tasks:1}
 const extraContacts=[
@@ -131,6 +132,24 @@ const messages=[message('source','Tolong perbaiki tampilan website.',{author_typ
    },
    approval_request_id:'plan-approve-expired',
    approval_accepted:false
+ }),
+ message('devnull-proposal','Berikut preview postingan **Daily Ship Log** untuk **dev-null.sh** beserta gambar lampirannya:',{
+   author_type:'agent',
+   is_internal:true,
+   attachments:[
+     {id:'devnull-img',name:'s70-desktop-inbox-mail.png',type:'image/png',size:devnullPreviewPng.length,url:'/api/v1/chat/attachments/devnull-img'}
+   ],
+   approval_title:'Posting Daily Ship Log ke dev-null.sh',
+   approval_plan:{
+     title:'Posting Daily Ship Log ke dev-null.sh',
+     description:'Shipped Cuan (24h, 47 commits): Merapikan navigasi, mempercepat deploy, dan memperkuat pemulihan otomatis agen.\n\nCoba & ikuti perkembangannya:\nhttps://cuan.work\nhttps://github.com/buchin/cuan',
+     project_name:'cuan',
+     execution_category:'ops',
+     required_stages:[]
+   },
+   approval_request_id:'plan-approve-devnull',
+   plan_defer_request_id:'plan-defer-devnull',
+   approval_accepted:false
  })]
 const entry=`import React from 'react';
 import {createRoot} from 'react-dom/client';
@@ -196,6 +215,9 @@ try{
    if(!pathname.startsWith('/api/'))return route.continue()
    let data={}
    if(pathname.endsWith('/auth/status'))data={setup_required:false}
+   else if(pathname==='/api/v1/chat/attachments/devnull-img'){
+     return route.fulfill({status:200,contentType:'image/png',body:devnullPreviewPng})
+   }
    else if(pathname.endsWith('/auth/me'))data={user:{id:'owner',email:'owner@example.test',name:'Owner',role:'owner'}}
    else if(pathname.endsWith('/messages')&&route.request().method()==='POST'){
      let body={}
@@ -1122,6 +1144,22 @@ try{
   await page.reload({ waitUntil: 'domcontentloaded' })
   await page.locator('[data-message-id="proposal-pending"]').waitFor({ state: 'visible', timeout: 10000 })
   assert.equal(await page.locator('[data-message-id="reply-out"]').count(), 0, 'Deleted message must remain deleted after reload')
+
+  // Verify DevNull Daily Ship Log proposal renders inline image preview + 1-click ApprovalCard
+  const devnullRow = page.locator('[data-message-id="devnull-proposal"]')
+  await devnullRow.waitFor({ state: 'visible', timeout: 10000 })
+  await devnullRow.scrollIntoViewIfNeeded()
+  const devnullImg = devnullRow.locator('img[alt="s70-desktop-inbox-mail.png"]')
+  await devnullImg.waitFor({ state: 'visible', timeout: 10000 })
+  const devnullImgReady = await devnullImg.evaluate((el) => el.complete && el.naturalWidth > 0)
+  assert.ok(devnullImgReady, 'DevNull proposal image preview must load with naturalWidth > 0')
+  const devnullCard = devnullRow.locator('[data-testid="approval-card"]')
+  await devnullCard.waitFor({ state: 'visible', timeout: 5000 })
+  await devnullCard.getByText('Posting Daily Ship Log ke dev-null.sh').waitFor({ state: 'visible', timeout: 5000 })
+  await devnullCard.getByRole('button', { name: /Setujui dan mulai|Approve and start/i }).waitFor({ state: 'visible', timeout: 5000 })
+  await devnullCard.getByRole('button', { name: /Ubah rencana|Change plan/i }).waitFor({ state: 'visible', timeout: 5000 })
+  await devnullImg.scrollIntoViewIfNeeded()
+  await devnullRow.screenshot({ path: path.join(output, `devnull-proposal-preview-${width}.png`) })
 
   // Verify Quick Reply (Canned Responses) Zap picker & cross-device slash autocomplete sync on mobile & desktop
   const cannedTrigger = page.locator('#compose-panel button[aria-haspopup="dialog"]')

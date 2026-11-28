@@ -326,3 +326,192 @@ func TestTaskCompletionChatHook_IdempotencyWithTitleAndSummary(t *testing.T) {
 		t.Fatalf("expected exactly 1 message due to idempotency with title/summary, got %d", len(msgs))
 	}
 }
+
+func TestPostTaskCompletionMessage_DevNullWithImageAndApprovalCard(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	ctx := context.Background()
+	taskStore := task.NewMemoryStore()
+	studioRepo := db.NewMemoryProjectStudioRepository()
+	tSvc := task.NewService(taskStore, nil)
+
+	s := &Server{
+		taskSvc:           tSvc,
+		projectStudioRepo: studioRepo,
+	}
+	s.wireTaskService(tSvc)
+
+	roomID := db.GenerateUUID()
+	if err := studioRepo.CreateRoom(ctx, &db.ProjectRoom{
+		ID:        roomID,
+		ProjectID: "default",
+		Topic:     "agent:agent_cuan",
+		Title:     "DevNull Daily Ship Log",
+	}); err != nil {
+		t.Fatalf("create room: %v", err)
+	}
+	// Seed an inbox request in the room so taskArtifactOwner can resolve owner even when SourceMessageID == ""
+	seedReq := db.InboxRequest{
+		OwnerID:   "owner_test",
+		AgentID:   "agent_cuan",
+		RoomID:    roomID,
+		RequestID: db.GenerateUUID(),
+		MessageID: db.GenerateUUID(),
+		ReplyID:   db.GenerateUUID(),
+		State:     "completed",
+	}
+	if _, _, err := studioRepo.AcceptInboxRequest(ctx, seedReq, &db.ProjectMessage{
+		ID:         seedReq.MessageID,
+		RoomID:     roomID,
+		AuthorType: "user",
+		AuthorID:   "operator_user",
+		Content:    "seed",
+	}); err != nil {
+		t.Fatalf("seed request: %v", err)
+	}
+
+	rawSummary := `Draft Daily Ship Log untuk dev-null.sh (47 commit dalam 24 jam terakhir) siap ditinjau sebagai Approval Proposal. Belum diposting ke dev-null.sh (menunggu persetujuan Anda).
+
+--- DRAFT NARASI SIAP POSTING ---
+Shipped Cuan (24h, 47 commits): Merapikan navigasi, mempercepat deploy, dan memperkuat pemulihan otomatis agen.
+
+Deployments lebih cepat & jelas: short_sha & ikon status sejajar.
+Ketahanan agen: chained auto-recovery untuk verifikasi terinterupsi.
+
+Coba & ikuti perkembangannya:
+https://cuan.work
+
+--- REKOMENDASI GAMBAR ---
+• Rekomendasi: screenshots/s70-desktop-inbox-mail.png (terlampir sebagai preview).
+• Alternatif: posting text-only tanpa gambar.
+
+Balas "Setuju (pakai gambar)", "Setuju (text-only)", atau sertakan revisi sebelum scripts/post-to-devnull.sh dijalankan.`
+
+	created, err := tSvc.CreateTask(ctx, "scheduler", task.CreateTaskRequest{
+		ProjectID:     "default",
+		Title:         "📢 DevNull Daily Ship Log & Story Drafter",
+		Instructions:  "Susun draft Daily Ship Log untuk dev-null.sh.",
+		Status:        task.TaskStatusQueued,
+		SourceRoomID:  roomID,
+		AssignedAgent: "agent_cuan",
+	})
+	if err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	exitZero := 0
+	now := time.Now().UTC()
+	att := &task.TaskAttempt{
+		ID:        db.GenerateUUID(),
+		TaskID:    created.ID,
+		RunnerID:  "runner-01",
+		AgentName: "agent_cuan",
+		Status:    task.AttemptStatusSucceeded,
+		ExitCode:  &exitZero,
+		CreatedAt: now,
+		StartedAt: &now,
+		FinishedAt: &now,
+	}
+	if err := taskStore.CreateAttempt(ctx, att); err != nil {
+		t.Fatalf("create attempt: %v", err)
+	}
+
+	// Create a valid 1x1 PNG in a temp workspace root and publish it as a task artifact
+	workDir := t.TempDir()
+	pngBytes := []byte{
+		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+		0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+		0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53,
+		0xde, 0x00, 0x00, 0x00, 0x0c, 0x49, 0x44, 0x41,
+		0x54, 0x08, 0xd7, 0x63, 0xf8, 0xcf, 0xc0, 0x00,
+		0x00, 0x03, 0x01, 0x01, 0x00, 0x18, 0xdd, 0x8d,
+		0xb0, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e,
+		0x44, 0xae, 0x42, 0x60, 0x82,
+	}
+	if err := os.WriteFile(workDir+"/preview.png", pngBytes, 0600); err != nil {
+		t.Fatalf("write png: %v", err)
+	}
+	root, err := os.OpenRoot(workDir)
+	if err != nil {
+		t.Fatalf("open root: %v", err)
+	}
+	defer root.Close()
+	artifacts, err := readTaskArtifacts(root, created.ID, att.ID, []string{"preview.png"})
+	if err != nil {
+		t.Fatalf("readTaskArtifacts: %v", err)
+	}
+
+	detailBeforeDone, err := tSvc.GetTaskDetail(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("get task detail: %v", err)
+	}
+	owner, err := s.taskArtifactOwner(ctx, detailBeforeDone)
+	if err != nil || owner != "owner_test" {
+		t.Fatalf("expected taskArtifactOwner=owner_test even without SourceMessageID, got %q err=%v", owner, err)
+	}
+	if err := s.publishTaskArtifacts(ctx, detailBeforeDone, owner, artifacts); err != nil {
+		t.Fatalf("publishTaskArtifacts: %v", err)
+	}
+
+	reviewStatus := task.TaskStatusReview
+	if _, err := tSvc.UpdateTask(ctx, created.ID, "coordinator", task.UpdateTaskRequest{Status: &reviewStatus}); err != nil {
+		t.Fatalf("move task to review: %v", err)
+	}
+	doneStatus := task.TaskStatusDone
+	completeNote := "Draft dan screenshot diverifikasi."
+	updated, err := tSvc.UpdateTask(ctx, created.ID, "coordinator", task.UpdateTaskRequest{
+		Status:       &doneStatus,
+		Summary:      &rawSummary,
+		CompleteNote: &completeNote,
+	})
+	if err != nil {
+		t.Fatalf("update task: %v", err)
+	}
+
+	if err := s.PostTaskCompletionMessage(ctx, updated); err != nil {
+		t.Fatalf("PostTaskCompletionMessage: %v", err)
+	}
+
+	dtos, err := s.getFormattedMessagesResult(ctx, roomID, "")
+	if err != nil {
+		t.Fatalf("getFormattedMessagesResult: %v", err)
+	}
+	var completionDTO *ChatMessageDTO
+	for i := range dtos {
+		if dtos[i].ApprovalPlan != nil && strings.Contains(dtos[i].ApprovalPlan.Description, "Shipped Cuan (24h, 47 commits)") {
+			completionDTO = &dtos[i]
+			break
+		}
+	}
+	if completionDTO == nil {
+		t.Fatalf("expected formatted DevNull completion DTO in room, got: %+v", dtos)
+	}
+	if len(completionDTO.Attachments) != 1 || !completionDTO.HasAttachment {
+		t.Fatalf("expected 1 image attachment on completion message, got %+v", completionDTO.Attachments)
+	}
+	if completionDTO.ApprovalPlan == nil || completionDTO.ApprovalTitle != "Posting Daily Ship Log ke dev-null.sh" {
+		t.Fatalf("expected interactive approval plan on completion message, got plan=%+v title=%q", completionDTO.ApprovalPlan, completionDTO.ApprovalTitle)
+	}
+	for _, forbidden := range []string{"--- DRAFT NARASI SIAP POSTING ---", "--- REKOMENDASI GAMBAR ---", "scripts/post-to-devnull.sh", "short_sha", "chained auto-recovery", "Ringkasan Hasil", "Bukti Verifikasi", `Balas "Setuju`} {
+		if strings.Contains(completionDTO.Content, forbidden) || strings.Contains(completionDTO.ApprovalPlan.Description, forbidden) {
+			t.Fatalf("completion content/plan should not contain %q, got content=%s desc=%s", forbidden, completionDTO.Content, completionDTO.ApprovalPlan.Description)
+		}
+	}
+	if approved, err := s.persistedInboxPlan(ctx, roomID, "owner_test", "agent_cuan", completionDTO.UUID); err != nil || approved == nil {
+		t.Fatalf("expected persistedInboxPlan to accept completion approval card, got err=%v", err)
+	}
+}
+
+func TestReadTaskArtifacts_RejectsInvalidImageBytes(t *testing.T) {
+	workDir := t.TempDir()
+	if err := os.WriteFile(workDir+"/broken.png", []byte("not a png image"), 0600); err != nil {
+		t.Fatalf("write broken png: %v", err)
+	}
+	root, err := os.OpenRoot(workDir)
+	if err != nil {
+		t.Fatalf("open root: %v", err)
+	}
+	defer root.Close()
+	if _, err := readTaskArtifacts(root, "task-1", "att-1", []string{"broken.png"}); err == nil {
+		t.Fatalf("expected readTaskArtifacts to reject corrupt png bytes")
+	}
+}

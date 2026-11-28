@@ -39,10 +39,14 @@ func (s *Server) executeScheduledTask(ctx context.Context, schedTask *scheduler.
 	}
 
 	targetAgent := db.AgentIDCuan
+	instructions := schedTask.Prompt
+	if isDevNullShipLogTask(schedTask.Title, schedTask.Prompt) {
+		instructions = strings.TrimSpace(instructions) + "\n\nFormat Pengajuan Approval di Inbox:\n- Tulis ringkasan cerita siap posting dengan bahasa produk yang natural dan mudah dipahami (hindari jargon teknis internal seperti nama variabel, nama file skrip, atau istilah internal runner).\n- Lampirkan hanya tangkapan layar UI yang benar-benar ada dan valid di folder screenshots/ via --artifact (atau pilih text-only jika perubahan murni backend).\n- Jangan sertakan header boilerplate atau instruksi balas teks manual; akhiri ringkasan dengan blok ```cuan-approval agar pengguna dapat melihat preview postingan + gambar dan menyetujuinya dengan 1 klik."
+	}
 	req := task.CreateTaskRequest{
 		ProjectID:     projectID,
 		Title:         schedTask.Title,
-		Instructions:  schedTask.Prompt,
+		Instructions:  instructions,
 		Priority:      task.PriorityNormal,
 		Status:        task.TaskStatusQueued,
 		AssignedAgent: targetAgent,

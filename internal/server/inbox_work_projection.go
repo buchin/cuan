@@ -76,7 +76,7 @@ func (s *Server) inboxWorkUpdates(ctx context.Context, room string, messages []d
 			result[m.ID] = &inboxWorkUpdate{TaskID: taskID, Kind: "progress"}
 			continue
 		}
-		if ref, ok := files[m.ID]; ok && m.AuthorType == "agent" && m.ReplyToID != nil && *m.ReplyToID == ref.SourceMessageID {
+		if ref, ok := files[m.ID]; ok && m.AuthorType == "agent" && matchesTaskSourceMessage(m.ReplyToID, ref.SourceMessageID) {
 			result[m.ID] = &inboxWorkUpdate{TaskID: ref.TaskID, AttemptID: ref.AttemptID, Kind: "files"}
 		} else if m.AuthorType == "agent" {
 			matches := workLink.FindStringSubmatch(m.Content)

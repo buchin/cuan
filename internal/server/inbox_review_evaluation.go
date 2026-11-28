@@ -918,6 +918,9 @@ func (s *Server) applyInboxReviewEvaluation(ctx context.Context, q db.InboxReque
 }
 
 func formatUnifiedTaskCompletionMessage(d *task.TaskDetailResponse, decision inboxReviewEvaluation) string {
+	if d != nil && (isDevNullShipLogTask(d.Title, d.Summary) || parseInboxApprovalPlan(d.Summary) != nil) {
+		return formatTaskCompletionForInbox(d, false)
+	}
 	var sb strings.Builder
 	title := ""
 	summary := ""

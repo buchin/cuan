@@ -35,7 +35,7 @@ func (s *Server) taskDeliveredContext(ctx context.Context, d *task.TaskDetailRes
 			continue
 		}
 		message, err := s.projectStudioRepo.GetMessageByID(ctx, delegationMessageID("task-delivery:"+attempt.ID))
-		if err != nil || message == nil || message.RoomID != d.SourceRoomID || message.AuthorType != "agent" || message.ReplyToID == nil || *message.ReplyToID != d.SourceMessageID {
+		if err != nil || message == nil || message.RoomID != d.SourceRoomID || message.AuthorType != "agent" || !matchesTaskSourceMessage(message.ReplyToID, d.SourceMessageID) {
 			continue
 		}
 		_, ids := decodeAttachmentMessage(message.Content)
