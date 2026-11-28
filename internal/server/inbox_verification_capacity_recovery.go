@@ -36,7 +36,7 @@ func (s *Server) recoverSourceVerifier(ctx context.Context, d *task.TaskDetailRe
 		}
 	}
 	prior, err := task.ValidateVerificationSource(ctx, s.taskSvc.Store(), &d.Task, d.LatestAttempt.ID)
-	if err != nil || prior == nil || prior.RecoveryAttemptID != "" || prior.FinalizeAttemptID != "" || prior.OwnerID != origin.OwnerID || prior.RoomID != origin.RoomID || prior.SourceRequestID != origin.RequestID {
+	if err != nil || prior == nil || (prior.RecoveryAttemptID != "" && !(cause == "interrupted" && prior.RecoveryCause == "interrupted")) || prior.FinalizeAttemptID != "" || prior.OwnerID != origin.OwnerID || prior.RoomID != origin.RoomID || prior.SourceRequestID != origin.RequestID {
 		log.Printf("[recoverSourceVerifier] skip task=%s attempt=%s cause=%s: validateSource err=%v priorNil=%v", d.ID, d.LatestAttempt.ID, cause, err, prior == nil)
 		return false
 	}
