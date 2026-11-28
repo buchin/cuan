@@ -100,16 +100,92 @@ func (s *Server) recoverInterruptedInboxTask(ctx context.Context, d *task.TaskDe
 	output := s.startAuthorizedLaunch(ctx, origin, d, delegationMessageID(key), origin.RequestID, revision, deadline...)
 	// The launch path revalidates approval, cancellation, scope, ownership and
 	// active execution, and persists an idempotent launch before starting work.
-	now := time.Now().UTC()
-	message := &db.ProjectMessage{ID: delegationMessageID(key + ":notice"), RoomID: d.SourceRoomID, AuthorType: "system", AuthorID: "cuan_system_lifecycle", AuthorName: "Cuan", Content: notice + "\n\n" + output, CreatedAt: now, UpdatedAt: now}
-	if s.projectStudioRepo.CreateMessage(ctx, message) == nil {
-		if receiptRepo, ok := s.projectStudioRepo.(db.ChatReceiptRepository); ok {
-			_ = receiptRepo.AcknowledgeMessages(ctx, d.SourceRoomID, []string{message.ID}, true)
-		}
-		s.publishInbox(d.SourceRoomID)
-	}
+	_ = output
+	// Deliver system update / auto-resume notices as transient toast events
+	// instead of persisting chat bubbles in the conversation timeline.
+	s.recordSystemNotice(d.SourceRoomID, delegationMessageID(key+":notice"), notice)
+	s.publishInbox(d.SourceRoomID)
 	saved, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, delegationMessageID(key)))
 	return err == nil && saved != nil && (saved.State == "queued" || saved.State == "claimed" || saved.State == "started")
+}
+
+// SystemNoticeEvent represents a transient system lifecycle notice delivered
+// to active UI clients as a temporary toast rather than a persisted chat bubble.
+type SystemNoticeEvent struct {
+	ID        string    `json:"id"`
+	Message   string    `json:"message"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+const systemNoticeTTL = 60 * time.Second
+
+func (s *Server) recordSystemNotice(roomID, id, message string) {
+	if s == nil || roomID == "" || id == "" || strings.TrimSpace(message) == "" {
+		return
+	}
+	now := time.Now().UTC()
+	cutoff := now.Add(-systemNoticeTTL)
+	notice := SystemNoticeEvent{
+		ID:        id,
+		Message:   message,
+		CreatedAt: now,
+	}
+
+	s.systemNoticesMu.Lock()
+	if s.systemNotices == nil {
+		s.systemNotices = make(map[string][]SystemNoticeEvent)
+	}
+	existing := s.systemNotices[roomID]
+	kept := make([]SystemNoticeEvent, 0, len(existing)+1)
+	duplicate := false
+	for _, item := range existing {
+		if item.CreatedAt.Before(cutoff) {
+			continue
+		}
+		if item.ID == id {
+			duplicate = true
+		}
+		kept = append(kept, item)
+	}
+	if !duplicate {
+		kept = append(kept, notice)
+	}
+	s.systemNotices[roomID] = kept
+	s.systemNoticesMu.Unlock()
+
+	if !duplicate && s.roomEventBroker != nil {
+		s.roomEventBroker.Broadcast(roomID, "system.notice", notice)
+	}
+}
+
+func (s *Server) activeSystemNotices(roomID string, now time.Time) []SystemNoticeEvent {
+	if s == nil || roomID == "" {
+		return nil
+	}
+	cutoff := now.Add(-systemNoticeTTL)
+	s.systemNoticesMu.Lock()
+	defer s.systemNoticesMu.Unlock()
+	if s.systemNotices == nil {
+		return nil
+	}
+	existing := s.systemNotices[roomID]
+	if len(existing) == 0 {
+		return nil
+	}
+	kept := make([]SystemNoticeEvent, 0, len(existing))
+	for _, item := range existing {
+		if !item.CreatedAt.Before(cutoff) {
+			kept = append(kept, item)
+		}
+	}
+	if len(kept) == 0 {
+		delete(s.systemNotices, roomID)
+		return nil
+	}
+	s.systemNotices[roomID] = kept
+	out := make([]SystemNoticeEvent, len(kept))
+	copy(out, kept)
+	return out
 }
 
 // Infrastructure failures do not spend the business correction budget, but

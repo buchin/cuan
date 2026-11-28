@@ -101,7 +101,11 @@ func (s *Server) handleInboxStream(w http.ResponseWriter, r *http.Request) {
 				roomTitle = room.Title
 			}
 		}
-		data, err := json.Marshal(map[string]any{"requests": inboxRecoveryRequests(requests), "messages": messages, "tasks": linked, "room_id": resolved.RoomID, "room_title": roomTitle})
+		payload := map[string]any{"requests": inboxRecoveryRequests(requests), "messages": messages, "tasks": linked, "room_id": resolved.RoomID, "room_title": roomTitle}
+		if notices := s.activeSystemNotices(resolved.RoomID, time.Now().UTC()); len(notices) > 0 {
+			payload["system_notices"] = notices
+		}
+		data, err := json.Marshal(payload)
 		if err != nil {
 			return false
 		}
@@ -136,10 +140,10 @@ func (s *Server) handleInboxStream(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return
 			}
-			if ev.Type == "chat.delta" {
+			if ev.Type == "chat.delta" || ev.Type == "system.notice" {
 				dataBytes, err := json.Marshal(ev.Data)
 				if err == nil {
-					if _, err = fmt.Fprintf(w, "event: chat.delta\ndata: %s\n\n", string(dataBytes)); err != nil {
+					if _, err = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", ev.Type, string(dataBytes)); err != nil {
 						return
 					}
 					flusher.Flush()

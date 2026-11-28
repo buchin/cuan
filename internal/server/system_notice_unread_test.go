@@ -79,7 +79,7 @@ func TestSystemLifecycleNoticeUnreadAndResolution(t *testing.T) {
 		t.Fatalf("expected OnlySystemNotices=true, got %v", resp2.Contacts[0].OnlySystemNotices)
 	}
 
-	// 3. Verify message is still present in chat timeline
+	// 3. Verify transient system update notice is NOT shown as a chat bubble in timeline
 	reqMsgs := httptest.NewRequest(http.MethodGet, "/api/v1/chat/conversations/"+roomID+"/messages", nil)
 	reqMsgs.Header.Set("Authorization", "Bearer "+token)
 	recMsgs := httptest.NewRecorder()
@@ -91,8 +91,8 @@ func TestSystemLifecycleNoticeUnreadAndResolution(t *testing.T) {
 	if err := json.Unmarshal(recMsgs.Body.Bytes(), &msgResp); err != nil {
 		t.Fatal(err)
 	}
-	if len(msgResp.Messages) == 0 {
-		t.Fatalf("expected system lifecycle notice to remain in timeline, got 0 messages")
+	if len(msgResp.Messages) != 0 {
+		t.Fatalf("expected transient system update notice to be excluded from chat timeline, got %d messages", len(msgResp.Messages))
 	}
 
 	// 4. Now add a conversational message, resolve the room, and send another system lifecycle notice
@@ -325,5 +325,104 @@ func TestCustomerRoomWithTasksAndInternalRecentMessagesVisible(t *testing.T) {
 	}
 	if !found.HasMessages || found.OnlySystemNotices || found.Resolved {
 		t.Fatalf("expected HasMessages=true, OnlySystemNotices=false, Resolved=false, got %+v", *found)
+	}
+}
+
+func TestRecoverInterruptedInboxTaskEmitsTransientToastInsteadOfChatBubble(t *testing.T) {
+	srv, token := setupTestChatServer(t)
+	ctx := context.Background()
+
+	// Create room & origin request
+	room := srv.resolveConversationContext(ctx, "agent_cuan", "")
+	if room.RoomID == "" {
+		t.Fatal("expected resolved room ID")
+	}
+	originMsgID := cuanDB.GenerateUUID()
+	_ = srv.projectStudioRepo.CreateMessage(ctx, &cuanDB.ProjectMessage{
+		ID:         originMsgID,
+		RoomID:     room.RoomID,
+		AuthorType: "user",
+		AuthorID:   "owner",
+		AuthorName: "Owner",
+		Content:    "Tolong kerjakan fitur ini.",
+		CreatedAt:  time.Now().UTC(),
+		UpdatedAt:  time.Now().UTC(),
+	})
+
+	created, err := srv.taskSvc.CreateTask(ctx, "owner", task.CreateTaskRequest{
+		ProjectID:       "default",
+		Title:           "Interrupted work",
+		AssignedAgent:   "agent_cuan",
+		SourceRoomID:    room.RoomID,
+		SourceMessageID: originMsgID,
+		Instructions:    "Cuan managed delegation v1.\nImplement feature.",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a1, err := srv.taskSvc.CreateAttempt(ctx, created.ID, "owner", task.CreateAttemptRequest{
+		RunnerID:  "runner-1",
+		AgentName: "agent_cuan",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a1.Status = task.AttemptStatusInterrupted
+	if err := srv.taskSvc.Store().UpdateAttempt(ctx, a1); err != nil {
+		t.Fatal(err)
+	}
+	created.Status = task.TaskStatusBlocked
+	if err := srv.taskSvc.Store().UpdateTask(ctx, created); err != nil {
+		t.Fatal(err)
+	}
+	detail, err := srv.taskSvc.GetTaskDetail(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	origin := cuanDB.InboxRequest{
+		OwnerID:   "owner",
+		AgentID:   "agent_cuan",
+		RoomID:    room.RoomID,
+		RequestID: cuanDB.GenerateUUID(),
+		MessageID: originMsgID,
+		ReplyID:   cuanDB.GenerateUUID(),
+		CreatedAt: time.Now().UTC(),
+		Deadline:  time.Now().UTC().Add(time.Hour),
+	}
+
+	// Simulate recovery (first update) and repeated recovery scan
+	srv.recoverInterruptedInboxTask(ctx, detail, origin)
+	srv.recoverInterruptedInboxTask(ctx, detail, origin)
+
+	// 1. No system update bubble may be persisted in conversation timeline
+	reqMsgs := httptest.NewRequest(http.MethodGet, "/api/v1/chat/conversations/"+room.RoomID+"/messages", nil)
+	reqMsgs.Header.Set("Authorization", "Bearer "+token)
+	recMsgs := httptest.NewRecorder()
+	srv.Router().ServeHTTP(recMsgs, reqMsgs)
+	var msgResp struct {
+		Messages []ChatMessageDTO `json:"messages"`
+	}
+	if err := json.Unmarshal(recMsgs.Body.Bytes(), &msgResp); err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range msgResp.Messages {
+		if m.AuthorID == "cuan_system_lifecycle" {
+			t.Fatalf("expected no cuan_system_lifecycle chat bubble in timeline, found: %+v", m)
+		}
+	}
+
+	// 2. Transient system notice must be recorded once (deduplicated) for toast delivery
+	notices := srv.activeSystemNotices(room.RoomID, time.Now().UTC())
+	if len(notices) != 1 {
+		t.Fatalf("expected exactly 1 deduplicated transient system notice, got %d", len(notices))
+	}
+	if notices[0].Message != "Sistem baru saja diperbarui. Pekerjaan Anda tersimpan aman dan dilanjutkan secara otomatis..." {
+		t.Fatalf("unexpected transient notice message: %q", notices[0].Message)
+	}
+
+	// 3. After TTL expires, transient notice disappears automatically
+	expired := srv.activeSystemNotices(room.RoomID, time.Now().UTC().Add(2*time.Minute))
+	if len(expired) != 0 {
+		t.Fatalf("expected expired transient notices to be cleared, got %d", len(expired))
 	}
 }

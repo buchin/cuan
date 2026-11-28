@@ -106,6 +106,8 @@ type Server struct {
 	githubDeviceMu              sync.Mutex
 	githubDeviceJobs            map[string]*githubDeviceLogin
 	roomEventBroker             *RoomEventBroker
+	systemNoticesMu             sync.Mutex
+	systemNotices               map[string][]SystemNoticeEvent
 	terminalManager             *terminal.Manager
 	terminalHandler             *terminal.Handler
 	projectTerminalMu           sync.Mutex

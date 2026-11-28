@@ -66,7 +66,6 @@ const messages=[message('source','Tolong perbaiki tampilan website.',{author_typ
  message('room-ref','Berikut ruang chat agen terkait: [Penyederhanaan Timeline Task Chat](/inbox/c-agent)'),
   message('reply-draft','Draf email balasan untuk pelanggan sudah disiapkan.',{reply_draft:'Halo sob,\n\nKendala login sudah diperbaiki dan sistem normal kembali. Silakan dicoba login ulang.',is_internal:true}),
  message('files','Files from this work session',{work_update:{task_id:'work',attempt_id:'attempt',kind:'files'},attachments:[{id:'file',name:'report.txt',type:'text/plain',size:10,url:'/api/v1/chat/attachments/file'}]}),
-  message('system-notice-1','Sistem baru saja diperbarui. Pekerjaan Anda tersimpan aman dan dilanjutkan secara otomatis...',{author_type:'system',author_id:'cuan_system_lifecycle',author_name:'Cuan',is_internal:true}),
  message('gallery-4-images','Tangkapan layar hasil pengujian UI:',{
    author_type:'agent',
    is_internal:false,
@@ -281,7 +280,13 @@ try{
    else if(pathname.endsWith('/cancel')&&route.request().method()==='POST')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'cancelled'})})
    else if(pathname.endsWith('/files')&&route.request().method()==='POST')return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({files:[{filename:'screenshot.png',path:'./screenshot.png',size:2048}]})})
    else if(pathname.endsWith('/tasks'))data={tasks:allTasks}
-   else if(pathname.endsWith('/stream')||pathname.endsWith('/events'))return route.fulfill({status:200,contentType:'text/event-stream',body:''})
+   else if(pathname.endsWith('/stream')||pathname.endsWith('/events')){
+    const sseMatch=pathname.match(/\/conversations\/([^/]+)\//)
+    const sseConvId=sseMatch?sseMatch[1]:null
+    const sseRequests=sseConvId==='c-agent'?[{request_id:'req-typing-dots',message_id:'source',agent_id:'agent_cuan',state:'running',created_at:now,started_at:now,steps:[]}]:[]
+    const snap={messages:fixtureMessages,tasks:workTaskOverride?[...earlierTasks,workTaskOverride]:allTasks,requests:sseRequests,system_notices:[{id:'system-notice-1',message:'Sistem baru saja diperbarui. Pekerjaan Anda tersimpan aman dan dilanjutkan secara otomatis...',created_at:now}]}
+    return route.fulfill({status:200,contentType:'text/event-stream',body:`event: snapshot\ndata: ${JSON.stringify(snap)}\n\n`})
+   }
    return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data)})
   })
   await page.goto(new URL('/inbox/work-fixture',origin).href,{waitUntil:'domcontentloaded'})
@@ -426,8 +431,16 @@ try{
   await assignedBtn.scrollIntoViewIfNeeded()
   await page.screenshot({path:path.join(output,`assigned-task-running-${width}.png`)})
   assert.equal(await page.locator('.inbox-message-list [data-card="task-card"]').count(),0)
-  assert.ok(await page.locator('.inbox-message-list').getByText('Sistem baru saja diperbarui').count() >= 1, 'System update notice message must remain visible in conversation timeline')
+  assert.equal(await page.locator('.inbox-message-list').getByText('Sistem baru saja diperbarui').count(), 0, 'System update notice must NOT appear as a chat bubble in conversation timeline')
+  const systemToast = page.locator('[data-testid="system-update-toast"]')
+  await systemToast.waitFor({ state: 'visible', timeout: 5000 })
+  assert.ok((await systemToast.innerText()).includes('Sistem baru saja diperbarui'), 'System update notice must appear as a temporary toast')
+  const toastBox = await systemToast.boundingBox()
+  assert.ok(toastBox && toastBox.x >= 0 && toastBox.x + toastBox.width <= width, `System toast must fit within ${width}px viewport`)
   await page.screenshot({path:path.join(output,`inbox-timeline-notice-${width}.png`)})
+  if (width === 390) {
+    await systemToast.waitFor({ state: 'hidden', timeout: 8000 })
+  }
   const collapsedChevronBox=await tasks.locator('svg').last().boundingBox()
   await page.screenshot({path:path.join(output,`composer-tasks-collapsed-${width}.png`)})
   const initialChatScroll=await page.locator('.inbox-message-list').evaluate(el=>el.scrollTop)
@@ -1050,7 +1063,7 @@ try{
   await page.locator('[data-message-id="reply-out"]').getByText('(diedit)').waitFor({ state: 'visible', timeout: 5000 })
 
   // Verify agent and system messages do NOT show Edit pesan / Hapus pesan
-  for (const nonOwnerId of ['proposal-pending', 'system-notice-1']) {
+  for (const nonOwnerId of ['proposal-pending', 'room-ref']) {
     const nonOwnerRow = page.locator(`[data-message-id="${nonOwnerId}"]`)
     await nonOwnerRow.scrollIntoViewIfNeeded()
     await nonOwnerRow.locator('.wa-message-bubble').click({ button: 'right' })

@@ -149,7 +149,7 @@ func (s *Server) getFormattedMessagesResultPaged(ctx context.Context, roomID, pr
 	}
 	filtered := make([]indexedMsg, 0, len(rawMsgs))
 	for _, m := range rawMsgs {
-		if internalInboxReviewInput(m) {
+		if internalInboxReviewInput(m) || isTransientSystemUpdateNotice(m) {
 			continue
 		}
 		filtered = append(filtered, indexedMsg{

@@ -47,6 +47,7 @@ import {
   ChatContact,
   ChatMessage,
   InboxRequest,
+  SystemNoticeEvent,
   chatApi,
   AgentActionCard,
   streamConversation,
@@ -72,6 +73,7 @@ import {
   Copy,
   Undo2,
   Loader2,
+  X,
   Inbox as InboxIcon,
 } from 'lucide-react'
 import { Task } from '../../api/types'
@@ -513,6 +515,48 @@ export function InboxView({
   const streamRafRef = useRef<number | null>(null)
   const [sendError, setSendError] = useState('')
   const [retryCount, setRetryCount] = useState(0)
+  const [systemToast, setSystemToast] = useState<{ id: string; message: string } | null>(null)
+  const seenSystemNoticeIdsRef = useRef<Set<string> | null>(null)
+  if (!seenSystemNoticeIdsRef.current) {
+    let initial: string[] = []
+    try {
+      const raw = sessionStorage.getItem('cuan_seen_system_notices')
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) initial = parsed.filter((x): x is string => typeof x === 'string')
+      }
+    } catch {}
+    seenSystemNoticeIdsRef.current = new Set(initial)
+  }
+  const showSystemNotices = useCallback((notices?: SystemNoticeEvent[]) => {
+    if (!Array.isArray(notices) || notices.length === 0) return
+    const seen = seenSystemNoticeIdsRef.current!
+    let latestUnseen: SystemNoticeEvent | null = null
+    let added = false
+    for (const notice of notices) {
+      if (!notice?.id || !notice.message) continue
+      if (!seen.has(notice.id)) {
+        seen.add(notice.id)
+        latestUnseen = notice
+        added = true
+      }
+    }
+    if (added) {
+      try {
+        sessionStorage.setItem('cuan_seen_system_notices', JSON.stringify(Array.from(seen).slice(-50)))
+      } catch {}
+    }
+    if (latestUnseen) {
+      setSystemToast({ id: latestUnseen.id, message: latestUnseen.message })
+    }
+  }, [])
+  useEffect(() => {
+    if (!systemToast) return
+    const timer = setTimeout(() => {
+      setSystemToast((current) => (current?.id === systemToast.id ? null : current))
+    }, 5500)
+    return () => clearTimeout(timer)
+  }, [systemToast])
   const staleNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingRef = useRef<{
     convId: string
@@ -1102,6 +1146,7 @@ export function InboxView({
             const next = data.tasks || []
             return tasksListUnchanged(prev, next) ? prev : next
           })
+          showSystemNotices(data.system_notices)
           if (data.tasks) cacheTasks(data.tasks)
           if (data.room_title && activeContact && activeContact.name !== data.room_title) {
             window.dispatchEvent(
@@ -1190,6 +1235,9 @@ export function InboxView({
               })
             })
           }
+        }, (notice) => {
+          if (abort.signal.aborted || !isSameConversation(activeConvRef.current, convId, activeContact)) return
+          showSystemNotices([notice])
         })
       } catch (e: any) {
         if (abort.signal.aborted) return
@@ -3104,6 +3152,28 @@ export function InboxView({
           </div>
         </div>
       </ActionDialog>
+
+      {systemToast && (
+        <aside
+          role="status"
+          aria-live="polite"
+          data-testid="system-update-toast"
+          className="fixed inset-x-4 top-14 md:inset-x-auto md:top-5 md:left-1/2 md:-translate-x-1/2 z-50 mx-auto max-w-md md:w-max flex items-center gap-2.5 pl-3.5 pr-2 py-2.5 rounded-2xl bg-popover/95 backdrop-blur border border-border/50 shadow-md text-xs text-popover-foreground transition-all animate-in fade-in slide-in-from-top-2"
+        >
+          <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+          <span className="flex-1 font-normal text-foreground/90 leading-snug">
+            {systemToast.message}
+          </span>
+          <button
+            type="button"
+            onClick={() => setSystemToast(null)}
+            className="p-1 rounded-full text-muted-foreground hover:text-foreground transition-colors shrink-0"
+            aria-label={t('Dismiss')}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </aside>
+      )}
     </div>
   )
 }

@@ -370,12 +370,19 @@ export const chatApi = {
   },
 }
 
+export interface SystemNoticeEvent {
+  id: string
+  message: string
+  created_at?: string
+}
+
 export type InboxSnapshot = Pick<
   ConversationDetail,
   'messages' | 'requests' | 'tasks'
 > & {
   room_id?: string
   room_title?: string
+  system_notices?: SystemNoticeEvent[]
 }
 
 export interface ChatDeltaPayload {
@@ -389,6 +396,7 @@ export async function streamConversation(
   signal: AbortSignal,
   onSnapshot: (data: InboxSnapshot) => void,
   onDelta?: (data: ChatDeltaPayload) => void,
+  onSystemNotice?: (data: SystemNoticeEvent) => void,
 ): Promise<void> {
   const connection = new AbortController()
   const abort = () => connection.abort()
@@ -447,6 +455,19 @@ export async function streamConversation(
             const data = JSON.parse(payload) as ChatDeltaPayload
             if (data?.request_id && typeof data.delta === 'string') {
               onDelta?.(data)
+            }
+          } catch {}
+          continue
+        }
+        if (lines.some((line) => line === 'event: system.notice')) {
+          const payload = lines
+            .filter((line) => line.startsWith('data:'))
+            .map((line) => line.slice(5).trimStart())
+            .join('\n')
+          try {
+            const data = JSON.parse(payload) as SystemNoticeEvent
+            if (data?.id && typeof data.message === 'string') {
+              onSystemNotice?.(data)
             }
           } catch {}
           continue
