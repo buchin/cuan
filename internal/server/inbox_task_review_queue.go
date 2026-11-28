@@ -67,7 +67,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	}
 	var origin *db.InboxRequest
 	for i := range requests {
-		if requests[i].MessageID == detail.SourceMessageID {
+		if matchMessageID(requests[i].MessageID, detail.SourceMessageID) {
 			origin = &requests[i]
 			break
 		}
@@ -75,7 +75,7 @@ func (s *Server) queueInboxTaskReview(ctx context.Context, detail *task.TaskDeta
 	if origin == nil && targetRoomID != detail.SourceRoomID && detail.SourceRoomID != "" {
 		if srcReqs, err := store.ListInboxRequests(ctx, detail.SourceRoomID); err == nil {
 			for i := range srcReqs {
-				if srcReqs[i].MessageID == detail.SourceMessageID {
+				if matchMessageID(srcReqs[i].MessageID, detail.SourceMessageID) {
 					origin = &srcReqs[i]
 					break
 				}
