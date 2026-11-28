@@ -323,8 +323,12 @@ func (s *Server) requirePublicationReview(ctx context.Context, d *task.TaskDetai
 			}
 			decision.Decision = "revise"
 			if isPriorVerification || decision.RemainingWork == "verification" {
-				decision.RemainingWork = "publication"
-				decision.SourceReview = "pass"
+				if isPriorVerification && d != nil && d.LatestAttempt != nil && d.LatestAttempt.Status != task.AttemptStatusSucceeded {
+					decision.RemainingWork = "verification"
+				} else {
+					decision.RemainingWork = "publication"
+					decision.SourceReview = "pass"
+				}
 			} else {
 				decision.RemainingWork = "implementation"
 			}
