@@ -103,6 +103,7 @@ type Server struct {
 	taskAgentURL                string
 	inboxCancels                sync.Map
 	messageGrounding            sync.Map
+	secretVault                 sync.Map
 	githubDeviceMu              sync.Mutex
 	githubDeviceJobs            map[string]*githubDeviceLogin
 	roomEventBroker             *RoomEventBroker

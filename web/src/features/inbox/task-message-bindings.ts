@@ -27,6 +27,6 @@ export function taskMessageBindings(tasks: Task[], messages: Message[], requests
 }
 
 /** Background records retain their card/draft, while genuine decisions remain speech. */
-export function isBackgroundWorkUpdate(message: {work_update?: {kind: string}; approval_plan?: unknown; prompt_choices?: unknown; action_card?: unknown; receipt_extraction?: unknown}) {
-  return !!message.work_update && message.work_update.kind !== 'result' && !message.approval_plan && !message.prompt_choices && !message.action_card && !message.receipt_extraction
+export function isBackgroundWorkUpdate(message: {work_update?: {kind: string}; approval_plan?: unknown; prompt_choices?: unknown; secret_input?: unknown; action_card?: unknown; receipt_extraction?: unknown}) {
+  return !!message.work_update && message.work_update.kind !== 'result' && !message.approval_plan && !message.prompt_choices && !message.secret_input && !message.action_card && !message.receipt_extraction
 }

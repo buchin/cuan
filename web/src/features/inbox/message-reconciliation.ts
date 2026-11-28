@@ -40,6 +40,7 @@ export function areMessagesEqual(a: ChatMessage, b: ChatMessage): boolean {
   if (a.work_update?.task_id !== b.work_update?.task_id) return false
   if (a.work_update?.attempt_id !== b.work_update?.attempt_id) return false
   if (fastJson(a.prompt_choices) !== fastJson(b.prompt_choices)) return false
+  if (fastJson(a.secret_input) !== fastJson(b.secret_input)) return false
   if (fastJson(a.approval_plan) !== fastJson(b.approval_plan)) return false
   if (fastJson(a.action_card) !== fastJson(b.action_card)) return false
   if (fastJson(a.receipt_extraction) !== fastJson(b.receipt_extraction)) return false

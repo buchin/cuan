@@ -77,6 +77,15 @@ export interface PromptChoices {
   allow_other?: boolean
 }
 
+export interface SecretInput {
+  label: string
+  placeholder?: string
+  submit_label?: string
+  target?: 'mcp_connect' | 'brain_configure' | 'project_env' | 'vault' | string
+  params?: Record<string, string>
+  submitted?: boolean
+}
+
 export interface ChatMessage {
   work_update?: { task_id: string; attempt_id?: string; kind: 'progress' | 'files' | 'result' }
   regenerate_reply_id?: string
@@ -90,6 +99,7 @@ export interface ChatMessage {
   approval_title?: string
   approval_plan?: ApprovalPlan
   prompt_choices?: PromptChoices
+  secret_input?: SecretInput
   attachments?: import('../features/inbox/Attachments').Attachment[]
   task_draft?: InboxTaskDraft
   id: number
@@ -326,6 +336,20 @@ export const chatApi = {
       {
         method: 'POST',
         body: JSON.stringify(data || {}),
+      },
+    )
+  },
+
+  submitSecret: async (
+    conversationId: string,
+    messageId: string,
+    value: string,
+  ): Promise<{ status: string; submitted: boolean; message?: string }> => {
+    return apiFetch<{ status: string; submitted: boolean; message?: string }>(
+      `/api/v1/chat/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/secret`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ value }),
       },
     )
   },

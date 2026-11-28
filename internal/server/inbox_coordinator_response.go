@@ -17,7 +17,7 @@ import (
 // object here lets the formatter emit payloads that the application cannot use.
 const inboxDelegationPayloadSchema = `{"type":"object","properties":{"proposal_message_id":{"type":"string"},"reconcile":{"type":"boolean"},"execution_category":{"type":"string","enum":["code","ops","readonly"]},"action":{"type":"string","enum":["run","save"]},"title":{"type":"string","maxLength":200},"description":{"type":"string","maxLength":6000},"project_id":{"type":"string"},"project_name":{"type":"string","maxLength":100},"authorization_message_id":{"type":"string"},"task_id":{"type":"string"},"revision":{"type":"string","maxLength":6000},"agent_id":{"type":"string"},"required_stages":{"type":"array","items":{"type":"string","enum":["implement","verify","publish"]}},"allow_push":{"type":"boolean"},"allow_deploy":{"type":"boolean"},"read_only_repository":{"type":"boolean"}},"anyOf":[{"required":["proposal_message_id","authorization_message_id"]},{"required":["title","description","authorization_message_id"],"anyOf":[{"required":["project_id"]},{"required":["project_name"]}]},{"required":["task_id","revision"]}],"additionalProperties":false}`
 
-const inboxCoordinatorSchema = `{"type":"object","properties":{"reply":{"type":"string"},"topic_title":{"type":"string"},"action":{"anyOf":[{"type":"null"},{"type":"object","properties":{"kind":{"enum":["delegation"]},"payload":` + inboxDelegationPayloadSchema + `},"required":["kind","payload"],"additionalProperties":false},{"type":"object","properties":{"kind":{"enum":["approval","memory","memory_search","task_draft","task_cancel","task_reopen","task_link","prompt_choices","customer_reply","schedule","project","skill","team","brain","brand_memory"]},"payload":{"type":"object"}},"required":["kind","payload"],"additionalProperties":false}]}},"required":["reply","topic_title","action"],"additionalProperties":false}`
+const inboxCoordinatorSchema = `{"type":"object","properties":{"reply":{"type":"string"},"topic_title":{"type":"string"},"action":{"anyOf":[{"type":"null"},{"type":"object","properties":{"kind":{"enum":["delegation"]},"payload":` + inboxDelegationPayloadSchema + `},"required":["kind","payload"],"additionalProperties":false},{"type":"object","properties":{"kind":{"enum":["approval","memory","memory_search","task_draft","task_cancel","task_reopen","task_link","prompt_choices","secret_input","customer_reply","schedule","project","skill","team","brain","brand_memory"]},"payload":{"type":"object"}},"required":["kind","payload"],"additionalProperties":false}]}},"required":["reply","topic_title","action"],"additionalProperties":false}`
 
 const inboxAnalysisRecoverySchema = `{"type":"object","properties":{"reply":{"type":"string"},"topic_title":{"type":"string","maxLength":0},"action":{"type":"null"}},"required":["reply","topic_title","action"],"additionalProperties":false}`
 
@@ -236,6 +236,8 @@ func decodeInboxCoordinatorResponseWithLimits(raw string, limits inboxResponseLi
 			marker, payload = "cuan-task-link", &inboxTaskLinkAction{}
 		case "prompt_choices":
 			marker, payload = "cuan-prompt", &InboxPromptChoices{}
+		case "secret_input":
+			marker, payload = "cuan-secret", &InboxSecretInput{}
 		case "customer_reply":
 			marker, payload = "cuan-customer-reply", &customerReplyPayload{}
 		case "schedule":
@@ -288,6 +290,10 @@ func decodeInboxCoordinatorResponseWithLimits(raw string, limits inboxResponseLi
 			}
 		case "prompt_choices":
 			if _, prompt := splitInboxPromptChoices("agent", output); prompt == nil {
+				return "", bad
+			}
+		case "secret_input":
+			if _, secret := splitInboxSecretInput("agent", output); secret == nil {
 				return "", bad
 			}
 		case "customer_reply":
@@ -563,6 +569,8 @@ func recoverCoordinatorReplyContent(raw string, analysisRecovery bool) (string, 
 					marker = "cuan-task-reopen"
 				case "prompt_choices":
 					marker = "cuan-prompt"
+				case "secret_input":
+					marker = "cuan-secret"
 				case "customer_reply":
 					marker = "cuan-customer-reply"
 				case "schedule":
@@ -597,6 +605,11 @@ func recoverCoordinatorReplyContent(raw string, analysisRecovery bool) (string, 
 					}
 					if marker == "cuan-prompt" {
 						if _, choices := splitInboxPromptChoices("agent", out); choices == nil {
+							return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
+						}
+					}
+					if marker == "cuan-secret" {
+						if _, secret := splitInboxSecretInput("agent", out); secret == nil {
 							return "", "The agent's response could not be validated. Your message and approved work are saved; no new task was started."
 						}
 					}
