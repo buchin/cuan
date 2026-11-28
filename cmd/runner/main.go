@@ -71,12 +71,6 @@ func main() {
 		}
 
 		r := runner.NewRunner(cfg, adapter)
-
-	releaseLock, lockErr := runner.AcquireRunnerInstanceLock(cfg.RunnerWorkerRegistryDir, cfg.RunnerID)
-	if lockErr != nil {
-		log.Fatalf("Cannot start cuan-runner: %v", lockErr)
-	}
-	defer releaseLock()
 		if err := r.RunDetachedAttempt(context.Background(), claim); err != nil {
 			log.Fatalf("Detached worker attempt failed: %v", err)
 		}
