@@ -28,6 +28,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     return (
       <button
+        data-slot="button"
         className={cn(baseStyles, variantStyles[variant], sizeStyles[size], className)}
         ref={ref}
         {...props}

@@ -51,18 +51,31 @@ test('2. Linear timeline without accordion nesting & total elimination of inline
   )
 })
 
-test('3. Affordance pill styling on task actions (Rincian) with >= 44px touch target', () => {
+test('3. Task actions (Rincian & Terminal) use standard Button component with >= 44px mobile touch target and no custom pill CSS override', () => {
   assert.ok(
-    chatCalmCssSrc.includes('.composer-tasks [data-card-actions] > :is(button, a)'),
-    'CSS must style card actions specifically for composer-tasks'
+    composerTasksSrc.includes("import { Button } from '../../components/ui/button'"),
+    'ComposerTasks must import standard Button component'
   )
   assert.ok(
-    chatCalmCssSrc.includes('border-radius: 9999px;'),
-    'Card action buttons must have pill border radius'
+    composerTasksSrc.includes('<Button') && composerTasksSrc.includes("{t('Details')}") && composerTasksSrc.includes("{t('Terminal')}"),
+    'Details and Terminal actions in ComposerTasks must use Button component'
   )
   assert.ok(
-    chatCalmCssSrc.includes('min-height: 44px;') && chatCalmCssSrc.includes('::after'),
-    'Card action buttons must satisfy 44px touch target via expanded hit target'
+    composerTasksSrc.includes('min-h-11'),
+    'ComposerTasks action buttons must satisfy >= 44px mobile touch target (min-h-11)'
+  )
+  assert.ok(
+    !chatCalmCssSrc.includes('.composer-tasks [data-card-actions] > :is(button, a)') &&
+      !chatCalmCssSrc.includes('[data-slide-drawer] [data-card-actions] > :is(button, a)'),
+    'chat-calm.css must not override CardActions Button children with custom pill styling'
+  )
+  const cardActionsCssSrc = fs.readFileSync(
+    path.resolve(__dirname, '../src/features/inbox/card-actions.css'),
+    'utf8'
+  )
+  assert.ok(
+    cardActionsCssSrc.includes(':not([data-slot="button"])'),
+    'card-actions.css must not apply custom ::before pill surface to standard Button components'
   )
 })
 

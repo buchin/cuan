@@ -1,12 +1,15 @@
-/* The visible32px surface sits inside a44px touch target. */
+/* The visible32px surface sits inside a44px touch target for plain card action buttons. */
 [data-card-actions] > :is(button, a) {
   position: relative;
   isolation: isolate;
   min-height: 44px;
+}
+
+[data-card-actions] > :is(button, a):not([data-slot="button"]) {
   padding-inline: 12px;
 }
 
-[data-card-actions] > :is(button, a)::before {
+[data-card-actions] > :is(button, a):not([data-slot="button"])::before {
   content: '';
   position: absolute;
   inset: 6px 0;
@@ -16,11 +19,11 @@
   pointer-events: none;
 }
 
-[data-card-actions] > :is(button, a):hover::before {
+[data-card-actions] > :is(button, a):not([data-slot="button"]):hover::before {
   background: oklch(var(--muted));
 }
 
-[data-card-actions] > [data-primary-action] { color: var(--nav-inbox); }
-[data-card-actions] > [data-primary-action]::before { background: color-mix(in oklab, var(--nav-inbox) 16%, transparent); }
-[data-card-actions] > [data-primary-action]:hover::before { background: color-mix(in oklab, var(--nav-inbox) 23%, transparent); }
+[data-card-actions] > [data-primary-action]:not([data-slot="button"]) { color: var(--nav-inbox); }
+[data-card-actions] > [data-primary-action]:not([data-slot="button"])::before { background: color-mix(in oklab, var(--nav-inbox) 16%, transparent); }
+[data-card-actions] > [data-primary-action]:not([data-slot="button"]):hover::before { background: color-mix(in oklab, var(--nav-inbox) 23%, transparent); }
 [data-task-status="Needs attention"] { color: var(--status-warning); }
