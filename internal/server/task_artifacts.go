@@ -1,12 +1,17 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"mime"
 	"os"
@@ -118,28 +123,65 @@ func readTaskArtifacts(root *os.Root, taskID, attemptID string, paths []string, 
 			}
 		}
 		a := conversationAttachment{ID: id, Name: filepath.Base(path), Type: kind, Size: int64(len(data)), URL: "/api/v1/chat/attachments/" + id}
+		if isImageAttachmentNameOrType(a.Name, a.Type) && !isValidImageAttachmentBytes(a.Name, data) {
+			return nil, fmt.Errorf("Output image %q is empty or invalid", sourcePath)
+		}
 		result = append(result, preparedTaskArtifact{a, data})
 	}
 	return result, nil
 }
 
+func isValidImageAttachmentBytes(name string, data []byte) bool {
+	if len(data) == 0 {
+		return false
+	}
+	ext := strings.ToLower(filepath.Ext(name))
+	switch ext {
+	case ".png", ".jpg", ".jpeg", ".gif":
+		cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+		return err == nil && cfg.Width > 0 && cfg.Height > 0
+	case ".webp":
+		return len(data) >= 12 && string(data[0:4]) == "RIFF" && string(data[8:12]) == "WEBP"
+	case ".svg":
+		return bytes.Contains(bytes.ToLower(data), []byte("<svg"))
+	default:
+		cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+		return err == nil && cfg.Width > 0 && cfg.Height > 0
+	}
+}
+
 func (s *Server) taskArtifactOwner(ctx context.Context, d *task.TaskDetailResponse) (string, error) {
-	store, ok := s.projectStudioRepo.(db.InboxRequestRepository)
-	if !ok || d.SourceRoomID == "" || d.SourceMessageID == "" {
+	if d == nil || d.SourceRoomID == "" {
 		return "", errors.New("This task has no Inbox conversation for file delivery")
 	}
-	requests, err := store.ListInboxRequests(ctx, d.SourceRoomID)
-	if err != nil {
-		return "", errors.New("Conversation ownership is unavailable")
-	}
-	for _, q := range requests {
-		if q.MessageID == d.SourceMessageID && q.OwnerID != "" {
-			return q.OwnerID, nil
+	if store, ok := s.projectStudioRepo.(db.InboxRequestRepository); ok {
+		if requests, err := store.ListInboxRequests(ctx, d.SourceRoomID); err == nil {
+			for _, q := range requests {
+				if d.SourceMessageID != "" && q.MessageID == d.SourceMessageID && q.OwnerID != "" {
+					return q.OwnerID, nil
+				}
+			}
+			if d.SourceMessageID == "" {
+				for _, q := range requests {
+					if q.OwnerID != "" {
+						return q.OwnerID, nil
+					}
+				}
+			}
+		} else if d.SourceMessageID != "" {
+			return "", errors.New("Conversation ownership is unavailable")
 		}
+	} else if d.SourceMessageID != "" {
+		return "", errors.New("This task has no Inbox conversation for file delivery")
 	}
 	if s.taskSvc != nil {
 		if launch, err := s.taskSvc.LatestLaunch(ctx, d.ID); err == nil && launch != nil && launch.OwnerID != "" {
 			return launch.OwnerID, nil
+		}
+	}
+	if s.authSvc != nil {
+		if ownerID, err := s.authSvc.OwnerID(ctx); err == nil && ownerID != "" {
+			return ownerID, nil
 		}
 	}
 	return "", errors.New("The task's original conversation owner is unavailable")

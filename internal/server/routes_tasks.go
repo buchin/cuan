@@ -376,7 +376,7 @@ func (s *Server) handleGetTask(w http.ResponseWriter, r *http.Request) {
 			for _, attempt := range detail.Attempts {
 				for _, prefix := range []string{"task-visual-delivery:", "task-delivery:"} {
 					m, exists := byID[delegationMessageID(prefix+attempt.ID)]
-					if !exists || m.RoomID != detail.SourceRoomID || m.AuthorType != "agent" || m.ReplyToID == nil || *m.ReplyToID != detail.SourceMessageID {
+					if !exists || m.RoomID != detail.SourceRoomID || m.AuthorType != "agent" || !matchesTaskSourceMessage(m.ReplyToID, detail.SourceMessageID) {
 						continue
 					}
 					_, ids := decodeAttachmentMessage(m.Content)

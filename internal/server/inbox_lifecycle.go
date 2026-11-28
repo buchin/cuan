@@ -576,6 +576,9 @@ func (s *Server) runInboxRequest(store db.InboxLifecycleRepository, q db.InboxRe
 								}
 							}
 							output = deduplicateWorkLinks(output)
+							if snapshotReview {
+								output = s.attachReviewedTaskImages(ctx, q, output)
+							}
 							now := time.Now().UTC()
 							if shouldSkipDuplicateInboxReply(ctx, s.projectStudioRepo, q.RoomID, q.MessageID, output, snapshotReview) {
 								reply = nil
