@@ -303,7 +303,7 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 					if detail, err := s.taskSvc.GetTaskDetail(ctx, t.ID); err == nil && detail.LatestAttempt != nil {
 						fields["execution_state"] = string(detail.LatestAttempt.Status)
 						fields["execution_error"] = truncateProjectText(detail.LatestAttempt.ErrorMessage, 1000)
-						if t.Status == task.TaskStatusBlocked || detail.LatestAttempt.Status == task.AttemptStatusFailed || fields["execution_error"] != "" {
+						if t.Status == task.TaskStatusBlocked || detail.LatestAttempt.Status == task.AttemptStatusFailed || detail.LatestAttempt.Status == task.AttemptStatusInterrupted || fields["execution_error"] != "" {
 							taskLogs = s.formatAttemptTerminalLogs(ctx, detail.LatestAttempt.ID, 50)
 							if taskLogs != "" {
 								fields["terminal_failure_logs"] = truncateProjectText(taskLogs, 3000)
@@ -325,7 +325,7 @@ func (s *Server) inboxProjectContext(ctx context.Context, q db.InboxRequest) (st
 				if related {
 					fields["summary"] = truncateProjectText(t.Summary, 1500)
 				}
-				if (t.Status == task.TaskStatusBlocked || fields["execution_error"] != "") && len(activeBlockers) < 5 {
+				if (t.Status == task.TaskStatusBlocked || fields["execution_state"] == string(task.AttemptStatusInterrupted) || fields["execution_state"] == string(task.AttemptStatusFailed) || fields["execution_error"] != "") && len(activeBlockers) < 5 {
 					errSummary := fields["execution_error"]
 					if errSummary == "" {
 						errSummary = "Status is blocked; needs root cause review"

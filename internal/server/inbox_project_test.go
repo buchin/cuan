@@ -470,3 +470,59 @@ func TestContextualProjectUsesRegisteredIdentityWithoutGuessing(t *testing.T) {
 		})
 	}
 }
+
+func TestInboxProjectContextSurfacesInterruptedAttemptWithoutErrorMessage(t *testing.T) {
+	ctx := context.Background()
+	root := canonicalTempDir(t)
+	repo := filepath.Join(root, "repo")
+	_ = os.Mkdir(repo, 0700)
+	_ = exec.Command("git", "-C", repo, "init", "-q").Run()
+	_ = os.WriteFile(filepath.Join(repo, "README.md"), []byte("# Test Repo\n"), 0600)
+	_ = exec.Command("git", "-C", repo, "add", "README.md").Run()
+	_ = exec.Command("git", "-C", repo, "-c", "user.name=test", "-c", "user.email=test@test.local", "commit", "-m", "init").Run()
+
+	s, _ := setupTestChatServer(t)
+	s.cfg.Environment = "staging"
+	store := project.NewMemoryStore()
+	s.projectSvc = project.NewService(store, nil, "", root)
+	_ = store.CreateProject(ctx, &project.Project{ID: "p_int", Name: "Interrupted Project", LocalPath: repo})
+
+	taskStore := task.NewMemoryStore()
+	s.taskSvc = task.NewService(taskStore, nil)
+
+	room := db.GenerateUUID()
+	s.projectStudioRepo.CreateRoom(ctx, &db.ProjectRoom{ID: room, ProjectID: "p_int", Title: "SM Room", Topic: "discussion"})
+	msg := db.ProjectMessage{ID: db.GenerateUUID(), RoomID: room, AuthorType: "user", Content: "Lalu gmn", CreatedAt: time.Now()}
+	s.projectStudioRepo.CreateMessage(ctx, &msg)
+
+	t1, _ := s.taskSvc.CreateTask(ctx, "owner", task.CreateTaskRequest{
+		ProjectID:       "p_int",
+		Title:           "Interrupted review verification",
+		SourceRoomID:    room,
+		SourceMessageID: msg.ID,
+	})
+	statusDoing := task.TaskStatusDoing
+	statusReview := task.TaskStatusReview
+	_, _ = s.taskSvc.UpdateTask(ctx, t1.ID, "user", task.UpdateTaskRequest{Status: &statusDoing})
+	_, _ = s.taskSvc.UpdateTask(ctx, t1.ID, "user", task.UpdateTaskRequest{Status: &statusReview})
+
+	now := time.Now().UTC()
+	if err := taskStore.CreateAttempt(ctx, &task.TaskAttempt{
+		ID:        "att_int_1",
+		TaskID:    t1.ID,
+		RunnerID:  "runner-1",
+		Status:    task.AttemptStatusInterrupted,
+		CreatedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	q := db.InboxRequest{RoomID: room, MessageID: msg.ID}
+	_, snapshot := s.inboxProjectContext(ctx, q)
+	if !strings.Contains(snapshot, "Active Blockers / Failed Attempts Needing Review:") {
+		t.Fatalf("expected Active Blockers section for interrupted attempt without ErrorMessage, got:\n%s", snapshot)
+	}
+	if !strings.Contains(snapshot, "Interrupted review verification") {
+		t.Fatalf("expected task title in Active Blockers, got:\n%s", snapshot)
+	}
+}

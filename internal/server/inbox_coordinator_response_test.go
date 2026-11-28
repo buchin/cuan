@@ -689,3 +689,19 @@ func TestCoordinatorInstructionProjectManagerBurdenRelief(t *testing.T) {
 	}
 }
 
+func TestCoordinatorInstructionProactiveGetThingsDonePosture(t *testing.T) {
+	lower := strings.ToLower(inboxCoordinatorInstruction)
+	for _, required := range []string{
+		"proactive get-things-done posture (entire chat flow)",
+		"what would you like to get done today?",
+		"lalu gmn",
+		"never stop at a passive status summary",
+		"do not just summarize that it is blocked",
+		"drive the next concrete action rather than stopping at a passive recap",
+	} {
+		if !strings.Contains(lower, required) {
+			t.Fatalf("inboxCoordinatorInstruction missing proactive get-things-done directive: %q", required)
+		}
+	}
+}
+
