@@ -961,5 +961,12 @@
   "Primary": "Primary",
   "Versi baru aktif": "New version live",
   "Muat Ulang": "Reload",
-  "Memuat ulang...": "Reloading..."
+  "Memuat ulang...": "Reloading...",
+  "Atur Deploy": "Deploy Settings",
+  "Berhasil": "Success",
+  "Gagal": "Failed",
+  "Sedang berjalan": "In progress",
+  "Dalam antrean": "Queued",
+  "Dibatalkan": "Canceled",
+  "Deployment manual": "Manual deployment"
 }
