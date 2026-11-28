@@ -40,10 +40,29 @@ func (s *Server) recoverSourceVerifier(ctx context.Context, d *task.TaskDetailRe
 		log.Printf("[recoverSourceVerifier] skip task=%s attempt=%s cause=%s: validateSource err=%v priorNil=%v", d.ID, d.LatestAttempt.ID, cause, err, prior == nil)
 		return false
 	}
-	worker, err := s.runnerSvc.GetRunner(ctx, d.LatestAttempt.RunnerID)
-	if err != nil || worker == nil || worker.Status == "offline" || worker.LastHeartbeatAt.After(time.Now().Add(5*time.Second)) || time.Since(worker.LastHeartbeatAt) > 2*time.Minute {
-		log.Printf("[recoverSourceVerifier] skip task=%s attempt=%s cause=%s: runner=%s offline/stale err=%v", d.ID, d.LatestAttempt.ID, cause, d.LatestAttempt.RunnerID, err)
-		return false
+	if cause == "php_preparation" {
+		worker, err := s.runnerSvc.GetRunner(ctx, d.LatestAttempt.RunnerID)
+		if err != nil || worker == nil || worker.Status == "offline" || worker.LastHeartbeatAt.After(time.Now().Add(5*time.Second)) || time.Since(worker.LastHeartbeatAt) > 2*time.Minute {
+			log.Printf("[recoverSourceVerifier] skip task=%s attempt=%s cause=%s: runner=%s offline/stale err=%v", d.ID, d.LatestAttempt.ID, cause, d.LatestAttempt.RunnerID, err)
+			return false
+		}
+	} else {
+		// For capacity/interrupted recovery, any healthy online runner can execute the verification intent
+		// even if the original runner_id changed across restarts (e.g. cuan-runner -> runner-01).
+		runners, rErr := s.runnerSvc.ListRunners(ctx)
+		hasOnline := false
+		if rErr == nil {
+			for _, w := range runners {
+				if w != nil && w.Status != "offline" && !w.LastHeartbeatAt.After(time.Now().Add(5*time.Second)) && time.Since(w.LastHeartbeatAt) <= 2*time.Minute {
+					hasOnline = true
+					break
+				}
+			}
+		}
+		if !hasOnline {
+			log.Printf("[recoverSourceVerifier] skip task=%s attempt=%s cause=%s: no online runner available", d.ID, d.LatestAttempt.ID, cause)
+			return false
+		}
 	}
 	requestID := task.VerificationRecoveryRequestID(d.ID, prior.SourceCommit)
 	if saved, err := s.taskSvc.GetLaunch(ctx, task.LaunchID(d.ID, requestID)); err == nil && saved != nil {
