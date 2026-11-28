@@ -447,13 +447,15 @@ func (s *Server) orchestrateBlockedInboxTasks(ctx context.Context) {
 			}
 		}
 
-		// Autonomous review queueing if attempt succeeded but review evaluation is missing
-		if t.Status == task.TaskStatusReview && latestAssessment == nil && detail.LatestAttempt != nil && detail.LatestAttempt.Status == task.AttemptStatusSucceeded {
+		// Autonomous review queueing if attempt succeeded (without assessment) or was interrupted while in review
+		if t.Status == task.TaskStatusReview && detail.LatestAttempt != nil &&
+			((latestAssessment == nil && detail.LatestAttempt.Status == task.AttemptStatusSucceeded) ||
+				detail.LatestAttempt.Status == task.AttemptStatusInterrupted) {
 			watchdogAlertMu.Lock()
 			cooldownUntil := watchdogTaskCooldown[detail.ID]
 			watchdogAlertMu.Unlock()
 			if time.Now().After(cooldownUntil) {
-				log.Printf("[Watchdog AI Orchestrator] Autonomously queueing review evaluation for review task %s", detail.ID)
+				log.Printf("[Watchdog AI Orchestrator] Autonomously queueing review evaluation for review task %s (attempt=%s)", detail.ID, detail.LatestAttempt.Status)
 				s.queueInboxTaskReview(ctx, detail)
 				watchdogAlertMu.Lock()
 				watchdogTaskCooldown[detail.ID] = time.Now().Add(2 * time.Minute)
