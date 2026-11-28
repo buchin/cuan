@@ -123,13 +123,13 @@ export function CannedResponsesPicker({
   }
 
   return (
-    <div className="relative inline-block" ref={popoverRef}>
+    <div className="sm:relative inline-block" ref={popoverRef}>
       {/* Trigger Button inside composer */}
       <button
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen((prev) => !prev)}
-        className="wa-action-btn flex h-9 w-9 sm:h-9.5 sm:w-9.5 items-center justify-center rounded-full active:scale-95 disabled:pointer-events-none disabled:opacity-40 shrink-0"
+        className="wa-action-btn flex h-9 w-9 sm:h-9.5 sm:w-9.5 items-center justify-center rounded-full active:scale-95 disabled:pointer-events-none disabled:opacity-40 shrink-0 cursor-pointer"
         title={t('Canned responses') + ' (/)'}
         aria-label={t('Canned responses')}
         aria-haspopup="dialog"
@@ -140,8 +140,12 @@ export function CannedResponsesPicker({
 
       {/* 1. Modal / Floating Picker when clicking the Zap button */}
       {isOpen && (
-        <div className="absolute bottom-12 right-0 z-50 w-72 sm:w-80 max-w-[calc(100vw-24px)] rounded-xl border border-border bg-card p-2.5 text-card-foreground shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-150">
-          <div className="flex items-center justify-between pb-2 border-b border-border/70 mb-2">
+        <div
+          role="dialog"
+          aria-label={t('Saved replies')}
+          className="absolute left-0 right-0 bottom-full mb-2 z-50 sm:left-auto sm:right-0 sm:bottom-12 sm:mb-0 sm:w-80 rounded-2xl border border-border/60 bg-card/95 backdrop-blur-md p-3 text-card-foreground shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-150"
+        >
+          <div className="flex items-center justify-between px-0.5 pb-2.5 border-b border-border/40 mb-2.5">
             <span className="font-semibold text-xs flex items-center gap-1.5 text-foreground">
               <Zap className="h-3.5 w-3.5 text-primary" />
               <span>{t('Saved replies')}</span>
@@ -152,7 +156,7 @@ export function CannedResponsesPicker({
                 setIsOpen(false)
                 onOpenManage()
               }}
-              className="text-[11px] font-medium text-muted-foreground hover:text-foreground flex items-center gap-1 p-1 rounded hover:bg-muted transition-colors"
+              className="text-[11px] font-medium text-muted-foreground hover:text-foreground flex items-center gap-1 px-1.5 py-1 rounded-md hover:bg-muted/70 transition-colors cursor-pointer"
               title={t('Manage templates')}
             >
               <Settings2 className="h-3 w-3" />
@@ -161,24 +165,24 @@ export function CannedResponsesPicker({
           </div>
 
           <div className="relative mb-2">
-            <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/70" />
             <input
               type="text"
               autoFocus
               placeholder={t('Search templates…')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-md border border-input bg-background pl-7 pr-2 py-1 text-xs outline-none focus:border-primary"
+              className="w-full rounded-lg border border-transparent bg-muted/55 pl-8 pr-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/70 outline-none transition-colors focus:bg-muted/80 focus:border-border/50"
             />
           </div>
 
-          <div className="max-h-56 overflow-y-auto space-y-1 pr-0.5">
+          <div className="max-h-64 sm:max-h-60 overflow-y-auto space-y-0.5 pr-0.5">
             {loading && items.length === 0 ? (
-              <p className="py-4 text-center text-xs text-muted-foreground">
+              <p className="py-5 text-center text-xs text-muted-foreground">
                 {t('Loading…')}
               </p>
             ) : filteredItems.length === 0 ? (
-              <div className="py-4 text-center text-xs text-muted-foreground">
+              <div className="py-5 text-center text-xs text-muted-foreground">
                 <p>{t('No templates found')}</p>
                 <button
                   type="button"
@@ -186,7 +190,7 @@ export function CannedResponsesPicker({
                     setIsOpen(false)
                     onOpenManage()
                   }}
-                  className="mt-1 text-primary hover:underline text-xs"
+                  className="mt-1.5 text-primary hover:underline text-xs cursor-pointer"
                 >
                   {t('+ Add template')}
                 </button>
@@ -197,17 +201,17 @@ export function CannedResponsesPicker({
                   key={item.id}
                   type="button"
                   onClick={() => handleApply(item.content)}
-                  className="w-full text-left p-2 rounded-lg hover:bg-muted/70 active:bg-muted transition-colors flex flex-col gap-0.5 group border border-transparent hover:border-border/60"
+                  className="w-full text-left px-2.5 py-2.5 sm:py-2 rounded-lg hover:bg-muted/60 active:bg-muted transition-colors flex flex-col gap-1 group cursor-pointer"
                 >
-                  <div className="flex items-center justify-between gap-1.5">
-                    <span className="font-mono text-[11px] font-bold text-primary">
-                      /{item.shortcut}
-                    </span>
-                    <span className="text-xs font-semibold text-foreground truncate flex-1 ml-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[13px] sm:text-xs font-medium text-foreground truncate flex-1">
                       {item.title}
                     </span>
+                    <span className="font-mono text-[11px] font-medium text-muted-foreground/80 shrink-0">
+                      /{item.shortcut}
+                    </span>
                   </div>
-                  <p className="text-[11px] text-muted-foreground line-clamp-1 leading-snug">
+                  <p className="text-xs sm:text-[11px] text-muted-foreground/85 line-clamp-1 leading-relaxed">
                     {item.content}
                   </p>
                 </button>
@@ -219,12 +223,12 @@ export function CannedResponsesPicker({
 
       {/* 2. Slash Autocomplete Popup when user types `/` in textarea */}
       {isSlashActive && filteredItems.length > 0 && (
-        <div className="absolute bottom-12 right-0 z-50 w-72 sm:w-80 max-w-[calc(100vw-24px)] rounded-xl border border-border bg-card p-2 text-card-foreground shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-150">
-          <div className="px-2 py-1 border-b border-border/60 mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
-            <span>{t('Matching templates')}</span>
+        <div className="absolute left-0 right-0 bottom-full mb-2 z-50 sm:left-auto sm:right-0 sm:bottom-12 sm:mb-0 sm:w-80 rounded-2xl border border-border/60 bg-card/95 backdrop-blur-md p-2.5 text-card-foreground shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-150">
+          <div className="px-1.5 pb-2 border-b border-border/40 mb-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
+            <span className="font-medium">{t('Matching templates')}</span>
             <span className="font-mono text-[10px]">/{slashQuery}</span>
           </div>
-          <div className="max-h-48 overflow-y-auto space-y-1">
+          <div className="max-h-56 overflow-y-auto space-y-0.5">
             {filteredItems.slice(0, 5).map((item) => (
               <button
                 key={item.id}
@@ -235,17 +239,17 @@ export function CannedResponsesPicker({
                   const nextText = beforeSlash ? `${beforeSlash.trimEnd()} ${item.content}` : item.content
                   handleApply(nextText)
                 }}
-                className="w-full text-left p-2 rounded-md hover:bg-muted active:bg-muted/80 transition-colors flex flex-col gap-0.5"
+                className="w-full text-left px-2.5 py-2.5 sm:py-2 rounded-lg hover:bg-muted/60 active:bg-muted transition-colors flex flex-col gap-1 cursor-pointer"
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs font-bold text-primary">
-                    /{item.shortcut}
-                  </span>
-                  <span className="text-xs font-semibold text-foreground truncate ml-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[13px] sm:text-xs font-medium text-foreground truncate flex-1">
                     {item.title}
                   </span>
+                  <span className="font-mono text-[11px] font-medium text-muted-foreground/80 shrink-0">
+                    /{item.shortcut}
+                  </span>
                 </div>
-                <p className="text-[11px] text-muted-foreground line-clamp-1">
+                <p className="text-xs sm:text-[11px] text-muted-foreground/85 line-clamp-1 leading-relaxed">
                   {item.content}
                 </p>
               </button>

@@ -121,10 +121,10 @@ test('3. Button Proportion, Spacing, and Right-Aligned Saved Replies Action', ()
     'CannedResponsesPicker must use 18px Zap icon'
   )
 
-  // Canned responses popup must anchor right-0 and limit viewport width to prevent mobile clipping
+  // Canned responses popup must align with composer bounds on mobile and anchor cleanly on desktop
   assert.ok(
-    cannedPickerSource.includes('right-0 z-50 w-72 sm:w-80 max-w-[calc(100vw-24px)]'),
-    'Canned responses popover must anchor to the right and contain width within viewport'
+    cannedPickerSource.includes('left-0 right-0 bottom-full mb-2 z-50 sm:left-auto sm:right-0'),
+    'Canned responses popover must align within composer bounds on mobile and anchor right on desktop'
   )
 
   const sharedComposer = fs.readFileSync(path.join(__dirname, '../src/components/ui/Composer.tsx'), 'utf8')

@@ -4,7 +4,7 @@ import './composer.css'
 
 /** Shared layout only: each caller owns text, uploads and its send transport. */
 export function Composer({ className, ...props }: ComponentProps<'div'>) {
-  return <div {...props} className={cn('wa-input-capsule shared-composer flex min-w-0 items-end gap-1 sm:gap-1.5 pl-1 sm:pl-1.5', className)} />
+  return <div {...props} className={cn('relative wa-input-capsule shared-composer flex min-w-0 items-end gap-1 sm:gap-1.5 pl-1 sm:pl-1.5', className)} />
 }
 
 /** A stable bottom-aligned44px row centers small accessory icons on one line. */
