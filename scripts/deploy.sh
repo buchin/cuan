@@ -142,7 +142,40 @@ fi
 echo '::cuan-release-stage::dependencies'
 echo "==> Installing locked frontend dependencies in this release checkout..."
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=512}"
-npm ci --prefix web --no-audit --no-fund
+npm_lock_hash=""
+if [[ -f web/package-lock.json ]]; then
+  if command -v sha256sum >/dev/null 2>&1; then
+    npm_lock_hash="$(sha256sum web/package-lock.json | awk '{print $1}')"
+  elif command -v shasum >/dev/null 2>&1; then
+    npm_lock_hash="$(shasum -a 256 web/package-lock.json | awk '{print $1}')"
+  fi
+fi
+npm_cache_root="${CUAN_NPM_CACHE_DIR:-${HOME:-/home/ubuntu}/.cache/cuan-web-node-modules}"
+npm_cache_dir=""
+if [[ -n "$npm_lock_hash" && -z "${CUAN_SKIP_NPM_CACHE:-}" ]]; then
+  npm_cache_dir="$npm_cache_root/$npm_lock_hash"
+fi
+if [[ -n "$npm_cache_dir" && -d "$npm_cache_dir/node_modules" ]]; then
+  echo "==> Reusing cached web/node_modules for lockfile $npm_lock_hash..."
+  rm -rf web/node_modules
+  cp -a "$npm_cache_dir/node_modules" web/node_modules
+else
+  npm ci --prefix web --no-audit --no-fund
+  if [[ -n "$npm_cache_dir" && -d web/node_modules ]]; then
+    mkdir -p "$npm_cache_root"
+    tmp_npm_cache="${npm_cache_dir}.tmp.$$"
+    rm -rf "$tmp_npm_cache"
+    if cp -a web/node_modules "$tmp_npm_cache" 2>/dev/null; then
+      mkdir -p "$npm_cache_dir"
+      rm -rf "$npm_cache_dir/node_modules"
+      mv "$tmp_npm_cache" "$npm_cache_dir/node_modules"
+      # Keep only the latest 2 lockfile caches to prevent unbounded disk growth
+      find "$npm_cache_root" -mindepth 1 -maxdepth 1 -type d ! -name "$npm_lock_hash" | sort | head -n -2 | xargs -r rm -rf 2>/dev/null || true
+    else
+      rm -rf "$tmp_npm_cache"
+    fi
+  fi
+fi
 # Frontend gates inspect generated chunks; build this exact source once before
 # testing so clean checkouts never depend on assets from an older release.
 echo "==> Building current frontend assets before verification..."

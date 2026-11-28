@@ -1267,7 +1267,26 @@ func (s *Server) enqueueProjectDeployment(ctx context.Context, proj *project.Pro
 	var isBuilding bool
 	if s.projectDeploymentRepo != nil {
 		if b, err := s.projectDeploymentRepo.GetActiveBuilding(ctx, proj.ID); err == nil && b != nil {
-			isBuilding = true
+			// If the active deployment is still in Checkout or Compile & Build (step 3+ hasn't started)
+			// and targets the same branch, supersede it immediately instead of wasting 20m building an obsolete commit.
+			canSupersedeActive := b.Branch == branch && len(b.Steps) >= 3 && b.Steps[2].Status == cuanDB.StepStatusPending
+			if canSupersedeActive {
+				now := time.Now().UTC()
+				b.Status = cuanDB.DeploymentStatusCanceled
+				b.CompletedAt = &now
+				if !b.StartedAt.IsZero() {
+					b.DurationSeconds = int(now.Sub(b.StartedAt).Seconds())
+				}
+				b.ErrorMessage = "Superseded by newer deployment"
+				_ = s.projectDeploymentRepo.Update(ctx, b)
+				if cancelFn, ok := s.deployCancels.LoadAndDelete(b.ID); ok {
+					if fn, ok := cancelFn.(context.CancelFunc); ok && fn != nil {
+						fn()
+					}
+				}
+			} else {
+				isBuilding = true
+			}
 		}
 	}
 
@@ -1460,7 +1479,21 @@ const deployBuildIdleTimeout = 20 * time.Minute
 // 5. Health Verification (HTTP probe against publication health URL or canonical domain)
 func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, proj *project.ProjectResponse, branch, commitSHA string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Minute)
-	defer cancel()
+	s.deployCancels.Store(depID, cancel)
+	defer func() {
+		s.deployCancels.Delete(depID)
+		cancel()
+	}()
+
+	isCanceledInDB := func() bool {
+		if ctx.Err() == nil {
+			return false
+		}
+		checkCtx, checkCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer checkCancel()
+		latest, err := s.projectDeploymentRepo.GetByID(checkCtx, depID)
+		return err == nil && latest != nil && latest.Status == cuanDB.DeploymentStatusCanceled
+	}
 
 	if s.projectDeploymentRepo == nil {
 		return
@@ -1559,6 +1592,9 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	dep.Steps[0].Duration = fmt.Sprintf("%ds", max(1, int(step1End.Sub(step1Start).Seconds())))
 
 	if !checkoutSuccess {
+		if isCanceledInDB() {
+			return
+		}
 		dep.Steps[0].Status = cuanDB.StepStatusFailed
 		dep.Steps[0].Summary = "Source checkout failed"
 		dep.Steps[0].Log = checkoutLog.String()
@@ -1567,6 +1603,9 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 		dep.DurationSeconds = int(time.Since(startTime).Seconds())
 		persistDep(dep)
 		s.processNextQueuedDeployment(projectID, repoDir, proj)
+		return
+	}
+	if isCanceledInDB() {
 		return
 	}
 
@@ -1695,6 +1734,9 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 	dep.Steps[1].Duration = fmt.Sprintf("%ds", max(1, int(step2End.Sub(step2Start).Seconds())))
 
 	if !buildSuccess {
+		if isCanceledInDB() {
+			return
+		}
 		dep.Steps[1].Status = cuanDB.StepStatusFailed
 		dep.Steps[1].Summary = "Build pipeline failed"
 		dep.Steps[1].Log = buildLog.String()
@@ -1705,6 +1747,9 @@ func (s *Server) runProjectDeploymentPipeline(depID, projectID, repoDir string, 
 
 		// Process next queued deployment even if current failed
 		s.processNextQueuedDeployment(projectID, repoDir, proj)
+		return
+	}
+	if isCanceledInDB() {
 		return
 	}
 
@@ -1949,8 +1994,13 @@ func (s *Server) handleCancelProjectDeployment(w http.ResponseWriter, r *http.Re
 		_ = s.projectDeploymentRepo.Update(r.Context(), dep)
 	}
 
-	// If canceled deployment was active building, unblock lane by starting next queued
+	// If canceled deployment was active building, terminate its running build and unblock lane
 	if wasBuilding {
+		if cancelFn, ok := s.deployCancels.LoadAndDelete(depID); ok {
+			if fn, ok := cancelFn.(context.CancelFunc); ok && fn != nil {
+				fn()
+			}
+		}
 		proj, repoDir, _ := s.resolveProjectDeployRepoDir(r.Context(), projectID)
 		if proj != nil {
 			s.processNextQueuedDeployment(projectID, repoDir, proj)
