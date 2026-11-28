@@ -93,6 +93,7 @@ func (s *Server) registerInboxRoutes(pr chi.Router) {
 	pr.Delete("/chat/conversations/{id}/messages/{messageID}", s.handleDeleteInboxMessage)
 	pr.Post("/chat/conversations/{id}/messages/{messageID}/task", s.handleInboxMessageTask)
 	pr.Post("/chat/conversations/{id}/messages/{messageID}/email", s.handleSendCustomerReplyEmail)
+	pr.Post("/chat/conversations/{id}/messages/{messageID}/secret", s.handleSubmitInboxSecret)
 	pr.Post("/chat/conversations/{id}/send-email", s.handleSendConversationEmail)
 	pr.Patch("/chat/conversations/{id}", s.handleUpdateConversation)
 	pr.Patch("/chat/conversations/{id}/resolution", s.handleConversationResolution)

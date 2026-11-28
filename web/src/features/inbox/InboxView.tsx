@@ -3,6 +3,7 @@ import {
   setConversationResolved,
 } from './conversation-resolution'
 import { mergeConversationMessages } from './message-reconciliation'
+import { SecretInputCard } from './SecretInputCard'
 import { Composer, ComposerAccessory, ComposerSendButton } from '../../components/ui/Composer'
 import { ComposerInput, resizeComposerInput } from '../../components/ui/ComposerInput'
 import { ReplyDraftCard } from './ReplyDraftCard'
@@ -1916,12 +1917,12 @@ export function InboxView({
                 const groupStart = startsMessageGroup(msg, previousBubbleMessage)
                 if (!msg.regenerate_reply_id && !backgroundWork) previousBubbleMessage = msg
                 const hasSpeech = !backgroundWork && withoutTaskLaunchAcknowledgement(msgContent.replace(/\[[^\]]*\]\(\/tasks\/[^)]+\)/g, '').replace(/\/tasks\/[A-Za-z0-9_-]+/g, '').trim(), Boolean(msgTaskIdMatch || linkedTaskForMsg), isOutgoing).length > 0
-                const hasBubbleContent = hasSpeech || (!msg.reply_draft && !(linkedTaskForMsg || isSupersededTaskMessage) && msgContent.trim().length > 0) || !!(msg.attachments?.length || msg.attachment_url || msg.approval_title || msg.approval_plan || msg.action_card || msg.receipt_extraction || msg.product)
+                const hasBubbleContent = hasSpeech || (!msg.reply_draft && !(linkedTaskForMsg || isSupersededTaskMessage) && msgContent.trim().length > 0) || !!(msg.attachments?.length || msg.attachment_url || msg.approval_title || msg.approval_plan || msg.action_card || msg.receipt_extraction || msg.product || msg.secret_input)
                 const showMessageSurface = !backgroundWork && !msg.regenerate_reply_id && (hasBubbleContent || !!msg.prompt_choices)
                 const onlyImages = msg.attachments?.length
                   ? msg.attachments.every(isImageAttachment)
                   : !!msg.attachment_url && isImageAttachment({ name: msg.attachment_name || '', type: msg.attachment_type })
-                const imageBubble = onlyImages && !msg.approval_title && !msg.action_card && !msg.product && !msg.receipt_extraction && !msg.prompt_choices
+                const imageBubble = onlyImages && !msg.approval_title && !msg.action_card && !msg.product && !msg.receipt_extraction && !msg.prompt_choices && !msg.secret_input
                 const imageOnly = imageBubble && !hasSpeech && !msg.email_delivery
                 const emailStatusLabel = msg.email_delivery ? t(({ sent: 'Email sent', delivered: 'Email delivered', delivery_delayed: 'Email delayed', bounced: 'Email bounced', failed: 'Email failed', complained: 'Email reported', suppressed: 'Email suppressed' } as Record<string, string>)[msg.email_delivery.status] || 'Email status unavailable') : ''
                 const emailDescription = msg.email_delivery ? `${emailStatusLabel} · ${t(msg.email_delivery.recipient_type === 'operator' ? 'Email notification to your team; independent of chat read status' : 'Email delivery to customer; independent of chat read status')}` : ''
@@ -2271,6 +2272,17 @@ export function InboxView({
                           </button>
                         )
                       })()}
+                      {(isAgentMessage || (msg.author_type === 'agent' && msg.is_internal === true)) && msg.secret_input && msg.uuid && (
+                        <SecretInputCard
+                          secretInput={msg.secret_input}
+                          disabled={sending || uploads.busy}
+                          onSubmit={async (secretVal) => {
+                            const convId = activeContact.conversation_id || activeContact.id
+                            await chatApi.submitSecret(convId, msg.uuid!, secretVal)
+                            void loadConversation(activeContact.id)
+                          }}
+                        />
+                      )}
                       {isFormattedMessage && (
                         <div className="wa-markdown-footer">{metadata}</div>
                       )}

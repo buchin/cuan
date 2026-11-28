@@ -62,6 +62,18 @@ const fixtureTask={...baseTask,attempts:[attempt],activities}
 const message=(id,text,extra={})=>({id,uuid:String(id),room_id:room,sender_type:'operator',author_type:'agent',author_id:'agent_cuan',author_name:'Cuan',message:text,content:text,is_internal:true,created_at:now,...extra})
 const messages=[message('source','Tolong perbaiki tampilan website.',{author_type:'user',author_id:'operator_user'}),...Array.from({length:12},(_,i)=>message('chat-'+i,'Pembahasan kebutuhan yang tetap tersedia di percakapan.')),
  message('choices','Pilih langkah yang paling sesuai.',{prompt_choices:{question:'Bagaimana kita lanjutkan?',options:[{id:'continue',label:'Lanjutkan pemeriksaan'},{id:'adjust',label:'Sesuaikan kebutuhan'}],allow_other:true}}),
+ message('secret-prompt','Untuk menyambungkan ulang Tebar MCP (`https://api.tebar.app/mcp`), silakan masukkan API key Anda di bawah ini.',{
+   author_type:'agent',
+   is_internal:true,
+   secret_input:{
+     label:'API Key Tebar MCP',
+     placeholder:'Masukkan API key atau Bearer token…',
+     submit_label:'Kirim',
+     target:'mcp_connect',
+     params:{url:'https://api.tebar.app/mcp',name:'Tebar MCP'},
+     submitted:false,
+   },
+ }),
  message('reply-out','Sudut bubble chat diperbarui dengan lengkungan yang halus.',{sender_type:'operator',author_type:'operator',author_id:'operator_user',author_name:'You',is_internal:false}),
  message('old','Hasil perlu diperiksa lagi. [View work](/tasks/work)',{work_update:{task_id:'work',kind:'progress'}}),
  message('room-ref','Berikut ruang chat agen terkait: [Penyederhanaan Timeline Task Chat](/inbox/c-agent)'),
@@ -226,6 +238,15 @@ try{
        return route.fulfill({status:409,contentType:'application/json',body:JSON.stringify({error:'This recommendation is no longer current. Check the latest task result before approving.'})})
      }
      return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true})})
+   }
+   else if(/\/conversations\/[^/]+\/messages\/[^/]+\/secret$/.test(pathname)&&route.request().method()==='POST'){
+     const parts=pathname.split('/')
+     const msgId=parts[parts.length-2]
+     const target=fixtureMessages.find(m=>m.uuid===msgId||String(m.id)===msgId)
+     if(!target||!target.secret_input)return route.fulfill({status:404,contentType:'application/json',body:JSON.stringify({error:'secret prompt not found'})})
+     target.secret_input={...target.secret_input,submitted:true}
+     fixtureMessages.push(message('secret-confirmed','✓ **Konektor MCP Terhubung:** **Tebar MCP** dengan 4 tools aktif siap digunakan.',{author_type:'system',author_id:'cuan_secret',author_name:'Cuan',is_internal:true}))
+     return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({status:'ok',submitted:true})})
    }
    else if(/\/conversations\/[^/]+\/messages\/[^/]+$/.test(pathname)&&route.request().method()==='PATCH'){
      const msgId=pathname.split('/').pop()
@@ -1145,6 +1166,37 @@ try{
   await page.locator('[data-message-id="proposal-pending"]').waitFor({ state: 'visible', timeout: 10000 })
   assert.equal(await page.locator('[data-message-id="reply-out"]').count(), 0, 'Deleted message must remain deleted after reload')
 
+  // Verify secret_input masked password field inside assistant bubble, submission, and zero plaintext exposure
+  const secretMsgRow = page.locator('[data-message-id="secret-prompt"]')
+  await secretMsgRow.waitFor({ state: 'visible', timeout: 10000 })
+  await secretMsgRow.scrollIntoViewIfNeeded()
+  const secretCard = secretMsgRow.locator('[data-testid="secret-input-card"]')
+  await secretCard.waitFor({ state: 'visible', timeout: 5000 })
+  const secretField = secretCard.locator('[data-testid="secret-input-field"]')
+  const secretSubmit = secretCard.locator('[data-testid="secret-input-submit"]')
+  assert.equal(await secretField.getAttribute('type'), 'password', 'Secret input must render as type="password"')
+  assert.ok(await secretSubmit.isVisible(), 'Secret input submit button must be visible')
+  const secretBubbleBox = await secretMsgRow.locator('.wa-message-bubble').boundingBox()
+  const secretCardBox = await secretCard.boundingBox()
+  assert.ok(
+    secretBubbleBox && secretCardBox &&
+      secretCardBox.x >= secretBubbleBox.x - 1 &&
+      secretCardBox.x + secretCardBox.width <= secretBubbleBox.x + secretBubbleBox.width + 1,
+    'SecretInputCard must be contained inside assistant chat bubble',
+  )
+  await page.screenshot({ path: path.join(output, `secret-input-pending-${width}.png`) })
+
+  await secretField.fill('sk-tebar-fixture-secret-999')
+  await secretCard.locator('[data-testid="secret-input-toggle"]').click()
+  assert.equal(await secretField.getAttribute('type'), 'text', 'Toggle must reveal secret when clicked')
+  await secretCard.locator('[data-testid="secret-input-toggle"]').click()
+  assert.equal(await secretField.getAttribute('type'), 'password', 'Toggle must mask secret again')
+  await secretSubmit.click()
+  await secretCard.locator('[data-testid="secret-input-submitted"]').waitFor({ state: 'visible', timeout: 5000 })
+  const bodyTextAfterSecret = await page.evaluate(() => document.body.innerText)
+  assert.ok(!bodyTextAfterSecret.includes('sk-tebar-fixture-secret-999'), 'Raw secret must NEVER appear in chat DOM after submit')
+  await page.screenshot({ path: path.join(output, `secret-input-submitted-${width}.png`) })
+
   // Verify DevNull Daily Ship Log proposal renders inline image preview + 1-click ApprovalCard
   const devnullRow = page.locator('[data-message-id="devnull-proposal"]')
   await devnullRow.waitFor({ state: 'visible', timeout: 10000 })
@@ -1204,7 +1256,7 @@ try{
   await page.getByText('/followup').waitFor({ state: 'visible', timeout: 5000 })
   await page.keyboard.press('Escape')
 
-  checks.push({width,composer_task_disclosure:true,composer_task_autoscroll:true,last_task_visible:true,no_chat_task_card:true,session_loading_running_completed:true,back_preserves_draft_and_scroll:true,full_terminal_height:terminalBox.height,panel_width:box.width,composer_alignment:true,multiline_autoexpand:true,studio_autoexpand:true,typing_dots_circular:true,message_context_menu_ui:menuMetrics,message_edit_and_delete:true,canned_responses_cross_device_sync:true})
+  checks.push({width,composer_task_disclosure:true,composer_task_autoscroll:true,last_task_visible:true,no_chat_task_card:true,session_loading_running_completed:true,back_preserves_draft_and_scroll:true,full_terminal_height:terminalBox.height,panel_width:box.width,composer_alignment:true,multiline_autoexpand:true,studio_autoexpand:true,typing_dots_circular:true,message_context_menu_ui:menuMetrics,message_edit_and_delete:true,secret_input_card:true,canned_responses_cross_device_sync:true})
   await context.close()
   await browser.close()
   browser=null

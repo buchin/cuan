@@ -43,6 +43,7 @@ type ChatMessageDTO struct {
 	ApprovalPlan       *inboxApprovalPlan       `json:"approval_plan,omitempty"`
 	ApprovalTitle      string                   `json:"approval_title,omitempty"`
 	PromptChoices      *InboxPromptChoices      `json:"prompt_choices,omitempty"`
+	SecretInput        *InboxSecretInput        `json:"secret_input,omitempty"`
 	Attachments        []conversationAttachment `json:"attachments,omitempty"`
 	ID                 int64                    `json:"id"`
 	UUID               string                   `json:"uuid,omitempty"`

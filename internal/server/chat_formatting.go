@@ -211,6 +211,7 @@ func (s *Server) getFormattedMessagesResultPaged(ctx context.Context, roomID, pr
 
 	approved := map[string]bool{}
 	deferred := map[string]bool{}
+	secretSubmitted := map[string]bool{}
 	for _, m := range rawMsgs {
 		if m.AuthorType == "user" {
 			if p := decodeInboxPlanDecision(m.Content); p != nil {
@@ -220,6 +221,9 @@ func (s *Server) getFormattedMessagesResultPaged(ctx context.Context, roomID, pr
 					approved[p.MessageID] = true
 				}
 			}
+		}
+		if _, receiptMsgID := splitInboxSecretReceipt(m.Content); receiptMsgID != "" {
+			secretSubmitted[receiptMsgID] = true
 		}
 	}
 	dtos := make([]ChatMessageDTO, 0, len(target))
@@ -283,6 +287,11 @@ func (s *Server) getFormattedMessagesResultPaged(ctx context.Context, roomID, pr
 		content, draft := splitInboxTaskDraft(m.AuthorType, messageContent)
 		content, approvalTitle := splitInboxApproval(m.AuthorType, content)
 		content, promptChoices := splitInboxPromptChoices(m.AuthorType, content)
+		content, secretInput := splitInboxSecretInput(m.AuthorType, content)
+		if secretInput != nil && secretSubmitted[m.ID] {
+			secretInput.Submitted = true
+		}
+		content, _ = splitInboxSecretReceipt(content)
 		var approvalPlan *inboxApprovalPlan
 		approvalRequestID := ""
 		if m.AuthorType == "agent" {
@@ -398,6 +407,7 @@ func (s *Server) getFormattedMessagesResultPaged(ctx context.Context, roomID, pr
 			ApprovalTitle:   approvalTitle,
 			ApprovalPlan:    approvalPlan,
 			PromptChoices:   promptChoices,
+			SecretInput:     secretInput,
 			Attachments:     attached,
 			CreatedAt:       m.CreatedAt,
 			UpdatedAt:       m.UpdatedAt,
